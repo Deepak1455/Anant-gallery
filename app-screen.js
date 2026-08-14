@@ -145,18 +145,20 @@ const appScreenStyles = `
 
 /* 🌟 SMART PWA INSTALL CARD BOARD STYLES */
 #pwaInstallCard {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.12) 0%, rgba(147, 51, 234, 0.12) 100%);
-    border: 1px solid rgba(79, 70, 229, 0.28);
-    border-radius: 20px;
-    padding: 14px 16px;
-    margin: 12px 10px 8px 10px;
-    box-shadow: 0 8px 20px rgba(79, 70, 229, 0.08);
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.14) 0%, rgba(147, 51, 234, 0.14) 100%) !important;
+    border: 1.5px solid rgba(79, 70, 229, 0.3) !important;
+    border-radius: 20px !important;
+    padding: 14px 16px !important;
+    margin: 12px 10px 8px 10px !important;
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.12) !important;
     animation: pwaCardPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: relative;
+    z-index: 10;
 }
 
 @keyframes pwaCardPop {
@@ -347,44 +349,37 @@ function injectHTML() {
 }
 
 // --------------------------------------------------------------------------
-// 3. SMART PWA INSTALL ENGINE (AUTO HIDE WHEN INSTALLED / DISMISSED)
+// 3. SMART PWA INSTALL ENGINE (GUARANTEED VISIBILITY IN BROWSER)
 // --------------------------------------------------------------------------
 function initPwaInstallEngine() {
     const card = document.getElementById('pwaInstallCard');
     if (!card) return;
 
-    // A. Check if app is already running in Standalone (Installed) Mode
+    // A. अगर ऐप पहले से इंस्टॉल होकर standalone मोड में चल रही है तो ही छुपाएँ
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
-                         window.navigator.standalone === true || 
-                         document.referrer.includes('android-app://');
+                         window.navigator.standalone === true;
     
     if (isStandalone) {
-        card.remove(); // Remove card completely from DOM if app is installed
+        card.style.display = 'none';
         return;
     }
 
-    // B. Check if user dismissed it in this session
-    if (sessionStorage.getItem('pwa_install_dismissed') === 'true') {
-        card.style.display = 'none';
-    } else {
-        card.style.display = 'flex'; // Show card by default in browser
-    }
+    // B. ब्राउज़र में हमेशा कार्ड दिखाएँ (Clear any stale hide locks)
+    card.style.display = 'flex';
 
     // C. PWA Install Event Catch
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        
-        if (sessionStorage.getItem('pwa_install_dismissed') !== 'true' && !isStandalone) {
+        if (!isStandalone) {
             card.style.display = 'flex';
         }
     });
 
-    // D. When App is Successfully Installed
+    // D. जब ऐप सफलतापूर्वक इंस्टॉल हो जाए
     window.addEventListener('appinstalled', () => {
         deferredPrompt = null;
-        if (card) card.remove();
-        sessionStorage.setItem('pwa_install_dismissed', 'true');
+        card.style.display = 'none';
         
         const toast = document.getElementById('toast');
         if (toast) {
@@ -397,23 +392,31 @@ function initPwaInstallEngine() {
 
     // E. Install Button Click Listener
     document.getElementById('pwaInstallBtn')?.addEventListener('click', async () => {
-        if (!deferredPrompt) {
-            alert("To Install: Tap Chrome 3-Dots (⋮) -> Tap 'Install App' or 'Add to Home screen'");
-            return;
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                card.style.display = 'none';
+            }
+            deferredPrompt = null;
+        } else {
+            // Smart Universal Instructions for Android / iOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS) {
+                alert("To Install: Tap Safari Share icon (↑) -> Tap 'Add to Home Screen'");
+            } else {
+                alert("To Install: Tap Chrome Menu (3-Dots ⋮) -> Tap 'Install app' or 'Add to Home screen'");
+            }
         }
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            if (card) card.remove();
-            sessionStorage.setItem('pwa_install_dismissed', 'true');
-        }
-        deferredPrompt = null;
     });
 
-    // F. Close (X) Button Listener
+    // F. Close (X) Button Listener (Hides temporarily for current page load)
     document.getElementById('pwaCloseBtn')?.addEventListener('click', () => {
-        card.style.display = 'none';
-        sessionStorage.setItem('pwa_install_dismissed', 'true');
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-10px)';
+        setTimeout(() => {
+            card.style.display = 'none';
+        }, 250);
     });
 }
 
