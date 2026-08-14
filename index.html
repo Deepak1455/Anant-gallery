@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anant Gallery - Infinite Cloud Storage</title>
+    
+    <!-- App Favicon & Apple Touch Icons -->
+    <link rel="icon" type="image/png" href="loadingphoto.png">
+    <link rel="apple-touch-icon" href="loadingphoto.png">
+
+    <!-- PWA & Mobile Theme Settings -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- SIDEBAR & OVERLAY -->
+    <div id="sidebarOverlay"></div>
+    <nav id="sidebar">
+        <div class="sb-header">Anant Gallery</div>
+        <div class="sb-item active" id="navPhotos">
+            <i class="fa-regular fa-images"></i> Photos
+        </div>
+        <!-- 🌟 NEW ALBUMS TAB -->
+        <div class="sb-item" id="navAlbums">
+            <i class="fa-solid fa-folder-open" style="color: #0ea5e9;"></i> Albums
+        </div>
+        <div class="sb-item" id="navFavorites">
+            <i class="fa-solid fa-heart" style="color: #ec4899;"></i> Favorites
+        </div>
+        <div class="sb-item" id="navHidden">
+            <i class="fa-solid fa-user-shield" style="color: #6366f1;"></i> Private Photos
+        </div>
+        <div class="sb-item" id="navTrash">
+            <i class="fa-solid fa-trash"></i> Trash Bin
+        </div>
+        <div class="sb-item" id="navProfile">
+            <i class="fa-solid fa-user"></i> My Profile
+        </div>
+        <div style="flex:1"></div>
+        <div class="sb-item" id="logoutBtn" style="color: var(--danger)">
+            <i class="fa-solid fa-right-from-bracket"></i> Log Out
+        </div>
+    </nav>
+
+    <!-- AUTHENTICATION SCREEN -->
+    <div id="authScreen">
+        <div class="auth-box">
+            <!-- 🌟 ANANT GALLERY LOGO -->
+            <div class="auth-logo-box">
+                <img src="loadingphoto.png" class="auth-logo-img" alt="Anant Gallery" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <i class="fa-solid fa-infinity" style="display:none;"></i>
+            </div>
+            <div class="app-title">Anant Gallery</div>
+            <p class="auth-subtitle">Secure Infinite Photo Cloud</p>
+            <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="email" placeholder="Email" autocomplete="email"></div>
+            <div class="input-group"><i class="fa-solid fa-lock"></i><input type="password" id="pass" placeholder="Password" autocomplete="current-password"></div>
+            <button class="btn" id="authBtn">Enter Gallery</button>
+            <div class="link" id="toggleAuth">New here? <span>Create Account</span></div>
+        </div>
+    </div>
+
+    <!-- GLOBAL TOAST NOTIFICATION CONTAINER -->
+    <div id="toast"></div>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Registration Failed:', err));
+            });
+        }
+    </script>
+
+    <!-- JavaScript Module -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>

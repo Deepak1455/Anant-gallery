@@ -1,0 +1,480 @@
+// ==========================================================================
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (SMART BATCH ENGINE FOR 100+ PHOTOS)
+// ==========================================================================
+import { db } from "./firebase-config.js";
+import { 
+    collection, 
+    addDoc, 
+    serverTimestamp,
+    query,
+    where,
+    getDocs
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { addToOfflineQueue } from "./offline-sync.js";
+
+// Cloud Engine Credentials
+const TELEGRAM_BOT_TOKEN = "8676613425:AAHqxCS4KQf65ZK5M5ovVNa4N7-DccD2WyA";
+const TELEGRAM_CHAT_ID = "-1002914430372";
+
+// --------------------------------------------------------------------------
+// 1. SMART TOP FLOATING PROGRESS BAR CSS (ANANT CLOUD BRANDED)
+// --------------------------------------------------------------------------
+const photoCSS = `
+    .photo-upload-topbar {
+        position: fixed;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-100px);
+        width: 92%;
+        max-width: 380px;
+        background: rgba(15, 23, 42, 0.92);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 10px 16px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+        will-change: transform, opacity;
+    }
+    .photo-upload-topbar.active {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .photo-topbar-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .photo-topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        overflow: hidden;
+    }
+    .photo-topbar-icon {
+        width: 32px;
+        height: 32px;
+        background: rgba(99, 102, 241, 0.2);
+        color: #818cf8;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+        flex-shrink: 0;
+    }
+    .photo-topbar-text {
+        display: flex;
+        flex-direction: column;
+        text-align: left;
+    }
+    .photo-topbar-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #f8fafc;
+        line-height: 1.1;
+    }
+    .photo-topbar-sub {
+        font-size: 0.72rem;
+        color: #94a3b8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .photo-topbar-percent {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #818cf8;
+        flex-shrink: 0;
+    }
+    .topbar-progress-bg {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .topbar-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #6366f1, #a855f7);
+        border-radius: 10px;
+        transition: width 0.15s ease-out;
+        will-change: width;
+    }
+`;
+
+(function injectPhotoStyles() {
+    if (!document.getElementById("telegram-photo-styles")) {
+        const styleTag = document.createElement("style");
+        styleTag.id = "telegram-photo-styles";
+        styleTag.textContent = photoCSS;
+        document.head.appendChild(styleTag);
+    }
+})();
+
+// --------------------------------------------------------------------------
+// 2. TOP FLOATING PROGRESS BAR CONTROLLER
+// --------------------------------------------------------------------------
+function getTopProgressBar() {
+    let topBar = document.getElementById("photoTopProgressBar");
+    if (!topBar) {
+        topBar = document.createElement("div");
+        topBar.id = "photoTopProgressBar";
+        topBar.className = "photo-upload-topbar";
+        topBar.innerHTML = `
+            <div class="photo-topbar-content">
+                <div class="photo-topbar-left">
+                    <div class="photo-topbar-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                    <div class="photo-topbar-text">
+                        <span class="photo-topbar-title" id="photoUploadTitle">Anant Cloud Backup</span>
+                        <span class="photo-topbar-sub" id="photoUploadStatus">Optimizing HD photo...</span>
+                    </div>
+                </div>
+                <div class="photo-topbar-percent" id="photoPercentText">0%</div>
+            </div>
+            <div class="topbar-progress-bg">
+                <div class="topbar-progress-fill" id="photoProgressBar"></div>
+            </div>
+        `;
+        document.body.appendChild(topBar);
+    }
+    return topBar;
+}
+
+function showProgressModal(statusText = "Syncing with Anant Infinite Cloud...") {
+    const topBar = getTopProgressBar();
+    document.getElementById("photoUploadStatus").innerText = statusText;
+    document.getElementById("photoProgressBar").style.width = "0%";
+    document.getElementById("photoPercentText").innerText = "0%";
+    topBar.style.display = "flex";
+    requestAnimationFrame(() => topBar.classList.add("active"));
+}
+
+function updateProgress(percent, statusText) {
+    const bar = document.getElementById("photoProgressBar");
+    const text = document.getElementById("photoPercentText");
+    const status = document.getElementById("photoUploadStatus");
+
+    if (bar) bar.style.width = `${percent}%`;
+    if (text) text.innerText = `${percent}%`;
+    if (status && statusText) status.innerText = statusText;
+}
+
+function hideProgressModal() {
+    const topBar = document.getElementById("photoTopProgressBar");
+    if (topBar) {
+        topBar.classList.remove("active");
+        setTimeout(() => { topBar.style.display = "none"; }, 300);
+    }
+}
+
+// --------------------------------------------------------------------------
+// 3. SMART CANVAS COMPRESSION
+// --------------------------------------------------------------------------
+async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
+    return new Promise((resolve) => {
+        if (file.size < 400 * 1024) {
+            resolve(file);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    resolve(blob || file);
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = () => resolve(file);
+            img.src = e.target.result;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+    });
+}
+
+// --------------------------------------------------------------------------
+// 4. FAST FILE HASH & BATCH DUPLICATE CHECK
+// --------------------------------------------------------------------------
+export async function calculateFileHash(file) {
+    return `hash_${file.size}_${file.lastModified}_${file.name.replace(/[^a-zA-Z0-9]/g, '')}`;
+}
+
+async function isDuplicatePhoto(uid, fileHash) {
+    try {
+        const q = query(
+            collection(db, "user_photos"), 
+            where("uid", "==", uid),
+            where("fileHash", "==", fileHash),
+            where("isDeleted", "==", false)
+        );
+        const querySnapshot = await getDocs(q);
+        return !querySnapshot.empty;
+    } catch (err) {
+        return false;
+    }
+}
+
+export async function batchFilterDuplicates(files, currentUser) {
+    try {
+        const q = query(
+            collection(db, "user_photos"), 
+            where("uid", "==", currentUser.uid),
+            where("isDeleted", "==", false)
+        );
+        const querySnapshot = await getDocs(q);
+        const existingHashes = new Set();
+        
+        querySnapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.fileHash) existingHashes.add(data.fileHash);
+        });
+
+        const uniqueFiles = [];
+        let skippedCount = 0;
+
+        for (const file of files) {
+            const hash = await calculateFileHash(file);
+            if (existingHashes.has(hash)) {
+                skippedCount++;
+            } else {
+                uniqueFiles.push(file);
+                existingHashes.add(hash);
+            }
+        }
+
+        return { uniqueFiles, skippedCount };
+    } catch (err) {
+        console.error("Batch duplicate filter error:", err);
+        return { uniqueFiles: files, skippedCount: 0 };
+    }
+}
+
+// --------------------------------------------------------------------------
+// 🌟 5. BATCH UPLOAD ENGINE FOR 100+ PHOTOS (2X SPEED PARALLEL WORKERS)
+// --------------------------------------------------------------------------
+export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
+    if (!files || files.length === 0) return;
+
+    // Offline Handling: Save all files to queue at once
+    if (!navigator.onLine) {
+        for (const file of files) {
+            await addToOfflineQueue(file, currentUser.uid, currentView, null);
+        }
+        if (showToast) showToast(`Offline: ${files.length} photos added to upload queue!`);
+        return;
+    }
+
+    // Fast Batch Duplicate Check
+    const { uniqueFiles, skippedCount } = await batchFilterDuplicates(files, currentUser);
+
+    if (uniqueFiles.length === 0) {
+        if (showToast) showToast(`All ${files.length} selected photos already exist in gallery!`);
+        return;
+    }
+
+    const totalBatch = uniqueFiles.length;
+    if (skippedCount > 0 && showToast) {
+        showToast(`Uploading ${totalBatch} new photos (${skippedCount} duplicates skipped)`);
+    }
+
+    showProgressModal(`Preparing ${totalBatch} photos...`);
+
+    let completedCount = 0;
+    const CONCURRENCY_LIMIT = 2; // 2 Parallel Workers for 2X Speed
+    let activeWorkers = 0;
+    let fileIndex = 0;
+
+    return new Promise((resolve) => {
+        const updateBatchUI = () => {
+            const percent = Math.round((completedCount / totalBatch) * 100);
+            updateProgress(percent, `Uploading ${completedCount} / ${totalBatch} photos...`);
+        };
+
+        const processNext = async () => {
+            if (fileIndex >= totalBatch && activeWorkers === 0) {
+                updateProgress(100, "All uploads completed!");
+                setTimeout(() => {
+                    hideProgressModal();
+                    if (showToast) showToast(`Successfully backed up ${totalBatch} photo(s)!`);
+                }, 400);
+                resolve(true);
+                return;
+            }
+
+            while (activeWorkers < CONCURRENCY_LIMIT && fileIndex < totalBatch) {
+                const currentFile = uniqueFiles[fileIndex++];
+                activeWorkers++;
+
+                (async (file) => {
+                    try {
+                        await uploadPhotoToTelegram(file, currentUser, currentView, null, {
+                            isQueueSync: true,
+                            skipDuplicateCheck: true
+                        });
+                    } catch (err) {
+                        console.error("Batch item upload error:", err);
+                    } finally {
+                        activeWorkers--;
+                        completedCount++;
+                        updateBatchUI();
+                        processNext();
+                    }
+                })(currentFile);
+            }
+        };
+
+        updateBatchUI();
+        processNext();
+    });
+}
+
+// --------------------------------------------------------------------------
+// 6. SINGLE PHOTO UPLOAD ENGINE
+// --------------------------------------------------------------------------
+export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
+    if (!navigator.onLine && !options.isQueueSync) {
+        await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
+        return false;
+    }
+
+    try {
+        const fileHash = await calculateFileHash(file);
+        
+        if (!options.skipDuplicateCheck) {
+            const duplicate = await isDuplicatePhoto(currentUser.uid, fileHash);
+            if (duplicate && !options.isQueueSync) {
+                if (showToast) showToast("Photo already exists in gallery!");
+                return false;
+            }
+        }
+
+        if (!options.isQueueSync) {
+            showProgressModal("Optimizing photo HD quality...");
+        }
+
+        const compressedFile = await smartCompressImage(file);
+        
+        if (!options.isQueueSync) updateProgress(15, "Syncing with Anant Infinite Cloud...");
+
+        return await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+
+            formData.append("chat_id", TELEGRAM_CHAT_ID);
+            formData.append("photo", compressedFile, "photo.jpg");
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable && !options.isQueueSync) {
+                    const percent = 15 + Math.round((event.loaded / event.total) * 75);
+                    updateProgress(percent, "Uploading to Anant Cloud...");
+                }
+            };
+
+            xhr.onload = async () => {
+                if (xhr.status === 200) {
+                    try {
+                        if (!options.isQueueSync) updateProgress(92, "Securing Cloud Storage...");
+                        const response = JSON.parse(xhr.responseText);
+                        if (!response.ok) throw new Error(response.description || "Anant Cloud Error");
+
+                        const photos = response.result.photo;
+                        const highestResPhoto = photos[photos.length - 1];
+                        const fileId = highestResPhoto.file_id;
+
+                        const fileRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
+                        const fileData = await fileRes.json();
+
+                        if (!fileData.ok || !fileData.result.file_path) {
+                            throw new Error("Could not fetch cloud file path");
+                        }
+
+                        const imageUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fileData.result.file_path}`;
+
+                        if (!options.isQueueSync) updateProgress(98, "Finalizing...");
+
+                        await addDoc(collection(db, "user_photos"), {
+                            uid: currentUser.uid,
+                            image: imageUrl,
+                            fileId: fileId,
+                            fileHash: fileHash,
+                            fileSize: file.size,
+                            createdAt: serverTimestamp(),
+                            isFavorite: currentView === 'favorites',
+                            isHidden: currentView === 'hidden',
+                            isDeleted: false
+                        });
+
+                        if (!options.isQueueSync) {
+                            updateProgress(100, "Done!");
+                            setTimeout(() => {
+                                hideProgressModal();
+                                if (showToast) showToast("Photo backed up to Anant Cloud!");
+                            }, 250);
+                        }
+
+                        resolve(true);
+                    } catch (err) {
+                        if (!options.isQueueSync) hideProgressModal();
+                        console.error("Save Error:", err);
+                        reject(err);
+                    }
+                } else {
+                    if (!options.isQueueSync) hideProgressModal();
+                    reject(new Error("Anant Cloud Storage Error"));
+                }
+            };
+
+            xhr.onerror = async () => {
+                if (!options.isQueueSync) {
+                    hideProgressModal();
+                    await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
+                }
+                resolve(false);
+            };
+
+            xhr.open("POST", `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`);
+            xhr.send(formData);
+        });
+    } catch (e) {
+        if (!options.isQueueSync) {
+            hideProgressModal();
+            await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
+        }
+        return false;
+    }
+}
