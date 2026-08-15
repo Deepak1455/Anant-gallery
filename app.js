@@ -26,7 +26,7 @@ import { initAppScreen } from "./app-screen.js";
 import { renderProfileScreen } from "./profile.js";
 import { SmartExitManager } from "./exit-handler.js";
 import { renderGroupedGallery } from "./gallery-card.js";
-import { initImageViewer, openImageViewer, closeImageViewer, isImageViewerOpen, handleImageDeleted } from "./image-viewer.js";
+import { initImageViewer, openImageViewer, closeImageViewer, isImageViewerOpen, handleImageDeleted, shareSinglePhotoDirect } from "./image-viewer.js";
 import { renderFavoritesScreen, stopFavoritesListener, batchUnfavoritePhotos } from "./favorites.js";
 import { renderHiddenScreen, stopHiddenListener, lockVault } from "./hidden-photos.js";
 import { 
@@ -57,7 +57,7 @@ initOfflineSync(() => currentUser, uploadPhotoToTelegram, showToast);
 
 // ==========================================================================
 // 3. STATE VARIABLES & DOM ELEMENTS
-// ==========================================
+// ==========================================================================
 let currentUser = null;
 let isSelectionMode = false;
 let selectedIds = new Set();
@@ -152,6 +152,45 @@ async function multiDownload() {
     exitSelectionMode();
 }
 
+// 🌟 BATCH MULTI PHOTO DIRECT SHARE
+async function multiSharePhotos() {
+    if (selectedIds.size === 0) return;
+    
+    showToast(`Preparing ${selectedIds.size} photo(s) to share...`);
+    try {
+        const selectedItems = galleryData.filter(x => selectedIds.has(x.id) && x.image);
+        if (!selectedItems.length) return;
+
+        const filesToShare = [];
+        for (let i = 0; i < selectedItems.length; i++) {
+            const res = await fetch(selectedItems[i].image);
+            const blob = await res.blob();
+            filesToShare.push(new File([blob], `anant-photo-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
+        }
+
+        if (navigator.canShare && navigator.canShare({ files: filesToShare })) {
+            await navigator.share({
+                title: 'Anant Gallery',
+                text: `Shared ${filesToShare.length} photo(s) via Anant Gallery - Infinite Cloud 📸`,
+                files: filesToShare
+            });
+        } else if (navigator.share) {
+            await navigator.share({
+                title: 'Anant Gallery',
+                text: `Shared ${selectedItems.length} photos via Anant Gallery 📸`,
+                url: selectedItems[0].image
+            });
+        } else {
+            showToast("Direct sharing not supported on this browser");
+        }
+        exitSelectionMode();
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            showToast("Failed to share photos");
+        }
+    }
+}
+
 // ==========================================================================
 // 5. INIT IMAGE VIEWER
 // ==========================================================================
@@ -222,7 +261,7 @@ initImageViewer({
 });
 
 // ==========================================================================
-// 6. 🌟 AUTHENTICATION ENGINE (LOG IN / SIGN UP)
+// 6. AUTHENTICATION ENGINE
 // ==========================================================================
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
@@ -291,7 +330,6 @@ if (emailInput) {
     });
 }
 
-// REALTIME AUTH OBSERVER & SPLASH SCREEN RESOLUTION
 onAuthStateChanged(auth, (user) => {
     hideSplashScreen();
     const authScreen = document.getElementById('authScreen');
@@ -320,7 +358,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ==========================================================================
-// 7. SWITCH VIEW FUNCTION (WITH SEAMLESS HEADER CONTROLLER)
+// 7. SWITCH VIEW FUNCTION
 // ==========================================================================
 function switchView(view, extraParam = null) {
     currentView = view;
@@ -344,7 +382,6 @@ function switchView(view, extraParam = null) {
     const headerActions = document.querySelector('#mainHeader .header-actions');
     const mainMenuBtn = document.getElementById('menuBtn');
 
-    // 🌟 ALBUM DETAIL SCREEN VIEW
     if (view === 'album_detail' && extraParam) {
         const album = extraParam;
         if (mainMenuBtn) {
@@ -383,7 +420,6 @@ function switchView(view, extraParam = null) {
         return;
     }
 
-    // RESTORE NORMAL HAMBURGER MENU & HEADER UPLOAD
     if (mainMenuBtn) {
         mainMenuBtn.className = "fa-solid fa-bars menu-btn";
         mainMenuBtn.onclick = openSidebar;
@@ -500,7 +536,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
 });
 
 // ==========================================================================
-// 9. HIGH-PERFORMANCE GALLERY LOAD (UNIFIED BOARD)
+// 9. HIGH-PERFORMANCE GALLERY LOAD
 // ==========================================================================
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
@@ -527,14 +563,12 @@ function loadGalleryData(view) {
             if (isTrash) {
                 if (docIsDeleted) rawData.push({ id: docSnap.id, ...data });
             } else {
-                // 🌟 Exclude Album Photos, Favorites & Hidden from Main Gallery Timeline
                 if (!docIsDeleted && !docIsFavorite && !docIsHidden && !hasAlbum) {
                     rawData.push({ id: docSnap.id, ...data });
                 }
             }
         });
 
-        // 🌟 RENDER TOP ALBUMS CAROUSEL ON MAIN VIEW
         if (view === 'photos') {
             renderAlbumsMainBoard(galleryContent, currentUser, {
                 switchView,
@@ -563,7 +597,6 @@ function loadGalleryData(view) {
         photosSection.id = "mainPhotosSection";
         galleryContent.appendChild(photosSection);
 
-        // 🌟 RENDERS CLEAN UNIFIED ALL-PHOTOS CARD BOARD
         renderGroupedGallery(rawData, photosSection, {
             getIsSelectionMode: () => isSelectionMode,
             enterSelectionMode,
@@ -581,7 +614,7 @@ function loadGalleryData(view) {
 }
 
 // ==========================================================================
-// 10. SELECTION MODE WITH BLUE-TICK UNFAVORITE & TAP-TO-MOVE
+// 10. SELECTION MODE WITH MULTI-SHARE & BATCH ACTIONS
 // ==========================================================================
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -593,6 +626,7 @@ function enterSelectionMode(initialId, customContext) {
     
     if (currentView === 'photos' || customContext === 'album') {
         selectActions.innerHTML = `
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
             <i class="fa-solid fa-folder-plus" id="multiAlbumBtn" style="color: #0ea5e9;" title="Move to Album"></i>
             ${customContext === 'album' ? `<i class="fa-solid fa-folder-minus" id="multiRemoveAlbumBtn" style="color: #f59e0b;" title="Remove from Album"></i>` : ''}
@@ -600,6 +634,7 @@ function enterSelectionMode(initialId, customContext) {
             <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
+        document.getElementById('multiShareBtn').onclick = multiSharePhotos;
         document.getElementById('multiDownloadBtn').onclick = multiDownload;
         document.getElementById('multiAlbumBtn').onclick = () => {
             showAddToAlbumModal(Array.from(selectedIds), currentUser, exitSelectionMode, showToast);
@@ -615,13 +650,14 @@ function enterSelectionMode(initialId, customContext) {
         document.getElementById('multiTrashBtn').onclick = multiMoveToTrash;
 
     } else if (currentView === 'favorites') {
-        // 🌟 BLUE-TICK MULTI UNFAVORITE SUPPORT IN FAVORITES
         selectActions.innerHTML = `
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
             <i class="fa-solid fa-heart-crack" id="multiUnfavBtn" style="color: #ec4899;" title="Remove from Favorites"></i>
             <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
+        document.getElementById('multiShareBtn').onclick = multiSharePhotos;
         document.getElementById('multiDownloadBtn').onclick = multiDownload;
         document.getElementById('multiUnfavBtn').onclick = async () => {
             const idsToUnfav = Array.from(selectedIds);
@@ -632,9 +668,11 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'hidden') {
         selectActions.innerHTML = `
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-eye" id="multiUnhideBtn" style="color: var(--success);" title="Unhide Photos"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
+        document.getElementById('multiShareBtn').onclick = multiSharePhotos;
         document.getElementById('multiUnhideBtn').onclick = () => multiHideAction(false);
         document.getElementById('multiTrashBtn').onclick = multiMoveToTrash;
     } else {
