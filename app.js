@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - CORE CONTROLLER WITH GOOGLE AUTH & BRANDED DOWNLOAD
+// ANANT GALLERY - CORE CONTROLLER WITH GOOGLE AUTH & BRANDED DOWNLOAD 
 // ==========================================================================
 
 // --------------------------------------------------------------------------
