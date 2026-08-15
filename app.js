@@ -1,10 +1,7 @@
 // ==========================================================================
-// ANANT GALLERY - CORE CONTROLLER WITH GOOGLE AUTH & BRANDED DOWNLOAD 
+// ANANT GALLERY - 100% RELIABLE AUTH & FAST APP CONTROLLER
 // ==========================================================================
 
-// --------------------------------------------------------------------------
-// 1. ALL MODULE IMPORTS
-// --------------------------------------------------------------------------
 import { auth, db } from "./firebase-config.js";
 import { 
     createUserWithEmailAndPassword, 
@@ -27,9 +24,9 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-import { initSettings, resetPinLock } from "./settings.js";
+import { initSettings, resetPinLock, checkAppPinLock } from "./settings.js";
 import { initAppScreen, checkAndRenderPWAInstallBanner } from "./app-screen.js";
-import { renderProfileScreen } from "./profile.js";
+import { renderProfileScreen, stopProfileListener } from "./profile.js";
 import { SmartExitManager } from "./exit-handler.js";
 import { renderGroupedGallery } from "./gallery-card.js";
 import { 
@@ -64,8 +61,7 @@ import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
 
-// Fast Login Persistence Setup
-setPersistence(auth, browserLocalPersistence).catch(err => console.warn("Persistence Warning:", err));
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // --------------------------------------------------------------------------
 // 2. INITIALIZE APP MODULES
@@ -95,9 +91,6 @@ const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const menuBtn = document.getElementById('menuBtn');
 
-// --------------------------------------------------------------------------
-// 4. GLOBAL ULTRA-FAST HELPERS (BRANDED DOWNLOAD & MODALS)
-// --------------------------------------------------------------------------
 function showToast(msg) {
     if (!toast) return;
     if (toastTimer) clearTimeout(toastTimer);
@@ -109,7 +102,7 @@ function showToast(msg) {
     toastTimer = setTimeout(() => { 
         toast.style.opacity = '0'; 
         toast.style.top = "80px"; 
-    }, 2600);
+    }, 2800);
 }
 
 function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Confirm", onConfirm }) {
@@ -183,7 +176,7 @@ async function multiDownload() {
 }
 
 // --------------------------------------------------------------------------
-// 5. INIT IMAGE VIEWER (LIGHTBOX ACTIONS)
+// 5. INIT IMAGE VIEWER
 // --------------------------------------------------------------------------
 initImageViewer({
     getCurrentView: () => currentView,
@@ -252,7 +245,7 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 6. AUTHENTICATION CONTROLLER (EMAIL/PASS & GOOGLE AUTH)
+// 6. 100% RELIABLE AUTH CONTROLLER
 // --------------------------------------------------------------------------
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
@@ -262,17 +255,16 @@ const emailInput = document.getElementById('email');
 const passInput = document.getElementById('pass');
 
 if (toggleAuthBtn) {
-    toggleAuthBtn.addEventListener('click', (e) => {
+    toggleAuthBtn.onclick = (e) => {
         e.preventDefault();
         isLogin = !isLogin;
         if (authBtn) authBtn.innerText = isLogin ? "Enter Gallery" : "Create Account";
         toggleAuthBtn.innerHTML = isLogin 
             ? "New here? <span>Create Account</span>" 
             : "Have account? <span>Log In</span>";
-    });
+    };
 }
 
-// 🌟 SMART EMAIL & PASSWORD AUTH
 async function handleAuth() {
     const email = emailInput ? emailInput.value.trim() : '';
     const pass = passInput ? passInput.value.trim() : '';
@@ -283,7 +275,6 @@ async function handleAuth() {
     if (authBtn) {
         authBtn.disabled = true;
         authBtn.innerText = isLogin ? "Logging in..." : "Creating Account...";
-        authBtn.style.opacity = "0.75";
     }
 
     try {
@@ -298,20 +289,18 @@ async function handleAuth() {
         let msg = "Authentication failed!";
         if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') msg = "Incorrect Email or Password!";
         else if (e.code === 'auth/user-not-found') msg = "No account found with this email!";
-        else if (e.code === 'auth/email-already-in-use') msg = "Email is already registered! Please Log In.";
-        else if (e.code === 'auth/invalid-email') msg = "Please enter a valid email address!";
-        else if (e.code === 'auth/network-request-failed') msg = "Network error! Check your connection.";
+        else if (e.code === 'auth/email-already-in-use') msg = "Email already registered! Please Log In.";
+        else if (e.code === 'auth/invalid-email') msg = "Please enter a valid email!";
+        else if (e.code === 'auth/network-request-failed') msg = "Network error! Check internet.";
         showToast(msg);
     } finally {
         if (authBtn) {
             authBtn.disabled = false;
             authBtn.innerText = isLogin ? "Enter Gallery" : "Create Account";
-            authBtn.style.opacity = "1";
         }
     }
 }
 
-// 🌟 SMART 1-TAP GOOGLE SIGN-IN / SIGN-UP
 async function handleGoogleAuth() {
     if (googleAuthBtn) {
         googleAuthBtn.disabled = true;
@@ -329,14 +318,14 @@ async function handleGoogleAuth() {
     } catch (e) {
         console.error("Google Auth Error:", e);
         let msg = "Google Sign-In failed!";
-        if (e.code === 'auth/popup-closed-by-user') {
-            msg = "Sign-In cancelled!";
+        if (e.code === 'auth/unauthorized-domain') {
+            msg = "Add your Vercel URL in Firebase Authorized Domains!";
+        } else if (e.code === 'auth/popup-closed-by-user') {
+            msg = "Sign-In cancelled.";
         } else if (e.code === 'auth/popup-blocked') {
             msg = "Popup blocked! Please allow popups.";
-        } else if (e.code === 'auth/account-exists-with-different-credential') {
-            msg = "Account already registered with another method!";
         } else if (e.code === 'auth/network-request-failed') {
-            msg = "Network error! Check your connection.";
+            msg = "Network error! Check internet.";
         }
         showToast(msg);
     } finally {
@@ -347,18 +336,18 @@ async function handleGoogleAuth() {
     }
 }
 
-if (authBtn) authBtn.addEventListener('click', handleAuth);
-if (googleAuthBtn) googleAuthBtn.addEventListener('click', handleGoogleAuth);
+if (authBtn) authBtn.onclick = handleAuth;
+if (googleAuthBtn) googleAuthBtn.onclick = handleGoogleAuth;
 
 if (passInput) {
-    passInput.addEventListener('keydown', (e) => {
+    passInput.onkeydown = (e) => {
         if (e.key === 'Enter') handleAuth();
-    });
+    };
 }
 if (emailInput) {
-    emailInput.addEventListener('keydown', (e) => {
+    emailInput.onkeydown = (e) => {
         if (e.key === 'Enter' && passInput) passInput.focus();
-    });
+    };
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -373,6 +362,7 @@ onAuthStateChanged(auth, (user) => {
             appScreen.style.display = 'flex';
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
+        checkAppPinLock();
         switchView('photos');
         processOfflineQueue(user, uploadPhotoToTelegram, showToast);
         runAutoTrashPurge(user, showToast);
@@ -403,6 +393,7 @@ function switchView(view, extraParam = null) {
     stopHiddenListener();
     stopAlbumsListener();
     stopAlbumDetailListener();
+    stopProfileListener();
 
     ['navPhotos', 'navAlbums', 'navFavorites', 'navHidden', 'navTrash', 'navProfile'].forEach(id => {
         const el = document.getElementById(id);
@@ -542,8 +533,8 @@ const closeSidebar = () => {
     }
 };
 
-if (menuBtn) menuBtn.addEventListener('click', openSidebar);
-if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
+if (menuBtn) menuBtn.onclick = openSidebar;
+if (sidebarOverlay) sidebarOverlay.onclick = closeSidebar;
 
 document.getElementById('navPhotos')?.addEventListener('click', () => { switchView('photos'); closeSidebar(); });
 document.getElementById('navAlbums')?.addEventListener('click', () => { switchView('albums'); closeSidebar(); });
@@ -569,7 +560,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
 });
 
 // --------------------------------------------------------------------------
-// 9. HIGH-PERFORMANCE GALLERY DATA STREAM
+// 9. GALLERY DATA STREAM
 // --------------------------------------------------------------------------
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
@@ -647,7 +638,7 @@ function loadGalleryData(view) {
 }
 
 // --------------------------------------------------------------------------
-// 10. SMART SELECTION MODE WITH MULTI-ACTIONS
+// 10. SMART SELECTION MODE
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
