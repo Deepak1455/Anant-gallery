@@ -44,7 +44,6 @@ import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
 
-// Fast Login Persistence Setup
 setPersistence(auth, browserLocalPersistence).catch(err => console.warn("Persistence Error:", err));
 
 // ==========================================================================
@@ -122,7 +121,6 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
     };
 }
 
-// 🌟 BRANDED DOWNLOAD: anant-gallery-....jpg
 async function downloadPhoto(imageUrl, filename = `anant-gallery-${Date.now()}.jpg`) {
     try {
         const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
@@ -154,15 +152,25 @@ async function multiDownload() {
     exitSelectionMode();
 }
 
-// 🌟 100% WORKING BATCH MULTI DIRECT SHARE
+// 🌟 100% WORKING SELECTION MODE DIRECT SHARE
 async function multiSharePhotos() {
     if (selectedIds.size === 0) return;
     
+    if (navigator.vibrate) navigator.vibrate(25);
     showToast(`Preparing ${selectedIds.size} photo(s) to share...`);
+
     try {
         const selectedItems = galleryData.filter(x => selectedIds.has(x.id) && x.image);
         if (!selectedItems.length) return;
 
+        // A. If 1 Photo Selected $\rightarrow$ Share instantly
+        if (selectedItems.length === 1) {
+            await shareSinglePhotoDirect(selectedItems[0].image);
+            exitSelectionMode();
+            return;
+        }
+
+        // B. If Multiple Photos Selected $\rightarrow$ Fetch blobs via proxy
         const filesToShare = [];
         for (let i = 0; i < selectedItems.length; i++) {
             try {
@@ -171,14 +179,14 @@ async function multiSharePhotos() {
                 const blob = await res.blob();
                 filesToShare.push(new File([blob], `anant-gallery-${i + 1}-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' }));
             } catch (e) {
-                console.warn("Item fetch skipped for share:", e);
+                console.warn("Item fetch error during share:", e);
             }
         }
 
         if (filesToShare.length > 0 && navigator.canShare && navigator.canShare({ files: filesToShare })) {
             await navigator.share({
                 title: 'Anant Gallery',
-                text: `Shared ${filesToShare.length} photo(s) via Anant Gallery - Infinite Cloud 📸`,
+                text: `Shared ${filesToShare.length} photos via Anant Gallery - Infinite Cloud 📸`,
                 files: filesToShare
             });
         } else if (navigator.share) {
@@ -621,7 +629,7 @@ function loadGalleryData(view) {
 }
 
 // ==========================================================================
-// 10. SELECTION MODE WITH MULTI-SHARE & BATCH ACTIONS
+// 10. SELECTION MODE WITH FIRST-POSITION SHARE BUTTON
 // ==========================================================================
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -631,9 +639,10 @@ function enterSelectionMode(initialId, customContext) {
     document.getElementById('albumsMainBoard')?.classList.add('selection-active');
     if (navigator.vibrate) navigator.vibrate(30);
     
+    // 🌟 SHARE ICON IS PROMINENTLY AT THE FIRST POSITION (#0284c7 SKY BLUE)
     if (currentView === 'photos' || customContext === 'album') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
             <i class="fa-solid fa-folder-plus" id="multiAlbumBtn" style="color: #0ea5e9;" title="Move to Album"></i>
             ${customContext === 'album' ? `<i class="fa-solid fa-folder-minus" id="multiRemoveAlbumBtn" style="color: #f59e0b;" title="Remove from Album"></i>` : ''}
@@ -658,7 +667,7 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'favorites') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
             <i class="fa-solid fa-heart-crack" id="multiUnfavBtn" style="color: #ec4899;" title="Remove from Favorites"></i>
             <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
@@ -675,7 +684,7 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'hidden') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
             <i class="fa-solid fa-eye" id="multiUnhideBtn" style="color: var(--success);" title="Unhide Photos"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
