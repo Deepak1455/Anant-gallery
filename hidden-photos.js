@@ -1,5 +1,5 @@
 // ==========================================================================
-// PRIVATE PHOTOS MODULE - ULTRA-SECURE, FAST & DARK THEME COMPATIBLE
+// PRIVATE PHOTOS MODULE - ULTRA-SECURE (SHA-256 HASHED, FAST & SMART LOCK)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -17,7 +17,6 @@ import { openImageViewer } from "./image-viewer.js";
 // 1. DYNAMIC CSS FOR PIN MODAL, VAULT BANNER & CARD ANIMATIONS
 // --------------------------------------------------------------------------
 const vaultCSS = `
-    /* Private Photos Header Banner */
     .vault-header-banner {
         background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(236, 72, 153, 0.1));
         border: 1px dashed rgba(79, 70, 229, 0.35);
@@ -34,13 +33,12 @@ const vaultCSS = `
         animation: fadeInUp 0.35s ease;
     }
 
-    /* PIN Modal Overlay */
     .vault-modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, 0.75);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        background: rgba(15, 23, 42, 0.82);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
         z-index: 2000;
         display: flex;
         align-items: center;
@@ -48,7 +46,6 @@ const vaultCSS = `
         animation: vaultFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* PIN Card */
     .vault-modal-card {
         background: var(--bg-card, #ffffff);
         border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
@@ -61,7 +58,6 @@ const vaultCSS = `
         animation: vaultPopUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
-    /* 🌟 BRAND LOGO IN PRIVATE PHOTOS PIN MODAL */
     .vault-logo-box {
         width: 70px;
         height: 70px;
@@ -99,7 +95,7 @@ const vaultCSS = `
     }
 
     #vaultPinInput {
-        width: 160px;
+        width: 170px;
         text-align: center;
         font-size: 1.8rem;
         letter-spacing: 12px;
@@ -149,15 +145,8 @@ const vaultCSS = `
         color: var(--text-muted, #64748b);
     }
 
-    /* Keyframe Animations */
-    @keyframes vaultFadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    @keyframes vaultPopUp {
-        from { opacity: 0; transform: scale(0.88) translateY(12px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
-    }
+    @keyframes vaultFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes vaultPopUp { from { opacity: 0; transform: scale(0.88) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
     @keyframes vaultShake {
         0%, 100% { transform: translateX(0); }
         20%, 60% { transform: translateX(-8px); }
@@ -167,16 +156,8 @@ const vaultCSS = `
         animation: vaultShake 0.35s ease-in-out; 
         border-color: #ef4444 !important; 
     }
-
-    .photo-card.card-leaving {
-        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        transform: scale(0.68) translateY(-10px) !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }
 `;
 
-// Inject CSS
 (function injectVaultStyles() {
     if (!document.getElementById("vault-styles-injected")) {
         const styleTag = document.createElement("style");
@@ -187,13 +168,27 @@ const vaultCSS = `
 })();
 
 // --------------------------------------------------------------------------
-// 2. STATE VARIABLES & AUTO-LOCK LISTENERS
+// 2. CRYPTOGRAPHIC SHA-256 HASH ENGINE
+// --------------------------------------------------------------------------
+const SALT = "anant_vault_secure_salt_#2026";
+
+export async function hashSecretPin(pin) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(pin + SALT);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// --------------------------------------------------------------------------
+// 3. STATE & AUTO-LOCK CONTROLLER
 // --------------------------------------------------------------------------
 let unsubscribeHidden = null;
-let isVaultUnlocked = false; 
-const DEFAULT_PIN = "1234";
+let isVaultUnlocked = false;
+let failedAttempts = 0;
+let lockoutTimer = null;
 
-// Auto-lock when app goes to background
+// Auto-lock when tab changes or phone goes to background
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
         lockVault();
@@ -201,15 +196,22 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // --------------------------------------------------------------------------
-// 3. DYNAMIC PIN MODAL WITH 4-DIGIT AUTO SUBMIT (WITH BRAND LOGO)
+// 4. SMART PIN MODAL WITH BRUTE-FORCE SHIELD
 // --------------------------------------------------------------------------
-function showPinModal(onSuccess) {
+async function showPinModal(onSuccess) {
     if (isVaultUnlocked) {
         onSuccess();
         return;
     }
 
-    const savedPin = localStorage.getItem("private_photos_pin") || localStorage.getItem("vault_pin") || DEFAULT_PIN;
+    let savedHash = localStorage.getItem("private_photos_pin_hash") || localStorage.getItem("vault_pin_hash");
+    
+    // Auto-migrate legacy plaintext PIN to SHA-256 Hash
+    if (!savedHash) {
+        const oldPlain = localStorage.getItem("private_photos_pin") || localStorage.getItem("vault_pin") || "1234";
+        savedHash = await hashSecretPin(oldPlain);
+        localStorage.setItem("private_photos_pin_hash", savedHash);
+    }
 
     let pinModal = document.getElementById("vaultPinModal");
     if (!pinModal) {
@@ -223,7 +225,7 @@ function showPinModal(onSuccess) {
                     <i class="fa-solid fa-user-lock" style="display:none;"></i>
                 </div>
                 <h3>Private Photos</h3>
-                <p>Enter 4-Digit Security PIN</p>
+                <p id="vaultStatusText">Enter 4-Digit Security PIN</p>
                 <input type="password" id="vaultPinInput" maxlength="4" placeholder="••••" autocomplete="off" inputmode="numeric" />
                 <div class="vault-modal-btns">
                     <button id="cancelPinBtn" class="vault-btn secondary">Cancel</button>
@@ -236,19 +238,50 @@ function showPinModal(onSuccess) {
 
     pinModal.style.display = "flex";
     const pinInput = document.getElementById("vaultPinInput");
+    const statusText = document.getElementById("vaultStatusText");
     pinInput.value = "";
     setTimeout(() => pinInput.focus(), 100);
 
-    const handleUnlock = () => {
-        if (pinInput.value === savedPin) {
+    const handleUnlock = async () => {
+        if (lockoutTimer) return;
+
+        const enteredPin = pinInput.value.trim();
+        if (enteredPin.length !== 4) return;
+
+        const inputHash = await hashSecretPin(enteredPin);
+
+        if (inputHash === savedHash) {
+            failedAttempts = 0;
             isVaultUnlocked = true;
             pinModal.style.display = "none";
             onSuccess();
         } else {
+            failedAttempts++;
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
             pinInput.value = "";
             pinInput.classList.add("vault-shake");
             setTimeout(() => pinInput.classList.remove("vault-shake"), 400);
+
+            if (failedAttempts >= 3) {
+                let timeLeft = 30;
+                pinInput.disabled = true;
+                statusText.innerText = `Too many attempts! Wait ${timeLeft}s`;
+                statusText.style.color = "#ef4444";
+
+                lockoutTimer = setInterval(() => {
+                    timeLeft--;
+                    statusText.innerText = `Too many attempts! Wait ${timeLeft}s`;
+                    if (timeLeft <= 0) {
+                        clearInterval(lockoutTimer);
+                        lockoutTimer = null;
+                        failedAttempts = 0;
+                        pinInput.disabled = false;
+                        statusText.innerText = "Enter 4-Digit Security PIN";
+                        statusText.style.color = "var(--text-muted)";
+                        pinInput.focus();
+                    }
+                }, 1000);
+            }
         }
     };
 
@@ -269,7 +302,7 @@ function showPinModal(onSuccess) {
 }
 
 // --------------------------------------------------------------------------
-// 4. RENDER PRIVATE PHOTOS SCREEN
+// 5. RENDER PRIVATE PHOTOS SCREEN
 // --------------------------------------------------------------------------
 export function renderHiddenScreen(container, currentUser, callbacks) {
     showPinModal(() => {
@@ -282,9 +315,6 @@ export function renderHiddenScreen(container, currentUser, callbacks) {
             </div>
             <div id="hiddenGalleryGrid">
                 <div class="grid" style="padding:10px;">
-                    <div class="skeleton" style="border-radius:12px; aspect-ratio:1/1;"></div>
-                    <div class="skeleton" style="border-radius:12px; aspect-ratio:1/1;"></div>
-                    <div class="skeleton" style="border-radius:12px; aspect-ratio:1/1;"></div>
                     <div class="skeleton" style="border-radius:12px; aspect-ratio:1/1;"></div>
                     <div class="skeleton" style="border-radius:12px; aspect-ratio:1/1;"></div>
                     <div class="skeleton" style="border-radius:12px; aspect-ratio:1/1;"></div>
@@ -343,9 +373,8 @@ export function renderHiddenScreen(container, currentUser, callbacks) {
 }
 
 // --------------------------------------------------------------------------
-// 5. AUTO-LOCK & ACTIONS
+// 6. AUTO-LOCK & ACTIONS
 // --------------------------------------------------------------------------
-
 export function stopHiddenListener() {
     isVaultUnlocked = false;
     if (unsubscribeHidden) {
@@ -357,21 +386,4 @@ export function stopHiddenListener() {
 export function lockVault() {
     isVaultUnlocked = false;
     stopHiddenListener();
-}
-
-export async function hidePhoto(docId, hideState = true) {
-    try {
-        await updateDoc(doc(db, "user_photos", docId), { 
-            isHidden: hideState 
-        });
-    } catch (e) {
-        console.error("Error hiding photo:", e);
-    }
-}
-
-export async function multiToggleHide(selectedIds, hideState = true) {
-    const updates = Array.from(selectedIds).map(id => 
-        updateDoc(doc(db, "user_photos", id), { isHidden: hideState })
-    );
-    await Promise.all(updates);
 }
