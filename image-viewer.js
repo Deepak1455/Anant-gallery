@@ -1,5 +1,5 @@
 // ==========================================================================
-// IMAGE VIEWER (LIGHTBOX) - ANANT GALLERY BRANDED SHARE & SCROLLABLE BAR
+// IMAGE VIEWER (LIGHTBOX) - SMART SMOOTH HORIZONTAL SCROLL ACTION BAR
 // ==========================================================================
 
 let currentIndex = -1;
@@ -25,9 +25,9 @@ const viewerStyles = `
 #lightbox {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     z-index: 2000;
     display: none;
     align-items: center;
@@ -46,7 +46,7 @@ const viewerStyles = `
     background: var(--bg-card, #ffffff);
     border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     border-radius: 26px;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -60,14 +60,15 @@ const viewerStyles = `
 }
 
 .lb-header {
-    padding: 10px 14px;
+    height: 64px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     background: var(--bg-body, #f8fafc);
-    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
     z-index: 10;
-    gap: 10px;
+    gap: 8px;
 }
 
 .lb-header-left {
@@ -81,51 +82,97 @@ const viewerStyles = `
     color: var(--text-main, #0f172a);
     font-size: 1.25rem;
     cursor: pointer;
-    padding: 6px;
+    padding: 8px;
     border-radius: 50%;
-    transition: transform 0.15s ease, color 0.15s ease;
+    transition: transform 0.15s ease, background 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#closeLb:active { transform: scale(0.88); }
+#closeLb:active { 
+    transform: scale(0.86); 
+    background: rgba(0,0,0,0.06);
+}
 
 .lb-counter {
     font-size: 0.8rem;
     color: var(--accent, #4f46e5);
     background: rgba(79, 70, 229, 0.1);
     border: 1px solid rgba(79, 70, 229, 0.2);
-    padding: 4px 10px;
-    border-radius: 12px;
+    padding: 5px 11px;
+    border-radius: 14px;
     font-weight: 700;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
     white-space: nowrap;
+    user-select: none;
 }
 
-/* 🌟 SMOOTH HORIZONTAL SCROLLABLE ICON ACTIONS */
+/* 🌟 SMART, FAST & ULTRA-SMOOTH HORIZONTAL SCROLL ACTION BAR */
+.lb-actions-wrapper {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+    flex: 1;
+    max-width: 100%;
+    margin-left: auto;
+}
+
 .lb-actions {
     display: flex;
-    gap: 14px;
+    gap: 8px;
     align-items: center;
     overflow-x: auto;
+    overflow-y: hidden;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
-    padding: 2px 4px;
     scroll-behavior: smooth;
-    flex: 1;
-    justify-content: flex-end;
+    overscroll-behavior-x: contain;
+    padding: 6px 4px 8px 4px;
+    margin-left: auto;
+    scroll-snap-type: x proximity;
 }
 
-.lb-actions::-webkit-scrollbar { display: none; }
+/* 🌟 SLEEK MODERN MICRO SCROLLBAR */
+.lb-actions::-webkit-scrollbar {
+    height: 3.5px;
+}
 
-.lb-actions i {
-    font-size: 1.25rem;
-    cursor: pointer;
-    padding: 6px 8px;
+.lb-actions::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.04);
     border-radius: 10px;
-    flex-shrink: 0;
-    transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.lb-actions i:active { transform: scale(0.85); }
+.lb-actions::-webkit-scrollbar-thumb {
+    background: var(--accent, #4f46e5);
+    border-radius: 10px;
+    opacity: 0.7;
+}
+
+.lb-actions::-webkit-scrollbar-thumb:hover {
+    background: #9333ea;
+}
+
+/* ACTION ICONS WITH FAST HAPTIC-LIKE TAP FEEDBACK */
+.lb-action-btn {
+    font-size: 1.18rem;
+    cursor: pointer;
+    padding: 8px 10px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.14s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease;
+    scroll-snap-align: start;
+    user-select: none;
+}
+
+.lb-action-btn:active { 
+    transform: scale(0.85); 
+    background: rgba(79, 70, 229, 0.1);
+}
 
 #lbShareBtn { color: #0284c7; }
 #lbFavBtn { color: #64748b; }
@@ -155,7 +202,7 @@ const viewerStyles = `
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    border-radius: 12px;
+    border-radius: 14px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
     transform-origin: center center;
     will-change: transform;
@@ -168,7 +215,7 @@ const viewerStyles = `
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.88);
     color: #0f172a;
     border-radius: 50%;
     width: 44px;
@@ -179,9 +226,9 @@ const viewerStyles = `
     cursor: pointer;
     z-index: 10;
     border: 1px solid rgba(0, 0, 0, 0.1);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
     transition: background 0.2s, transform 0.2s;
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
 }
 
 .lb-nav:hover {
@@ -194,8 +241,10 @@ const viewerStyles = `
 .lb-next { right: 14px; }
 
 @media(max-width: 600px) {
-    .lb-card-board { height: 95vh; border-radius: 20px; }
+    .lb-card-board { height: 95vh; border-radius: 22px; }
     .lb-nav { display: none; }
+    .lb-header { padding: 0 8px; }
+    .lb-action-btn { font-size: 1.15rem; padding: 7px 8px; }
 }
 `;
 
@@ -218,7 +267,9 @@ function injectHTML() {
                     <i class="fa-solid fa-xmark" id="closeLb" title="Close"></i>
                     <span id="lbCounter" class="lb-counter">1 / 1</span>
                 </div>
-                <div id="lbActions" class="lb-actions"></div>
+                <div class="lb-actions-wrapper">
+                    <div id="lbActions" class="lb-actions"></div>
+                </div>
             </div>
             <div class="lb-img-container" id="lbImgContainer">
                 <div class="lb-nav lb-prev" id="prevBtn" title="Previous"><i class="fa-solid fa-chevron-left"></i></div>
@@ -241,7 +292,6 @@ export async function shareSinglePhotoDirect(imageUrl) {
         const response = await fetch(proxyUrl);
         const blob = await response.blob();
         
-        // 🌟 BRANDED FILE NAME
         const fileName = `anant-gallery-${Date.now()}.jpg`;
         const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
 
@@ -463,7 +513,7 @@ function showPrevImage() {
 }
 
 // --------------------------------------------------------------------------
-// 5. RENDER VIEWER ACTIONS
+// 5. RENDER VIEWER ACTIONS WITH SMOOTH HORIZONTAL SCROLL
 // --------------------------------------------------------------------------
 function updateViewerContent(currentView) {
     const data = photosList[currentIndex];
@@ -485,12 +535,12 @@ function updateViewerContent(currentView) {
             const isFav = data.isFavorite === true;
             
             lbActions.innerHTML = `
-                <i class="fa-solid fa-share-nodes" id="lbShareBtn" title="Direct Share"></i>
-                <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-heart ${isFav ? 'active' : ''}" id="lbFavBtn" title="Favorite"></i>
-                <i class="fa-solid fa-folder-plus" id="lbAlbumBtn" title="Move to Album"></i>
-                <i class="fa-solid fa-eye-slash" id="lbHideBtn" title="Move to Private Photos"></i>
-                <i class="fa-solid fa-download" id="lbDownloadBtn" title="Save to Phone"></i>
-                <i class="fa-solid fa-trash" id="lbTrashBtn" title="Trash"></i>
+                <i class="fa-solid fa-share-nodes lb-action-btn" id="lbShareBtn" title="Direct Share"></i>
+                <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-heart lb-action-btn ${isFav ? 'active' : ''}" id="lbFavBtn" title="Favorite"></i>
+                <i class="fa-solid fa-folder-plus lb-action-btn" id="lbAlbumBtn" title="Move to Album"></i>
+                <i class="fa-solid fa-eye-slash lb-action-btn" id="lbHideBtn" title="Move to Private Photos"></i>
+                <i class="fa-solid fa-download lb-action-btn" id="lbDownloadBtn" title="Save to Phone"></i>
+                <i class="fa-solid fa-trash lb-action-btn" id="lbTrashBtn" title="Trash"></i>
             `;
 
             document.getElementById('lbShareBtn').onclick = () => {
@@ -508,7 +558,7 @@ function updateViewerContent(currentView) {
                     handleImageDeleted(data.id);
                 } else {
                     const favBtn = document.getElementById('lbFavBtn');
-                    if (favBtn) favBtn.className = `${data.isFavorite ? 'fa-solid' : 'fa-regular'} fa-heart ${data.isFavorite ? 'active' : ''}`;
+                    if (favBtn) favBtn.className = `${data.isFavorite ? 'fa-solid' : 'fa-regular'} fa-heart lb-action-btn ${data.isFavorite ? 'active' : ''}`;
                 }
             };
 
@@ -531,10 +581,10 @@ function updateViewerContent(currentView) {
 
         } else if (currentView === 'hidden') {
             lbActions.innerHTML = `
-                <i class="fa-solid fa-share-nodes" id="lbShareBtn" title="Direct Share"></i>
-                <i class="fa-solid fa-eye" id="lbUnhideBtn" title="Restore to Gallery"></i>
-                <i class="fa-solid fa-download" id="lbDownloadBtn" title="Save to Phone"></i>
-                <i class="fa-solid fa-trash" id="lbTrashBtn" title="Trash"></i>
+                <i class="fa-solid fa-share-nodes lb-action-btn" id="lbShareBtn" title="Direct Share"></i>
+                <i class="fa-solid fa-eye lb-action-btn" id="lbUnhideBtn" title="Restore to Gallery"></i>
+                <i class="fa-solid fa-download lb-action-btn" id="lbDownloadBtn" title="Save to Phone"></i>
+                <i class="fa-solid fa-trash lb-action-btn" id="lbTrashBtn" title="Trash"></i>
             `;
 
             document.getElementById('lbShareBtn').onclick = () => {
@@ -553,8 +603,8 @@ function updateViewerContent(currentView) {
 
         } else if (currentView === 'trash') {
             lbActions.innerHTML = `
-                <i class="fa-solid fa-rotate-left" id="lbRestoreBtn" title="Restore"></i>
-                <i class="fa-solid fa-ban" id="lbDelPermBtn" title="Delete Permanently"></i>
+                <i class="fa-solid fa-rotate-left lb-action-btn" id="lbRestoreBtn" title="Restore"></i>
+                <i class="fa-solid fa-ban lb-action-btn" id="lbDelPermBtn" title="Delete Permanently"></i>
             `;
 
             document.getElementById('lbRestoreBtn').onclick = () => {
