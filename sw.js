@@ -1,10 +1,10 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - FIXES GITHUB PAGES 405 NOT ALLOWED ERROR
+// ANANT GALLERY SERVICE WORKER - HIGH CAPACITY WEB SHARE TARGET & OFFLINE DB
 // ==========================================================================
 
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
-const DB_VERSION = 2;
+const DB_VERSION = 3; // 🌟 Exactly matched with offline-sync.js
 
 function openDB() {
     return new Promise((resolve, reject) => {
@@ -28,11 +28,11 @@ self.addEventListener('activate', (e) => {
     return self.clients.claim();
 });
 
-// 🌟 INTERCEPT SHARE TARGET 'POST' REQUESTS TO ELIMINATE 405 NOT ALLOWED ERROR
+// 🌟 93+ PHOTOS SHARE TARGET INTERCEPTOR
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // यदि शेयर टारगेट द्वारा फोटो शेयर की गई है
+    // जब मोबाइल गैलरी से फोटोज़ Anant Gallery में शेयर की जाएँ
     if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
         event.respondWith(
             (async () => {
@@ -48,22 +48,28 @@ self.addEventListener('fetch', (event) => {
                         for (const file of mediaFiles) {
                             store.add({
                                 fileBlob: file,
-                                fileName: file.name || "shared_photo.jpg",
+                                fileName: file.name || `shared_${Date.now()}.jpg`,
                                 fileType: file.type || "image/jpeg",
                                 fileSize: file.size,
-                                uid: null,
+                                lastModified: file.lastModified || Date.now(),
+                                uid: null, // ऐप ओपन होते ही करंट लॉग-इन यूज़र से मैप हो जाएगा
                                 currentView: "photos",
                                 retryCount: 0,
                                 addedAt: Date.now()
                             });
                         }
+
+                        await new Promise((resolve) => {
+                            tx.oncomplete = resolve;
+                            tx.onerror = resolve;
+                        });
                     }
                 } catch (err) {
-                    console.error("[SW] Error handling share target:", err);
+                    console.error("[SW Share Target] Error saving shared photos:", err);
                 }
 
-                // 🌟 Redirect via GET request (GitHub Pages accepts GET request!)
-                return Response.redirect('./', 303);
+                // फोटोज़ सेव होने के बाद ऐप की मेन स्क्रीन पर रीडायरेक्ट करें
+                return Response.redirect('/', 303);
             })()
         );
     }
