@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - SHA-256 DUAL PIN MANAGEMENT & STORAGE ANALYTICS
+// PROFILE MODULE - SHA-256 DUAL PIN MANAGEMENT & STORAGE ANALYTICS 
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
