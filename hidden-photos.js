@@ -1,5 +1,5 @@
 // ==========================================================================
-// PRIVATE PHOTOS MODULE - ULTRA-SECURE (SHA-256 HASHED, FAST & SMART  LOCK)
+// PRIVATE PHOTOS MODULE - ULTRA-SECURE (SHA-256 HASHED & FINGERPRINT UNLOCK)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -12,9 +12,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderGroupedGallery } from "./gallery-card.js";
 import { openImageViewer } from "./image-viewer.js";
+import { isBiometricAvailable, authenticateWithBiometric } from "./biometric-auth.js";
 
 // --------------------------------------------------------------------------
-// 1. DYNAMIC CSS FOR PIN MODAL, VAULT BANNER & CARD ANIMATIONS
+// 1. DYNAMIC CSS FOR PIN MODAL, VAULT BANNER & BIOMETRIC BUTTON
 // --------------------------------------------------------------------------
 const vaultCSS = `
     .vault-header-banner {
@@ -52,22 +53,22 @@ const vaultCSS = `
         width: 90%;
         max-width: 320px;
         border-radius: 24px;
-        padding: 30px 24px;
+        padding: 28px 22px;
         text-align: center;
         box-shadow: 0 20px 50px rgba(0,0,0,0.3);
         animation: vaultPopUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
     .vault-logo-box {
-        width: 70px;
-        height: 70px;
+        width: 68px;
+        height: 68px;
         background: linear-gradient(135deg, rgba(79, 70, 229, 0.2), rgba(147, 51, 234, 0.2));
         border: 2px solid rgba(79, 70, 229, 0.3);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 16px auto;
+        margin: 0 auto 14px auto;
         box-shadow: 0 8px 20px rgba(79, 70, 229, 0.2);
         overflow: hidden;
         color: var(--accent, #4f46e5);
@@ -85,13 +86,13 @@ const vaultCSS = `
         font-size: 1.35rem;
         font-weight: 700;
         color: var(--text-main, #0f172a);
-        margin-bottom: 6px;
+        margin-bottom: 4px;
     }
 
     .vault-modal-card p {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         color: var(--text-muted, #64748b);
-        margin-bottom: 22px;
+        margin-bottom: 18px;
     }
 
     #vaultPinInput {
@@ -103,7 +104,7 @@ const vaultCSS = `
         background: var(--bg-body, #f8fafc);
         border: 2px solid var(--border, #cbd5e1);
         border-radius: 16px;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
         color: var(--text-main, #0f172a);
         outline: none;
         transition: all 0.2s;
@@ -116,33 +117,34 @@ const vaultCSS = `
 
     .vault-modal-btns {
         display: flex;
-        gap: 12px;
+        gap: 10px;
     }
 
     .vault-btn {
         flex: 1;
-        padding: 14px;
+        padding: 13px;
         border-radius: 14px;
         border: none;
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         cursor: pointer;
         transition: transform 0.15s, opacity 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
     }
 
-    .vault-btn:active {
-        transform: scale(0.96);
-    }
-
-    .vault-btn.primary {
-        background: var(--accent, #4f46e5);
+    .vault-btn:active { transform: scale(0.96); }
+    .vault-btn.primary { background: var(--accent, #4f46e5); color: #ffffff; }
+    .vault-btn.secondary { background: rgba(100, 116, 139, 0.12); color: var(--text-muted, #64748b); }
+    
+    .vault-btn.biometric {
+        background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
         color: #ffffff;
-        box-shadow: 0 8px 18px rgba(79, 70, 229, 0.35);
-    }
-
-    .vault-btn.secondary {
-        background: rgba(100, 116, 139, 0.12);
-        color: var(--text-muted, #64748b);
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+        margin-bottom: 12px;
+        width: 100%;
     }
 
     @keyframes vaultFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -188,7 +190,6 @@ let isVaultUnlocked = false;
 let failedAttempts = 0;
 let lockoutTimer = null;
 
-// Auto-lock when tab changes or phone goes to background
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
         lockVault();
@@ -196,7 +197,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // --------------------------------------------------------------------------
-// 4. SMART PIN MODAL WITH BRUTE-FORCE SHIELD
+// 4. SMART PIN & FINGERPRINT MODAL
 // --------------------------------------------------------------------------
 async function showPinModal(onSuccess) {
     if (isVaultUnlocked) {
@@ -206,41 +207,68 @@ async function showPinModal(onSuccess) {
 
     let savedHash = localStorage.getItem("private_photos_pin_hash") || localStorage.getItem("vault_pin_hash");
     
-    // Auto-migrate legacy plaintext PIN to SHA-256 Hash
     if (!savedHash) {
         const oldPlain = localStorage.getItem("private_photos_pin") || localStorage.getItem("vault_pin") || "1234";
         savedHash = await hashSecretPin(oldPlain);
         localStorage.setItem("private_photos_pin_hash", savedHash);
     }
 
+    const hasBiometric = await isBiometricAvailable();
+
     let pinModal = document.getElementById("vaultPinModal");
     if (!pinModal) {
         pinModal = document.createElement("div");
         pinModal.id = "vaultPinModal";
         pinModal.className = "vault-modal-overlay";
-        pinModal.innerHTML = `
-            <div class="vault-modal-card">
-                <div class="vault-logo-box">
-                    <img src="loadingphoto.png" class="vault-logo-img" alt="Private Photos" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                    <i class="fa-solid fa-user-lock" style="display:none;"></i>
-                </div>
-                <h3>Private Photos</h3>
-                <p id="vaultStatusText">Enter 4-Digit Security PIN</p>
-                <input type="password" id="vaultPinInput" maxlength="4" placeholder="••••" autocomplete="off" inputmode="numeric" />
-                <div class="vault-modal-btns">
-                    <button id="cancelPinBtn" class="vault-btn secondary">Cancel</button>
-                    <button id="submitPinBtn" class="vault-btn primary">Unlock</button>
-                </div>
-            </div>
-        `;
         document.body.appendChild(pinModal);
     }
+
+    pinModal.innerHTML = `
+        <div class="vault-modal-card">
+            <div class="vault-logo-box">
+                <img src="loadingphoto.png" class="vault-logo-img" alt="Private Photos" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <i class="fa-solid fa-user-lock" style="display:none;"></i>
+            </div>
+            <h3>Private Photos</h3>
+            <p id="vaultStatusText">Enter 4-Digit PIN or Fingerprint</p>
+            
+            ${hasBiometric ? `
+                <button type="button" class="vault-btn biometric" id="vaultBiometricBtn">
+                    <i class="fa-solid fa-fingerprint" style="font-size:1.15rem;"></i>
+                    <span>Unlock with Fingerprint</span>
+                </button>
+            ` : ''}
+
+            <input type="password" id="vaultPinInput" maxlength="4" placeholder="••••" autocomplete="off" inputmode="numeric" />
+            
+            <div class="vault-modal-btns">
+                <button id="cancelPinBtn" class="vault-btn secondary">Cancel</button>
+                <button id="submitPinBtn" class="vault-btn primary">Unlock</button>
+            </div>
+        </div>
+    `;
 
     pinModal.style.display = "flex";
     const pinInput = document.getElementById("vaultPinInput");
     const statusText = document.getElementById("vaultStatusText");
     pinInput.value = "";
-    setTimeout(() => pinInput.focus(), 100);
+
+    // 🌟 BIOMETRIC 1-TAP SENSOR TRIGGER
+    const biometricBtn = document.getElementById("vaultBiometricBtn");
+    if (biometricBtn) {
+        const triggerBio = async () => {
+            const verified = await authenticateWithBiometric();
+            if (verified) {
+                if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+                isVaultUnlocked = true;
+                pinModal.style.display = "none";
+                onSuccess();
+            }
+        };
+        biometricBtn.onclick = triggerBio;
+        // Auto-trigger biometric prompt on open
+        setTimeout(() => triggerBio(), 150);
+    }
 
     const handleUnlock = async () => {
         if (lockoutTimer) return;
@@ -286,9 +314,7 @@ async function showPinModal(onSuccess) {
     };
 
     pinInput.oninput = () => {
-        if (pinInput.value.length === 4) {
-            handleUnlock();
-        }
+        if (pinInput.value.length === 4) handleUnlock();
     };
 
     document.getElementById("submitPinBtn").onclick = handleUnlock;
