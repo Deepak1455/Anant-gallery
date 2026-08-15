@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - SHA-256 DUAL PIN MANAGEMENT & STORAGE ANALYTICS 
+// PROFILE MODULE - FINGERPRINT MANAGEMENT, PIN CONTROLS & STORAGE ANALYTICS
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
@@ -7,6 +7,12 @@ import { auth, db } from "./firebase-config.js";
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { hashSecretPin } from "./hidden-photos.js";
+import { 
+    isBiometricAvailable, 
+    isBiometricEnabled, 
+    registerBiometric, 
+    removeBiometric 
+} from "./biometric-auth.js";
 
 const CLOUDINARY_CLOUD_NAME = "gvickscl";
 const CLOUDINARY_UPLOAD_PRESET = "my_photo";
@@ -268,6 +274,8 @@ const injectProfileStyles = () => {
             font-size: 0.88rem;
             border: 1px solid var(--border, rgba(0, 0, 0, 0.05));
         }
+
+        /* 🌟 SECURITY CARD WITH BIOMETRIC FINGERPRINT TOGGLE */
         .security-card {
             background: var(--bg-card, #ffffff);
             border-radius: 20px;
@@ -435,7 +443,7 @@ const showToast = (msg) => {
     }, 3000);
 };
 
-export function renderProfileScreen(containerElement) {
+export async function renderProfileScreen(containerElement) {
     injectProfileStyles();
 
     const user = auth.currentUser;
@@ -454,6 +462,9 @@ export function renderProfileScreen(containerElement) {
     const avatarContent = user.photoURL 
         ? `<img src="${user.photoURL}" id="avatarImg" class="profile-avatar" alt="Avatar">`
         : `<div class="profile-avatar" id="avatarInitial">${initial}</div>`;
+
+    const bioSupported = await isBiometricAvailable();
+    const bioActive = isBiometricEnabled();
 
     containerElement.innerHTML = `
         <div class="profile-container">
@@ -544,10 +555,27 @@ export function renderProfileScreen(containerElement) {
 
             </div>
 
+            <!-- 🌟 SECURITY CONTROLS WITH 1-TAP FINGERPRINT REGISTRATION -->
             <div class="security-card">
                 <div class="security-title">
-                    <i class="fa-solid fa-key" style="color: var(--accent);"></i> PIN Security Controls
+                    <i class="fa-solid fa-shield-halved" style="color: var(--accent);"></i> Security & Lock Controls
                 </div>
+
+                ${bioSupported ? `
+                <div class="pin-option-item">
+                    <div class="pin-option-info">
+                        <i class="fa-solid fa-fingerprint" style="color: #10b981;"></i>
+                        <div>
+                            <div class="pin-title">Fingerprint Lock</div>
+                            <div class="pin-subtitle" id="bioStatusSubtitle">${bioActive ? 'Fingerprint Saved & Active' : 'Scan finger to save & activate'}</div>
+                        </div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="profileBioToggle" ${bioActive ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                ` : ''}
 
                 <div class="pin-option-item">
                     <div class="pin-option-info">
@@ -578,6 +606,41 @@ export function renderProfileScreen(containerElement) {
     const profileContainer = containerElement.querySelector('.profile-container');
     if (profileContainer) {
         renderSettingsSection(profileContainer);
+    }
+
+    // 🌟 FINGERPRINT REGISTRATION / TOGGLE CONTROLLER
+    const bioToggle = document.getElementById('profileBioToggle');
+    const bioStatusSubtitle = document.getElementById('bioStatusSubtitle');
+
+    if (bioToggle) {
+        bioToggle.addEventListener('change', async (e) => {
+            const wantsToEnable = e.target.checked;
+
+            if (wantsToEnable) {
+                showToast("Scanning finger to save passkey...");
+                try {
+                    const success = await registerBiometric(user.email);
+                    if (success) {
+                        bioToggle.checked = true;
+                        if (bioStatusSubtitle) bioStatusSubtitle.innerText = 'Fingerprint Saved & Active';
+                        showToast("Fingerprint successfully saved & activated! 🔒");
+                        if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+                    } else {
+                        bioToggle.checked = false;
+                        showToast("Fingerprint registration cancelled!");
+                    }
+                } catch (err) {
+                    console.error("Biometric registration error:", err);
+                    bioToggle.checked = false;
+                    showToast("Could not register fingerprint: " + err.message);
+                }
+            } else {
+                removeBiometric();
+                bioToggle.checked = false;
+                if (bioStatusSubtitle) bioStatusSubtitle.innerText = 'Scan finger to save & activate';
+                showToast("Fingerprint lock disabled!");
+            }
+        });
     }
 
     // Avatar Upload
