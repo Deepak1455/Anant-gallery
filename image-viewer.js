@@ -1,5 +1,5 @@
 // ==========================================================================
-// IMAGE VIEWER (LIGHTBOX CARD BOARD) - SMART GESTURES & ALBUMS INTEGRATED
+// IMAGE VIEWER (LIGHTBOX CARD BOARD) - NATIVE WEB SHARE & GESTURES
 // ==========================================================================
 
 let currentIndex = -1;
@@ -19,13 +19,13 @@ let tsX = 0, tsY = 0;
 let lastTapTime = 0;
 
 // --------------------------------------------------------------------------
-// 1. DYNAMIC STYLES (LIGHT / DARK THEME & GLASSMORPHISM)
+// 1. DYNAMIC STYLES
 // --------------------------------------------------------------------------
 const viewerStyles = `
 #lightbox {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.78);
+    background: rgba(15, 23, 42, 0.82);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     z-index: 2000;
@@ -104,12 +104,12 @@ const viewerStyles = `
 
 .lb-actions {
     display: flex;
-    gap: 16px;
+    gap: 14px;
     align-items: center;
 }
 
 .lb-actions i {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     cursor: pointer;
     padding: 6px;
     border-radius: 8px;
@@ -120,6 +120,7 @@ const viewerStyles = `
     transform: scale(0.85);
 }
 
+#lbShareBtn { color: #0284c7; }
 #lbFavBtn { color: #64748b; }
 #lbFavBtn.active { color: #ec4899 !important; }
 #lbAlbumBtn { color: #0ea5e9; }
@@ -223,7 +224,44 @@ function injectHTML() {
 }
 
 // --------------------------------------------------------------------------
-// 2. ZOOM & PAN ENGINE WITH DOUBLE TAP
+// 2. NATIVE DIRECT WEB SHARE HELPER
+// --------------------------------------------------------------------------
+export async function shareSinglePhotoDirect(imageUrl) {
+    try {
+        if (navigator.vibrate) navigator.vibrate(20);
+
+        // 1. Fetch image blob to share as a real file
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `anant-photo-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: 'Anant Gallery',
+                text: 'Shared via Anant Gallery - Infinite Cloud Storage 📸',
+                files: [file]
+            });
+        } else if (navigator.share) {
+            // Fallback for browsers supporting URL share only
+            await navigator.share({
+                title: 'Anant Gallery',
+                text: 'Shared via Anant Gallery - Infinite Cloud Storage 📸',
+                url: imageUrl
+            });
+        } else {
+            // Fallback to Clipboard Copy
+            await navigator.clipboard.writeText(imageUrl);
+            alert("Photo link copied to clipboard!");
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error("Share error:", err);
+        }
+    }
+}
+
+// --------------------------------------------------------------------------
+// 3. ZOOM & PAN ENGINE
 // --------------------------------------------------------------------------
 function applyTransform(animate = false) {
     const lbImage = document.getElementById('lbImage');
@@ -250,7 +288,6 @@ function setupZoomAndPan() {
     const container = document.getElementById('lbImgContainer');
     if (!container) return;
 
-    // Double Tap to Zoom in / Zoom out
     container.addEventListener('click', () => {
         const now = Date.now();
         if (now - lastTapTime < 280) {
@@ -311,18 +348,15 @@ function setupZoomAndPan() {
             let diffX = e.changedTouches[0].clientX - tsX;
             let diffY = e.changedTouches[0].clientY - tsY;
 
-            // Swipe to Navigate Next/Prev
             if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 45) {
                 if (diffX < 0) showNextImage();
                 else showPrevImage();
             } else if (Math.abs(diffY) > 90 && diffY > 0) {
-                // Swipe Down to Close
                 closeImageViewer();
             }
         }
     });
 
-    // Desktop Mouse Wheel Zoom
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
         const delta = e.deltaY < 0 ? 0.25 : -0.25;
@@ -336,7 +370,7 @@ function setupZoomAndPan() {
 }
 
 // --------------------------------------------------------------------------
-// 3. INITIALIZE IMAGE VIEWER
+// 4. INITIALIZE IMAGE VIEWER
 // --------------------------------------------------------------------------
 export function initImageViewer(options = {}) {
     callbacks = options;
@@ -348,7 +382,6 @@ export function initImageViewer(options = {}) {
     document.getElementById('nextBtn').onclick = showNextImage;
     document.getElementById('prevBtn').onclick = showPrevImage;
 
-    // Desktop Keyboard Arrow Navigation
     document.addEventListener('keydown', (e) => {
         if (!isImageViewerOpen()) return;
         if (e.key === 'ArrowRight') showNextImage();
@@ -412,7 +445,7 @@ function showPrevImage() {
 }
 
 // --------------------------------------------------------------------------
-// 4. RENDER VIEWER CONTENT & VIEW-SPECIFIC ACTION ICONS
+// 5. RENDER VIEWER ACTIONS WITH DIRECT SHARE BUTTON
 // --------------------------------------------------------------------------
 function updateViewerContent(currentView) {
     const data = photosList[currentIndex];
@@ -430,11 +463,11 @@ function updateViewerContent(currentView) {
     }
 
     if (lbActions) {
-        // PHOTOS, ALBUM, OR FAVORITES VIEW
         if (currentView === 'photos' || currentView === 'favorites' || currentView === 'album') {
             const isFav = data.isFavorite === true;
             
             lbActions.innerHTML = `
+                <i class="fa-solid fa-share-nodes" id="lbShareBtn" title="Direct Share"></i>
                 <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-heart ${isFav ? 'active' : ''}" id="lbFavBtn" title="Favorite"></i>
                 <i class="fa-solid fa-folder-plus" id="lbAlbumBtn" title="Move to Album"></i>
                 <i class="fa-solid fa-eye-slash" id="lbHideBtn" title="Move to Private Photos"></i>
@@ -442,13 +475,17 @@ function updateViewerContent(currentView) {
                 <i class="fa-solid fa-trash" id="lbTrashBtn" title="Trash"></i>
             `;
 
-            // 🌟 FAVORITE BUTTON
+            // 🌟 NATIVE DIRECT SHARE BUTTON
+            document.getElementById('lbShareBtn').onclick = () => {
+                shareSinglePhotoDirect(data.image);
+            };
+
+            // Favorite Button
             document.getElementById('lbFavBtn').onclick = () => {
                 const newFavStatus = !data.isFavorite;
                 data.isFavorite = newFavStatus;
                 if (callbacks.onToggleFav) callbacks.onToggleFav(data.id, newFavStatus);
 
-                // Auto remove from lightbox if favorited in main/album or unfavorited in favorites
                 if (currentView === 'favorites' && !newFavStatus) {
                     handleImageDeleted(data.id);
                 } else if ((currentView === 'photos' || currentView === 'album') && newFavStatus) {
@@ -459,35 +496,38 @@ function updateViewerContent(currentView) {
                 }
             };
 
-            // 🌟 MOVE TO ALBUM
+            // Album
             document.getElementById('lbAlbumBtn').onclick = () => {
                 if (callbacks.onAddToAlbum) callbacks.onAddToAlbum(data.id);
             };
 
-            // 🌟 MOVE TO PRIVATE PHOTOS
+            // Private Photos
             document.getElementById('lbHideBtn').onclick = () => {
                 if (callbacks.onToggleHide) callbacks.onToggleHide(data.id, true);
                 handleImageDeleted(data.id);
             };
 
-            // 🌟 DOWNLOAD
+            // Download
             document.getElementById('lbDownloadBtn').onclick = () => {
                 if (callbacks.onDownload) callbacks.onDownload(data.image);
             };
 
-            // 🌟 TRASH
+            // Trash
             document.getElementById('lbTrashBtn').onclick = () => {
                 if (callbacks.onMoveToTrash) callbacks.onMoveToTrash(data.id);
             };
 
         } else if (currentView === 'hidden') {
-            // PRIVATE PHOTOS VIEW
             lbActions.innerHTML = `
+                <i class="fa-solid fa-share-nodes" id="lbShareBtn" title="Direct Share"></i>
                 <i class="fa-solid fa-eye" id="lbUnhideBtn" title="Restore to Gallery"></i>
                 <i class="fa-solid fa-download" id="lbDownloadBtn" title="Save to Phone"></i>
                 <i class="fa-solid fa-trash" id="lbTrashBtn" title="Trash"></i>
             `;
 
+            document.getElementById('lbShareBtn').onclick = () => {
+                shareSinglePhotoDirect(data.image);
+            };
             document.getElementById('lbUnhideBtn').onclick = () => {
                 if (callbacks.onToggleHide) callbacks.onToggleHide(data.id, false);
                 handleImageDeleted(data.id);
@@ -500,7 +540,6 @@ function updateViewerContent(currentView) {
             };
 
         } else if (currentView === 'trash') {
-            // TRASH BIN VIEW
             lbActions.innerHTML = `
                 <i class="fa-solid fa-rotate-left" id="lbRestoreBtn" title="Restore"></i>
                 <i class="fa-solid fa-ban" id="lbDelPermBtn" title="Delete Permanently"></i>
