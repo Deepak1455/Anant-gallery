@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - CORE CONTROLLER & ULTRA-SMOOTH APPLICATION ENGINE
+// ANANT GALLERY - CORE CONTROLLER & ULTRA-SMOOTH ENGINE (BRANDED DOWNLOAD)
 // ==========================================================================
 
 // --------------------------------------------------------------------------
@@ -94,7 +94,7 @@ const sidebarOverlay = document.getElementById('sidebarOverlay');
 const menuBtn = document.getElementById('menuBtn');
 
 // --------------------------------------------------------------------------
-// 4. GLOBAL ULTRA-FAST HELPERS (TOAST, MODALS, DOWNLOAD & MULTI-SHARE)
+// 4. GLOBAL ULTRA-FAST HELPERS (BRANDED DOWNLOAD & MODALS)
 // --------------------------------------------------------------------------
 function showToast(msg) {
     if (!toast) return;
@@ -144,15 +144,17 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
     };
 }
 
-async function downloadPhoto(imageUrl, filename = `photo-${Date.now()}.jpg`) {
+// 🌟 100% BRANDED "anant-gallery" DOWNLOAD ENGINE
+async function downloadPhoto(imageUrl, customFilename = null) {
     try {
+        const finalFilename = customFilename || `anant-gallery-${Date.now()}.jpg`;
         const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
         const blob = response.ok ? await response.blob() : await (await fetch(imageUrl, { mode: 'cors' })).blob();
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = filename;
+        link.download = finalFilename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -169,71 +171,14 @@ async function multiDownload() {
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
         const item = galleryData.find(x => x.id === id);
         if (item && item.image) {
-            return downloadPhoto(item.image, `gallery-photo-${Date.now()}-${index + 1}.jpg`);
+            return downloadPhoto(item.image, `anant-gallery-${Date.now()}-${index + 1}.jpg`);
         }
         return Promise.resolve();
     });
     
     await Promise.all(downloadPromises);
-    showToast("Photos saved successfully!");
+    showToast("Photos saved to gallery!");
     exitSelectionMode();
-}
-
-// 🌟 100% WORKING BATCH MULTI-PHOTO SHARE (FAST & CORS-FREE)
-async function multiSharePhotos() {
-    if (selectedIds.size === 0) return;
-    
-    showToast(`Preparing ${selectedIds.size} photo(s) to share...`);
-    try {
-        const selectedItems = galleryData.filter(x => selectedIds.has(x.id) && x.image);
-        if (!selectedItems.length) return;
-
-        const filesToShare = [];
-        
-        for (let i = 0; i < selectedItems.length; i++) {
-            const itemUrl = selectedItems[i].image;
-            let blob = null;
-
-            try {
-                const proxyUrl = `/api/upload?url=${encodeURIComponent(itemUrl)}`;
-                const res = await fetch(proxyUrl);
-                if (res.ok) blob = await res.blob();
-            } catch (e) {}
-
-            if (!blob) {
-                try {
-                    const directRes = await fetch(itemUrl, { mode: 'cors' });
-                    if (directRes.ok) blob = await directRes.blob();
-                } catch (e) {}
-            }
-
-            if (blob) {
-                filesToShare.push(new File([blob], `anant-photo-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
-            }
-        }
-
-        if (filesToShare.length > 0 && navigator.canShare && navigator.canShare({ files: filesToShare })) {
-            await navigator.share({
-                title: 'Anant Gallery',
-                text: `Shared ${filesToShare.length} photo(s) via Anant Gallery - Infinite Cloud 📸`,
-                files: filesToShare
-            });
-        } else if (navigator.share) {
-            await navigator.share({
-                title: 'Anant Gallery',
-                text: `Shared ${selectedItems.length} photos via Anant Gallery 📸`,
-                url: selectedItems[0].image
-            });
-        } else {
-            showToast("Direct sharing not supported on this browser");
-        }
-        exitSelectionMode();
-    } catch (err) {
-        if (err.name !== 'AbortError') {
-            console.error("Multi-share error:", err);
-            showToast("Failed to share photos");
-        }
-    }
 }
 
 // --------------------------------------------------------------------------
@@ -243,7 +188,7 @@ initImageViewer({
     getCurrentView: () => currentView,
     onDownload: (imageData) => {
         const url = typeof imageData === 'object' ? imageData.image : imageData;
-        downloadPhoto(url, `photo-${Date.now()}.jpg`);
+        downloadPhoto(url, `anant-gallery-${Date.now()}.jpg`);
     },
     onAddToAlbum: (docId) => {
         showAddToAlbumModal([docId], currentUser, () => {
@@ -534,7 +479,6 @@ function switchView(view, extraParam = null) {
     const trashBanner = document.getElementById('trashBanner');
     if (trashBanner) trashBanner.style.display = view === 'trash' ? 'block' : 'none';
 
-    // 🌟 Check and Render PWA Banner smoothly on view switch
     checkAndRenderPWAInstallBanner();
 }
 
@@ -662,7 +606,7 @@ function loadGalleryData(view) {
 }
 
 // --------------------------------------------------------------------------
-// 10. SMART SELECTION MODE WITH MULTI-ACTIONS (ALL ICONS VISIBLE & SCROLLABLE)
+// 10. SMART SELECTION MODE WITH MULTI-ACTIONS (SHARE-FREE & CLEAN)
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -674,15 +618,13 @@ function enterSelectionMode(initialId, customContext) {
     
     if (currentView === 'photos' || customContext === 'album') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
-            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
+            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save to Gallery"></i>
             <i class="fa-solid fa-folder-plus" id="multiAlbumBtn" style="color: #0ea5e9;" title="Move to Album"></i>
             ${customContext === 'album' ? `<i class="fa-solid fa-folder-minus" id="multiRemoveAlbumBtn" style="color: #f59e0b;" title="Remove from Album"></i>` : ''}
             <i class="fa-solid fa-heart" id="multiFavBtn" style="color: #ec4899;" title="Add Favorites"></i>
             <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
-        document.getElementById('multiShareBtn').onclick = multiSharePhotos;
         document.getElementById('multiDownloadBtn').onclick = multiDownload;
         document.getElementById('multiAlbumBtn').onclick = () => {
             showAddToAlbumModal(Array.from(selectedIds), currentUser, exitSelectionMode, showToast);
@@ -699,13 +641,11 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'favorites') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
-            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
+            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save to Gallery"></i>
             <i class="fa-solid fa-heart-crack" id="multiUnfavBtn" style="color: #ec4899;" title="Remove from Favorites"></i>
             <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
-        document.getElementById('multiShareBtn').onclick = multiSharePhotos;
         document.getElementById('multiDownloadBtn').onclick = multiDownload;
         document.getElementById('multiUnfavBtn').onclick = async () => {
             const idsToUnfav = Array.from(selectedIds);
@@ -716,11 +656,11 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'hidden') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-eye" id="multiUnhideBtn" style="color: var(--success);" title="Unhide Photos"></i>
+            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save to Gallery"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
-        document.getElementById('multiShareBtn').onclick = multiSharePhotos;
+        document.getElementById('multiDownloadBtn').onclick = multiDownload;
         document.getElementById('multiUnhideBtn').onclick = () => multiHideAction(false);
         document.getElementById('multiTrashBtn').onclick = multiMoveToTrash;
     } else {
