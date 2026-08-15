@@ -1,5 +1,5 @@
 // ==========================================================================
-// IMAGE VIEWER (LIGHTBOX) - SCROLLABLE ACTION BAR & NATIVE WEB SHARE
+// IMAGE VIEWER (LIGHTBOX) - ANANT GALLERY BRANDED SHARE & SCROLLABLE BAR
 // ==========================================================================
 
 let currentIndex = -1;
@@ -231,7 +231,7 @@ function injectHTML() {
 }
 
 // --------------------------------------------------------------------------
-// 2. 100% WORKING DIRECT WEB SHARE (VIA VERCEL CORS PROXY)
+// 2. 100% WORKING DIRECT WEB SHARE (BRANDED: ANANT GALLERY)
 // --------------------------------------------------------------------------
 export async function shareSinglePhotoDirect(imageUrl) {
     try {
@@ -240,7 +240,10 @@ export async function shareSinglePhotoDirect(imageUrl) {
         const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
         const blob = await response.blob();
-        const file = new File([blob], `anant-photo-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+        
+        // 🌟 BRANDED FILE NAME
+        const fileName = `anant-gallery-${Date.now()}.jpg`;
+        const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({
