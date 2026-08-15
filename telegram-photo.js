@@ -1,5 +1,5 @@
 // ==========================================================================
-// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (SMART BATCH ENGINE FOR 100+ PHOTOS)
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (SECURE VERCEL PROXY ENGINE)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -12,12 +12,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { addToOfflineQueue } from "./offline-sync.js";
 
-// Cloud Engine Credentials
-const TELEGRAM_BOT_TOKEN = "8676613425:AAHqxCS4KQf65ZK5M5ovVNa4N7-DccD2WyA";
-const TELEGRAM_CHAT_ID = "-1002914430372";
+// 🌟 SECURE PROXY ENDPOINT (No Tokens Exposed in Frontend!)
+const UPLOAD_API_ENDPOINT = "/api/upload";
 
 // --------------------------------------------------------------------------
-// 1. SMART TOP FLOATING PROGRESS BAR CSS (ANANT CLOUD BRANDED)
+// 1. SMART TOP FLOATING PROGRESS BAR CSS
 // --------------------------------------------------------------------------
 const photoCSS = `
     .photo-upload-topbar {
@@ -228,7 +227,7 @@ async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
 }
 
 // --------------------------------------------------------------------------
-// 4. FAST FILE HASH & BATCH DUPLICATE CHECK
+// 4. FAST FILE HASH & DUPLICATE CHECK
 // --------------------------------------------------------------------------
 export async function calculateFileHash(file) {
     return `hash_${file.size}_${file.lastModified}_${file.name.replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -285,12 +284,11 @@ export async function batchFilterDuplicates(files, currentUser) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 5. BATCH UPLOAD ENGINE FOR 100+ PHOTOS (2X SPEED PARALLEL WORKERS)
+// 5. BATCH UPLOAD ENGINE (2X PARALLEL SPEED)
 // --------------------------------------------------------------------------
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
 
-    // Offline Handling: Save all files to queue at once
     if (!navigator.onLine) {
         for (const file of files) {
             await addToOfflineQueue(file, currentUser.uid, currentView, null);
@@ -299,7 +297,6 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         return;
     }
 
-    // Fast Batch Duplicate Check
     const { uniqueFiles, skippedCount } = await batchFilterDuplicates(files, currentUser);
 
     if (uniqueFiles.length === 0) {
@@ -315,7 +312,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
     showProgressModal(`Preparing ${totalBatch} photos...`);
 
     let completedCount = 0;
-    const CONCURRENCY_LIMIT = 2; // 2 Parallel Workers for 2X Speed
+    const CONCURRENCY_LIMIT = 2;
     let activeWorkers = 0;
     let fileIndex = 0;
 
@@ -364,7 +361,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 }
 
 // --------------------------------------------------------------------------
-// 6. SINGLE PHOTO UPLOAD ENGINE
+// 6. SINGLE PHOTO UPLOAD ENGINE (CALLS SECURE VERCEL API)
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
@@ -389,48 +386,32 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
 
         const compressedFile = await smartCompressImage(file);
         
-        if (!options.isQueueSync) updateProgress(15, "Syncing with Anant Infinite Cloud...");
+        if (!options.isQueueSync) updateProgress(20, "Securing Anant Cloud Backup...");
 
         return await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            const formData = new FormData();
-
-            formData.append("chat_id", TELEGRAM_CHAT_ID);
-            formData.append("photo", compressedFile, "photo.jpg");
 
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable && !options.isQueueSync) {
-                    const percent = 15 + Math.round((event.loaded / event.total) * 75);
-                    updateProgress(percent, "Uploading to Anant Cloud...");
+                    const percent = 20 + Math.round((event.loaded / event.total) * 70);
+                    updateProgress(percent, "Uploading to Secure Cloud...");
                 }
             };
 
             xhr.onload = async () => {
                 if (xhr.status === 200) {
                     try {
-                        if (!options.isQueueSync) updateProgress(92, "Securing Cloud Storage...");
+                        if (!options.isQueueSync) updateProgress(94, "Finalizing Cloud Storage...");
                         const response = JSON.parse(xhr.responseText);
-                        if (!response.ok) throw new Error(response.description || "Anant Cloud Error");
-
-                        const photos = response.result.photo;
-                        const highestResPhoto = photos[photos.length - 1];
-                        const fileId = highestResPhoto.file_id;
-
-                        const fileRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
-                        const fileData = await fileRes.json();
-
-                        if (!fileData.ok || !fileData.result.file_path) {
-                            throw new Error("Could not fetch cloud file path");
+                        if (!response.ok || !response.imageUrl) {
+                            throw new Error(response.error || "Upload Error");
                         }
 
-                        const imageUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fileData.result.file_path}`;
-
-                        if (!options.isQueueSync) updateProgress(98, "Finalizing...");
-
+                        // Save clean metadata to Firestore
                         await addDoc(collection(db, "user_photos"), {
                             uid: currentUser.uid,
-                            image: imageUrl,
-                            fileId: fileId,
+                            image: response.imageUrl,
+                            fileId: response.fileId,
                             fileHash: fileHash,
                             fileSize: file.size,
                             createdAt: serverTimestamp(),
@@ -443,7 +424,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                             updateProgress(100, "Done!");
                             setTimeout(() => {
                                 hideProgressModal();
-                                if (showToast) showToast("Photo backed up to Anant Cloud!");
+                                if (showToast) showToast("Photo backed up securely!");
                             }, 250);
                         }
 
@@ -455,7 +436,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                     }
                 } else {
                     if (!options.isQueueSync) hideProgressModal();
-                    reject(new Error("Anant Cloud Storage Error"));
+                    reject(new Error("Secure Proxy Upload Error"));
                 }
             };
 
@@ -467,8 +448,10 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                 resolve(false);
             };
 
-            xhr.open("POST", `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`);
-            xhr.send(formData);
+            // 🌟 Calls secure serverless API on Vercel
+            xhr.open("POST", UPLOAD_API_ENDPOINT);
+            xhr.setRequestHeader("Content-Type", "application/octet-stream");
+            xhr.send(compressedFile);
         });
     } catch (e) {
         if (!options.isQueueSync) {
