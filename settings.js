@@ -1,8 +1,9 @@
 // ==========================================================================
-// APP PREFERENCES, ANTI-SNOOP PRIVACY SHIELD & SHA-256 PIN LOCK ENGINE 
+// APP PREFERENCES, PRIVACY SHIELD & FINGERPRINT + SHA-256 PIN LOCK ENGINE
 // ==========================================================================
 
 import { hashSecretPin } from "./hidden-photos.js";
+import { isBiometricAvailable, authenticateWithBiometric, isBiometricEnabled, setBiometricEnabled } from "./biometric-auth.js";
 
 const KEYS = {
     THEME: 'app_theme',
@@ -88,7 +89,7 @@ const injectSettingsStyles = () => {
     const style = document.createElement('style');
     style.id = 'settings-styles';
     style.textContent = `
-        /* 🌟 ANTI-SNOOP RECENT APPS PRIVACY SHIELD */
+        /* ANTI-SNOOP RECENT APPS PRIVACY SHIELD */
         #privacyShield {
             position: fixed;
             inset: 0;
@@ -108,9 +109,7 @@ const injectSettingsStyles = () => {
             pointer-events: none;
         }
 
-        #privacyShield.active {
-            display: flex;
-        }
+        #privacyShield.active { display: flex; }
 
         body, #appScreen, .profile-card, .settings-card, header, #sidebar, .all-photos-board, .albums-main-board {
             transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease !important;
@@ -181,7 +180,7 @@ const injectSettingsStyles = () => {
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             box-shadow: 0 10px 25px rgba(79, 70, 229, 0.25);
             overflow: hidden;
             color: var(--accent, #4f46e5);
@@ -205,13 +204,13 @@ const injectSettingsStyles = () => {
         .pin-sub { 
             font-size: 0.85rem; 
             color: var(--text-muted, #64748b); 
-            margin-bottom: 30px; 
+            margin-bottom: 24px; 
         }
 
         .pin-dots { 
             display: flex; 
             gap: 18px; 
-            margin-bottom: 40px; 
+            margin-bottom: 30px; 
             transition: transform 0.2s ease;
         }
 
@@ -231,9 +230,7 @@ const injectSettingsStyles = () => {
             box-shadow: 0 0 12px rgba(79, 70, 229, 0.4);
         }
 
-        .pin-dots.shake {
-            animation: pinShake 0.35s ease-in-out;
-        }
+        .pin-dots.shake { animation: pinShake 0.35s ease-in-out; }
 
         @keyframes pinShake {
             0%, 100% { transform: translateX(0); }
@@ -244,19 +241,19 @@ const injectSettingsStyles = () => {
         .pin-keypad {
             display: grid; 
             grid-template-columns: repeat(3, 1fr); 
-            gap: 20px 25px;
+            gap: 18px 24px;
             max-width: 280px; 
             width: 100%;
         }
 
         .keypad-btn {
-            width: 72px;
-            height: 72px;
+            width: 68px;
+            height: 68px;
             margin: 0 auto;
             border-radius: 50%; 
             border: 1px solid var(--border, rgba(0,0,0,0.08));
             background: var(--bg-card, #ffffff); 
-            font-size: 1.5rem; 
+            font-size: 1.45rem; 
             font-weight: 600;
             color: var(--text-main, #0f172a); 
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
@@ -272,6 +269,13 @@ const injectSettingsStyles = () => {
             transform: scale(0.88); 
             background: rgba(79, 70, 229, 0.15) !important; 
             border-color: var(--accent, #4f46e5);
+        }
+
+        .keypad-btn.bio-btn {
+            color: var(--accent, #4f46e5);
+            background: rgba(79, 70, 229, 0.08);
+            border-color: rgba(79, 70, 229, 0.25);
+            font-size: 1.4rem;
         }
 
         .settings-card {
@@ -362,89 +366,18 @@ const injectSettingsStyles = () => {
             color: var(--accent, #4f46e5);
             box-shadow: 0 2px 6px rgba(0,0,0,0.08);
         }
-
-        .smart-modal-overlay {
-            position: fixed; inset: 0; z-index: 99999;
-            background: rgba(15, 23, 42, 0.65);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            display: flex; align-items: center; justify-content: center;
-            padding: 20px;
-            animation: fadeInModal 0.25s ease-out forwards;
-        }
-        @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
-        .smart-modal-card {
-            background: var(--bg-card, #ffffff);
-            border: 1px solid var(--border, rgba(0,0,0,0.1));
-            border-radius: 24px;
-            padding: 28px 22px;
-            width: 100%; max-width: 320px;
-            text-align: center;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-            animation: popUpModal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        @keyframes popUpModal { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .smart-modal-icon {
-            width: 54px; height: 54px; border-radius: 50%;
-            background: rgba(79, 70, 229, 0.1);
-            color: var(--accent, #4f46e5);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.5rem; margin: 0 auto 15px auto;
-        }
-        .smart-modal-title {
-            font-size: 1.2rem; font-weight: 700; color: var(--text-main, #0f172a);
-            margin-bottom: 6px;
-        }
-        .smart-modal-sub {
-            font-size: 0.82rem; color: var(--text-muted, #64748b);
-            margin-bottom: 20px; font-weight: 400;
-        }
-        .smart-pin-inputs {
-            display: flex; justify-content: center; gap: 10px; margin-bottom: 24px;
-        }
-        .pin-box-input {
-            width: 44px; height: 50px;
-            border-radius: 12px;
-            border: 2px solid var(--border, #cbd5e1);
-            background: var(--bg-body, #f8fafc);
-            text-align: center; font-size: 1.4rem; font-weight: 700;
-            color: var(--text-main, #0f172a); outline: none;
-            transition: all 0.2s;
-            padding: 0 !important;
-        }
-        .pin-box-input:focus {
-            border-color: var(--accent, #4f46e5);
-            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
-        }
-        .smart-modal-actions {
-            display: flex; gap: 10px;
-        }
-        .smart-btn {
-            flex: 1; padding: 12px; border-radius: 14px;
-            font-weight: 600; font-size: 0.9rem; cursor: pointer;
-            border: none; transition: transform 0.15s, opacity 0.15s;
-        }
-        .smart-btn:active { transform: scale(0.96); }
-        .smart-btn-cancel {
-            background: rgba(100, 116, 139, 0.12);
-            color: var(--text-muted, #64748b);
-        }
-        .smart-btn-confirm {
-            background: var(--accent, #4f46e5);
-            color: #ffffff;
-            box-shadow: 0 8px 18px -4px rgba(79, 70, 229, 0.4);
-        }
     `;
     document.head.appendChild(style);
 };
 
 // --------------------------------------------------------------------------
-// 3. FULL SCREEN APP LOCK OVERLAY (SHA-256 CHECK)
+// 3. FULL SCREEN APP LOCK OVERLAY (WITH FINGERPRINT ICON)
 // --------------------------------------------------------------------------
-function showPinLockOverlay(correctHash) {
+async function showPinLockOverlay(correctHash) {
     if (document.getElementById('pinLockOverlay')) return;
 
     let enteredPin = "";
+    const hasBiometric = await isBiometricAvailable();
 
     const overlay = document.createElement('div');
     overlay.id = 'pinLockOverlay';
@@ -455,7 +388,7 @@ function showPinLockOverlay(correctHash) {
                 <i class="fa-solid fa-lock" style="display:none;"></i>
             </div>
             <div class="pin-title">Anant Gallery Locked</div>
-            <div class="pin-sub">Enter 4-Digit Security PIN</div>
+            <div class="pin-sub">Enter PIN or Scan Fingerprint</div>
             <div class="pin-dots" id="appPinDots">
                 <div class="pin-dot" id="dot1"></div>
                 <div class="pin-dot" id="dot2"></div>
@@ -472,7 +405,7 @@ function showPinLockOverlay(correctHash) {
                 <button class="keypad-btn" data-num="7">7</button>
                 <button class="keypad-btn" data-num="8">8</button>
                 <button class="keypad-btn" data-num="9">9</button>
-                <button class="keypad-btn" style="visibility:hidden;"></button>
+                <button class="keypad-btn bio-btn" id="keypadBio" title="Fingerprint">${hasBiometric ? '<i class="fa-solid fa-fingerprint"></i>' : ''}</button>
                 <button class="keypad-btn" data-num="0">0</button>
                 <button class="keypad-btn" id="keypadBack"><i class="fa-solid fa-backspace" style="font-size:1.2rem;"></i></button>
             </div>
@@ -480,6 +413,24 @@ function showPinLockOverlay(correctHash) {
     `;
 
     document.body.appendChild(overlay);
+
+    const unlockSuccess = () => {
+        isUnlocked = true;
+        if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+        overlay.classList.add('unlocking');
+        setTimeout(() => overlay.remove(), 280);
+    };
+
+    // 🌟 BIOMETRIC SENSOR TRIGGER
+    const bioBtn = document.getElementById('keypadBio');
+    if (bioBtn && hasBiometric) {
+        const triggerBio = async () => {
+            const ok = await authenticateWithBiometric();
+            if (ok) unlockSuccess();
+        };
+        bioBtn.onclick = triggerBio;
+        setTimeout(() => triggerBio(), 200);
+    }
 
     const updateDots = () => {
         for (let i = 1; i <= 4; i++) {
@@ -498,10 +449,7 @@ function showPinLockOverlay(correctHash) {
                 if (enteredPin.length === 4) {
                     const inputHash = await hashSecretPin(enteredPin);
                     if (inputHash === correctHash) {
-                        isUnlocked = true;
-                        if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
-                        overlay.classList.add('unlocking');
-                        setTimeout(() => overlay.remove(), 280);
+                        unlockSuccess();
                     } else {
                         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                         const dotsContainer = document.getElementById('appPinDots');
@@ -528,7 +476,7 @@ function showPinLockOverlay(correctHash) {
 }
 
 // --------------------------------------------------------------------------
-// 4. SMART PRIVACY SHIELD (ANTI-SNOOP ON TASK SWITCHER)
+// 4. SMART PRIVACY SHIELD
 // --------------------------------------------------------------------------
 function setupPrivacyShield() {
     let shield = document.getElementById('privacyShield');
@@ -569,7 +517,6 @@ export function initSettings() {
     const isPinEnabled = localStorage.getItem(KEYS.PIN_ENABLED) === 'true';
     let savedHash = localStorage.getItem(KEYS.PIN_HASH);
 
-    // Auto-migrate legacy plaintext PIN
     if (isPinEnabled && !savedHash) {
         const legacyPlain = localStorage.getItem('app_pin_code');
         if (legacyPlain) {
@@ -594,7 +541,7 @@ export function resetPinLock() {
 initSettings();
 
 // --------------------------------------------------------------------------
-// 6. RENDER SETTINGS UI
+// 6. RENDER SETTINGS UI (WITH BIOMETRIC & GRID & THEME)
 // --------------------------------------------------------------------------
 export function renderSettingsSection(containerElement) {
     injectSettingsStyles();
@@ -660,7 +607,7 @@ export function renderSettingsSection(containerElement) {
                 <div class="setting-label">
                     <i class="fa-solid fa-shield-halved"></i> App PIN Lock
                 </div>
-                <div class="setting-desc">Require PIN to open gallery</div>
+                <div class="setting-desc">Require PIN or Fingerprint to open</div>
             </div>
             <label class="switch">
                 <input type="checkbox" id="pinToggle" ${isPinEnabled ? 'checked' : ''}>
@@ -712,7 +659,7 @@ export function renderSettingsSection(containerElement) {
         });
     });
 
-    // PIN LOCK TOGGLE WITH SHA-256 HASH
+    // PIN LOCK TOGGLE
     document.getElementById('pinToggle').addEventListener('click', async (e) => {
         e.preventDefault();
         const isCurrentlyEnabled = localStorage.getItem(KEYS.PIN_ENABLED) === 'true';
@@ -727,7 +674,7 @@ export function renderSettingsSection(containerElement) {
                         localStorage.setItem(KEYS.PIN_HASH, hash);
                         localStorage.setItem(KEYS.PIN_ENABLED, 'true');
                         document.getElementById('pinToggle').checked = true;
-                        showToast("App PIN Lock Enabled!");
+                        showToast("App Lock Enabled (PIN & Fingerprint)!");
                     } else {
                         showToast("PIN must be exactly 4 digits!");
                         document.getElementById('pinToggle').checked = false;
@@ -740,14 +687,14 @@ export function renderSettingsSection(containerElement) {
         } else {
             const savedHash = localStorage.getItem(KEYS.PIN_HASH);
             showSmartPinPrompt({
-                title: "Disable PIN Lock",
+                title: "Disable App Lock",
                 subtitle: "Enter current PIN to disable lock",
                 onConfirm: async (enteredPin) => {
                     const inputHash = await hashSecretPin(enteredPin);
                     if (inputHash === savedHash) {
                         localStorage.setItem(KEYS.PIN_ENABLED, 'false');
                         document.getElementById('pinToggle').checked = false;
-                        showToast("App PIN Lock Disabled!");
+                        showToast("App Lock Disabled!");
                     } else {
                         showToast("Incorrect PIN!");
                         document.getElementById('pinToggle').checked = true;
@@ -762,7 +709,7 @@ export function renderSettingsSection(containerElement) {
 }
 
 function showSmartPinPrompt({ title, subtitle, onConfirm, onCancel }) {
-    const overlay = document.createElement('div');
+    let overlay = document.createElement('div');
     overlay.className = 'smart-modal-overlay';
     overlay.innerHTML = `
         <div class="smart-modal-card">
