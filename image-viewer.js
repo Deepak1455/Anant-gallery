@@ -1,5 +1,5 @@
 // ==========================================================================
-// IMAGE VIEWER (LIGHTBOX) - SMART, SMOOTH & FAST WITH BULLETPROOF SHARE
+// IMAGE VIEWER (LIGHTBOX) - SMART, SMOOTH & FAST (SHARE REMOVED & BRANDED)
 // ==========================================================================
 
 let currentIndex = -1;
@@ -136,7 +136,7 @@ const viewerStyles = `
     scroll-snap-type: x proximity;
 }
 
-/* 🌟 SLEEK MODERN MICRO SCROLLBAR */
+/* SLEEK MODERN MICRO SCROLLBAR */
 .lb-actions::-webkit-scrollbar {
     height: 3.5px;
 }
@@ -150,10 +150,6 @@ const viewerStyles = `
     background: var(--accent, #4f46e5);
     border-radius: 10px;
     opacity: 0.7;
-}
-
-.lb-actions::-webkit-scrollbar-thumb:hover {
-    background: #9333ea;
 }
 
 /* ACTION ICONS WITH FAST HAPTIC TAP FEEDBACK */
@@ -176,7 +172,6 @@ const viewerStyles = `
     background: rgba(79, 70, 229, 0.1);
 }
 
-#lbShareBtn { color: #0284c7; }
 #lbFavBtn { color: #64748b; }
 #lbFavBtn.active { color: #ec4899 !important; }
 #lbAlbumBtn { color: #0ea5e9; }
@@ -284,83 +279,7 @@ function injectHTML() {
 }
 
 // --------------------------------------------------------------------------
-// 2. 100% BULLETPROOF DIRECT WEB SHARE (BRANDED: ANANT GALLERY)
-// --------------------------------------------------------------------------
-export async function shareSinglePhotoDirect(imageUrl) {
-    if (!imageUrl) return;
-
-    try {
-        if (navigator.vibrate) navigator.vibrate(25);
-
-        let blob = null;
-
-        // Step 1: Proxy Fetch (Bypasses CORS from Telegram/Cloud)
-        try {
-            const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
-            const response = await fetch(proxyUrl);
-            if (response.ok) {
-                blob = await response.blob();
-            }
-        } catch (e) {
-            console.warn("Proxy fetch fallback...", e);
-        }
-
-        // Step 2: Direct Fetch Fallback
-        if (!blob) {
-            try {
-                const directRes = await fetch(imageUrl, { mode: 'cors' });
-                if (directRes.ok) blob = await directRes.blob();
-            } catch (e) {
-                console.warn("Direct fetch fallback...", e);
-            }
-        }
-
-        const fileName = `anant-gallery-${Date.now()}.jpg`;
-
-        // Step 3: Native Web Share (Shares the actual image file to WhatsApp/Apps)
-        if (blob && navigator.canShare) {
-            const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
-            if (navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    title: 'Anant Gallery',
-                    text: 'Shared via Anant Gallery - Infinite Cloud 📸',
-                    files: [file]
-                });
-                return;
-            }
-        }
-
-        // Step 4: Web Share URL Fallback
-        if (navigator.share) {
-            await navigator.share({
-                title: 'Anant Gallery',
-                text: 'Shared via Anant Gallery - Infinite Cloud 📸',
-                url: imageUrl
-            });
-            return;
-        }
-
-        // Step 5: Clipboard Fallback
-        await navigator.clipboard.writeText(imageUrl);
-        alert("Photo link copied to clipboard!");
-    } catch (err) {
-        if (err.name !== 'AbortError') {
-            console.error("Share error:", err);
-            try {
-                if (navigator.share) {
-                    await navigator.share({
-                        title: 'Anant Gallery',
-                        text: 'Shared via Anant Gallery 📸',
-                        url: imageUrl
-                    });
-                }
-            } catch (e) {}
-        }
-    }
-}
-
-// --------------------------------------------------------------------------
-// 3. ZOOM & PAN ENGINE
+// 2. ZOOM & PAN ENGINE
 // --------------------------------------------------------------------------
 function applyTransform(animate = false) {
     const lbImage = document.getElementById('lbImage');
@@ -387,7 +306,6 @@ function setupZoomAndPan() {
     const container = document.getElementById('lbImgContainer');
     if (!container) return;
 
-    // Double Tap Zoom Toggle
     container.addEventListener('click', () => {
         const now = Date.now();
         if (now - lastTapTime < 280) {
@@ -444,7 +362,6 @@ function setupZoomAndPan() {
         isDragging = false;
         if (currentScale < 1) resetZoom(true);
 
-        // Swipe Left/Right to Navigate or Swipe Down to Close
         if (currentScale === 1 && e.changedTouches.length === 1) {
             let diffX = e.changedTouches[0].clientX - tsX;
             let diffY = e.changedTouches[0].clientY - tsY;
@@ -471,7 +388,7 @@ function setupZoomAndPan() {
 }
 
 // --------------------------------------------------------------------------
-// 4. INITIALIZE IMAGE VIEWER
+// 3. INITIALIZE IMAGE VIEWER
 // --------------------------------------------------------------------------
 export function initImageViewer(options = {}) {
     callbacks = options;
@@ -546,7 +463,7 @@ function showPrevImage() {
 }
 
 // --------------------------------------------------------------------------
-// 5. RENDER VIEWER ACTIONS WITH ULTRA-SMOOTH HORIZONTAL SCROLL
+// 4. RENDER VIEWER ACTIONS (CLEAN & SHARE-FREE)
 // --------------------------------------------------------------------------
 function updateViewerContent(currentView) {
     const data = photosList[currentIndex];
@@ -568,17 +485,12 @@ function updateViewerContent(currentView) {
             const isFav = data.isFavorite === true;
             
             lbActions.innerHTML = `
-                <i class="fa-solid fa-share-nodes lb-action-btn" id="lbShareBtn" title="Direct Share"></i>
                 <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-heart lb-action-btn ${isFav ? 'active' : ''}" id="lbFavBtn" title="Favorite"></i>
                 <i class="fa-solid fa-folder-plus lb-action-btn" id="lbAlbumBtn" title="Move to Album"></i>
                 <i class="fa-solid fa-eye-slash lb-action-btn" id="lbHideBtn" title="Move to Private Photos"></i>
                 <i class="fa-solid fa-download lb-action-btn" id="lbDownloadBtn" title="Save to Phone"></i>
                 <i class="fa-solid fa-trash lb-action-btn" id="lbTrashBtn" title="Trash"></i>
             `;
-
-            document.getElementById('lbShareBtn').onclick = () => {
-                shareSinglePhotoDirect(data.image);
-            };
 
             document.getElementById('lbFavBtn').onclick = () => {
                 const newFavStatus = !data.isFavorite;
@@ -614,15 +526,11 @@ function updateViewerContent(currentView) {
 
         } else if (currentView === 'hidden') {
             lbActions.innerHTML = `
-                <i class="fa-solid fa-share-nodes lb-action-btn" id="lbShareBtn" title="Direct Share"></i>
                 <i class="fa-solid fa-eye lb-action-btn" id="lbUnhideBtn" title="Restore to Gallery"></i>
                 <i class="fa-solid fa-download lb-action-btn" id="lbDownloadBtn" title="Save to Phone"></i>
                 <i class="fa-solid fa-trash lb-action-btn" id="lbTrashBtn" title="Trash"></i>
             `;
 
-            document.getElementById('lbShareBtn').onclick = () => {
-                shareSinglePhotoDirect(data.image);
-            };
             document.getElementById('lbUnhideBtn').onclick = () => {
                 if (callbacks.onToggleHide) callbacks.onToggleHide(data.id, false);
                 handleImageDeleted(data.id);
