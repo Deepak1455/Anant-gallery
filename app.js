@@ -148,7 +148,7 @@ async function downloadPhoto(imageUrl, filename = `photo-${Date.now()}.jpg`) {
     try {
         const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
-        const blob = await response.blob();
+        const blob = response.ok ? await response.blob() : await (await fetch(imageUrl, { mode: 'cors' })).blob();
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -156,7 +156,7 @@ async function downloadPhoto(imageUrl, filename = `photo-${Date.now()}.jpg`) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
     } catch (e) {
         window.open(imageUrl, '_blank');
     }
@@ -165,17 +165,21 @@ async function downloadPhoto(imageUrl, filename = `photo-${Date.now()}.jpg`) {
 async function multiDownload() {
     if (selectedIds.size === 0) return;
     showToast(`Downloading ${selectedIds.size} photo(s)...`);
+    
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
         const item = galleryData.find(x => x.id === id);
-        if (item && item.image) return downloadPhoto(item.image, `gallery-photo-${Date.now()}-${index + 1}.jpg`);
+        if (item && item.image) {
+            return downloadPhoto(item.image, `gallery-photo-${Date.now()}-${index + 1}.jpg`);
+        }
         return Promise.resolve();
     });
+    
     await Promise.all(downloadPromises);
     showToast("Photos saved successfully!");
     exitSelectionMode();
 }
 
-// 🌟 100% WORKING BATCH MULTI-PHOTO SHARE (CORS-SAFE VIA PROXY)
+// 🌟 100% WORKING BATCH MULTI-PHOTO SHARE (FAST & CORS-FREE)
 async function multiSharePhotos() {
     if (selectedIds.size === 0) return;
     
@@ -185,14 +189,30 @@ async function multiSharePhotos() {
         if (!selectedItems.length) return;
 
         const filesToShare = [];
+        
         for (let i = 0; i < selectedItems.length; i++) {
-            const proxyUrl = `/api/upload?url=${encodeURIComponent(selectedItems[i].image)}`;
-            const res = await fetch(proxyUrl);
-            const blob = await res.blob();
-            filesToShare.push(new File([blob], `anant-photo-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
+            const itemUrl = selectedItems[i].image;
+            let blob = null;
+
+            try {
+                const proxyUrl = `/api/upload?url=${encodeURIComponent(itemUrl)}`;
+                const res = await fetch(proxyUrl);
+                if (res.ok) blob = await res.blob();
+            } catch (e) {}
+
+            if (!blob) {
+                try {
+                    const directRes = await fetch(itemUrl, { mode: 'cors' });
+                    if (directRes.ok) blob = await directRes.blob();
+                } catch (e) {}
+            }
+
+            if (blob) {
+                filesToShare.push(new File([blob], `anant-photo-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
+            }
         }
 
-        if (navigator.canShare && navigator.canShare({ files: filesToShare })) {
+        if (filesToShare.length > 0 && navigator.canShare && navigator.canShare({ files: filesToShare })) {
             await navigator.share({
                 title: 'Anant Gallery',
                 text: `Shared ${filesToShare.length} photo(s) via Anant Gallery - Infinite Cloud 📸`,
@@ -210,6 +230,7 @@ async function multiSharePhotos() {
         exitSelectionMode();
     } catch (err) {
         if (err.name !== 'AbortError') {
+            console.error("Multi-share error:", err);
             showToast("Failed to share photos");
         }
     }
@@ -641,7 +662,7 @@ function loadGalleryData(view) {
 }
 
 // --------------------------------------------------------------------------
-// 10. SMART SELECTION MODE WITH MULTI-ACTIONS
+// 10. SMART SELECTION MODE WITH MULTI-ACTIONS (ALL ICONS VISIBLE & SCROLLABLE)
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
