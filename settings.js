@@ -1,18 +1,18 @@
 // ==========================================================================
-// APP PREFERENCES & SMART SUNSET-TO-SUNRISE AUTO THEME ENGINE
+// APP PREFERENCES, ANTI-SNOOP PRIVACY SHIELD & SHA-256 PIN LOCK ENGINE
 // ==========================================================================
+
+import { hashSecretPin } from "./hidden-photos.js";
 
 const KEYS = {
     THEME: 'app_theme',
     GRID_COLS: 'app_grid_cols',
-    PIN: 'app_pin_code',
+    PIN_HASH: 'app_pin_code_hash',
     PIN_ENABLED: 'app_pin_enabled'
 };
 
 let isUnlocked = false;
 let autoThemeCheckInterval = null;
-
-// System Color Scheme Query
 const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 // Toast Helper
@@ -33,7 +33,6 @@ const showToast = (msg) => {
 // --------------------------------------------------------------------------
 export function isNightTime() {
     const currentHour = new Date().getHours();
-    // 7:00 PM (19) से लेकर सुबह 6:00 AM (6) तक रात मानी जाएगी
     return currentHour >= 19 || currentHour < 6;
 }
 
@@ -41,25 +40,19 @@ export function applyTheme(themeMode) {
     let effectiveTheme = themeMode;
 
     if (!themeMode || themeMode === 'auto') {
-        // 🌟 DUAL DETECTION: या तो फोन का डार्क मोड ON हो या रात का समय हो (7 PM - 6 AM)
         const isDarkRequired = systemDarkQuery.matches || isNightTime();
         effectiveTheme = isDarkRequired ? 'dark' : 'light';
     }
 
-    // Set Attributes on Root Elements
     document.documentElement.setAttribute('data-theme', effectiveTheme);
     document.body.setAttribute('data-theme', effectiveTheme);
 
-    // 🌟 Sync Mobile Browser Status Bar Color
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
         metaThemeColor.setAttribute('content', effectiveTheme === 'dark' ? '#0f172a' : '#f8fafc');
     }
 }
 
-// --------------------------------------------------------------------------
-// 2. REALTIME LISTENERS & AUTO NIGHT WATCHER
-// --------------------------------------------------------------------------
 const handleThemeCheck = () => {
     const savedTheme = localStorage.getItem(KEYS.THEME) || 'auto';
     if (savedTheme === 'auto') {
@@ -67,31 +60,26 @@ const handleThemeCheck = () => {
 
         const manualToggle = document.getElementById('manualThemeToggle');
         if (manualToggle) {
-            const isDarkNow = systemDarkQuery.matches || isNightTime();
-            manualToggle.checked = isDarkNow;
+            manualToggle.checked = systemDarkQuery.matches || isNightTime();
         }
     }
 };
 
-// Listen to System Dark Mode Toggle
 if (systemDarkQuery.addEventListener) {
     systemDarkQuery.addEventListener('change', handleThemeCheck);
 } else if (systemDarkQuery.addListener) {
     systemDarkQuery.addListener(handleThemeCheck);
 }
 
-// 🌟 Start Interval to automatically turn Dark Mode at 7:00 PM without reloading
 if (!autoThemeCheckInterval) {
     autoThemeCheckInterval = setInterval(() => {
         const savedTheme = localStorage.getItem(KEYS.THEME) || 'auto';
-        if (savedTheme === 'auto') {
-            applyTheme('auto');
-        }
-    }, 60000); // Check every minute
+        if (savedTheme === 'auto') applyTheme('auto');
+    }, 60000);
 }
 
 // --------------------------------------------------------------------------
-// 3. DYNAMIC CSS FOR LIGHT / DARK THEMES & PIN LOCK
+// 2. DYNAMIC CSS FOR PRIVACY SHIELD, LIGHT/DARK THEMES & PIN LOCK
 // --------------------------------------------------------------------------
 const injectSettingsStyles = () => {
     let existingStyle = document.getElementById('settings-styles');
@@ -100,12 +88,34 @@ const injectSettingsStyles = () => {
     const style = document.createElement('style');
     style.id = 'settings-styles';
     style.textContent = `
-        /* Smooth Theme Fade Animation */
+        /* 🌟 ANTI-SNOOP RECENT APPS PRIVACY SHIELD */
+        #privacyShield {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: rgba(15, 23, 42, 0.96);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 1.2rem;
+            flex-direction: column;
+            gap: 14px;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        #privacyShield.active {
+            display: flex;
+        }
+
         body, #appScreen, .profile-card, .settings-card, header, #sidebar, .all-photos-board, .albums-main-board {
             transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease !important;
         }
 
-        /* 🌟 LIGHT THEME (EXPLICIT) */
         [data-theme="light"] {
             --bg-body: #f8fafc !important;
             --bg-card: #ffffff !important;
@@ -119,7 +129,6 @@ const injectSettingsStyles = () => {
             --border: rgba(0, 0, 0, 0.08) !important;
         }
 
-        /* 🌟 EYE-FRIENDLY NIGHT DARK THEME */
         [data-theme="dark"] {
             --bg-body: #0f172a !important;
             --bg-card: #1e293b !important;
@@ -133,19 +142,6 @@ const injectSettingsStyles = () => {
             --border: rgba(255, 255, 255, 0.12) !important;
         }
 
-        [data-theme="dark"] body {
-            background-color: #0f172a !important;
-            color: #f8fafc !important;
-            background-image: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, #0f172a 75%) !important;
-        }
-
-        [data-theme="light"] body {
-            background-color: #f8fafc !important;
-            color: #0f172a !important;
-            background-image: radial-gradient(circle at 50% 0%, rgba(79, 70, 229, 0.08) 0%, #f8fafc 75%) !important;
-        }
-
-        /* 🔒 APP LOCK OVERLAY STYLES */
         #pinLockOverlay {
             position: fixed;
             inset: 0;
@@ -278,7 +274,6 @@ const injectSettingsStyles = () => {
             border-color: var(--accent, #4f46e5);
         }
 
-        /* SETTINGS UI COMPONENTS */
         .settings-card {
             background: var(--bg-card, #ffffff);
             border: 1px solid var(--border, rgba(0,0,0,0.08));
@@ -368,7 +363,6 @@ const injectSettingsStyles = () => {
             box-shadow: 0 2px 6px rgba(0,0,0,0.08);
         }
 
-        /* SMART PIN MODAL */
         .smart-modal-overlay {
             position: fixed; inset: 0; z-index: 99999;
             background: rgba(15, 23, 42, 0.65);
@@ -378,10 +372,7 @@ const injectSettingsStyles = () => {
             padding: 20px;
             animation: fadeInModal 0.25s ease-out forwards;
         }
-        @keyframes fadeInModal {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
         .smart-modal-card {
             background: var(--bg-card, #ffffff);
             border: 1px solid var(--border, rgba(0,0,0,0.1));
@@ -392,10 +383,7 @@ const injectSettingsStyles = () => {
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
             animation: popUpModal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
-        @keyframes popUpModal {
-            from { transform: scale(0.85); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
+        @keyframes popUpModal { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .smart-modal-icon {
             width: 54px; height: 54px; border-radius: 50%;
             background: rgba(79, 70, 229, 0.1);
@@ -451,73 +439,9 @@ const injectSettingsStyles = () => {
 };
 
 // --------------------------------------------------------------------------
-// 4. SMART PIN MODAL PROMPT
+// 3. FULL SCREEN APP LOCK OVERLAY (SHA-256 CHECK)
 // --------------------------------------------------------------------------
-function showSmartPinModal({ title, subtitle, icon, onConfirm, onCancel }) {
-    injectSettingsStyles();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'smart-modal-overlay';
-    overlay.innerHTML = `
-        <div class="smart-modal-card">
-            <div class="smart-modal-icon">
-                <i class="fa-solid ${icon}"></i>
-            </div>
-            <div class="smart-modal-title">${title}</div>
-            <div class="smart-modal-sub">${subtitle}</div>
-            
-            <div class="smart-pin-inputs">
-                <input type="password" maxlength="1" class="pin-box-input" id="p1" inputmode="numeric">
-                <input type="password" maxlength="1" class="pin-box-input" id="p2" inputmode="numeric">
-                <input type="password" maxlength="1" class="pin-box-input" id="p3" inputmode="numeric">
-                <input type="password" maxlength="1" class="pin-box-input" id="p4" inputmode="numeric">
-            </div>
-
-            <div class="smart-modal-actions">
-                <button class="smart-btn smart-btn-cancel" id="smartCancelBtn">Cancel</button>
-                <button class="smart-btn smart-btn-confirm" id="smartConfirmBtn">Confirm</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const inputs = overlay.querySelectorAll('.pin-box-input');
-    inputs[0].focus();
-
-    inputs.forEach((input, index) => {
-        input.addEventListener('input', (e) => {
-            if (e.target.value.length === 1 && index < 3) {
-                inputs[index + 1].focus();
-            }
-        });
-
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && !e.target.value && index > 0) {
-                inputs[index - 1].focus();
-            }
-        });
-    });
-
-    const getPin = () => Array.from(inputs).map(i => i.value).join('');
-    const close = () => overlay.remove();
-
-    overlay.querySelector('#smartCancelBtn').addEventListener('click', () => {
-        close();
-        if (onCancel) onCancel();
-    });
-
-    overlay.querySelector('#smartConfirmBtn').addEventListener('click', () => {
-        const pin = getPin();
-        close();
-        if (onConfirm) onConfirm(pin);
-    });
-}
-
-// --------------------------------------------------------------------------
-// 5. FULL SCREEN APP LOCK OVERLAY
-// --------------------------------------------------------------------------
-function showPinLockOverlay(correctPin) {
+function showPinLockOverlay(correctHash) {
     if (document.getElementById('pinLockOverlay')) return;
 
     let enteredPin = "";
@@ -565,14 +489,15 @@ function showPinLockOverlay(correctPin) {
     };
 
     overlay.querySelectorAll('.keypad-btn[data-num]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             if (enteredPin.length < 4) {
                 if (navigator.vibrate) navigator.vibrate(12);
                 enteredPin += btn.getAttribute('data-num');
                 updateDots();
 
                 if (enteredPin.length === 4) {
-                    if (enteredPin === correctPin) {
+                    const inputHash = await hashSecretPin(enteredPin);
+                    if (inputHash === correctHash) {
                         isUnlocked = true;
                         if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
                         overlay.classList.add('unlocking');
@@ -603,28 +528,37 @@ function showPinLockOverlay(correctPin) {
 }
 
 // --------------------------------------------------------------------------
-// 6. AUTO-LOCK ON BACKGROUND / TAB CHANGE
+// 4. SMART PRIVACY SHIELD (ANTI-SNOOP ON TASK SWITCHER)
 // --------------------------------------------------------------------------
-document.addEventListener('visibilitychange', () => {
-    const isPinEnabled = localStorage.getItem(KEYS.PIN_ENABLED) === 'true';
-    const savedPin = localStorage.getItem(KEYS.PIN);
-
-    if (document.hidden) {
-        if (isPinEnabled) isUnlocked = false;
-    } else {
-        if (isPinEnabled && savedPin && !isUnlocked) {
-            showPinLockOverlay(savedPin);
-        }
-        // App active hone par dobara time check karega
-        handleThemeCheck();
+function setupPrivacyShield() {
+    let shield = document.getElementById('privacyShield');
+    if (!shield) {
+        shield = document.createElement('div');
+        shield.id = 'privacyShield';
+        shield.innerHTML = `
+            <i class="fa-solid fa-user-shield" style="font-size:2.5rem; color:var(--accent);"></i>
+            <span>Anant Gallery Protected</span>
+        `;
+        document.body.appendChild(shield);
     }
-});
+
+    const showShield = () => shield.classList.add('active');
+    const hideShield = () => shield.classList.remove('active');
+
+    window.addEventListener('blur', showShield);
+    window.addEventListener('focus', hideShield);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) showShield();
+        else hideShield();
+    });
+}
 
 // --------------------------------------------------------------------------
-// 7. INITIALIZE PREFERENCES
+// 5. INITIALIZE PREFERENCES & APP LOCK
 // --------------------------------------------------------------------------
 export function initSettings() {
     injectSettingsStyles();
+    setupPrivacyShield();
 
     const savedTheme = localStorage.getItem(KEYS.THEME) || 'auto';
     applyTheme(savedTheme);
@@ -633,10 +567,23 @@ export function initSettings() {
     document.documentElement.style.setProperty('--grid-cols', savedCols);
 
     const isPinEnabled = localStorage.getItem(KEYS.PIN_ENABLED) === 'true';
-    const savedPin = localStorage.getItem(KEYS.PIN);
+    let savedHash = localStorage.getItem(KEYS.PIN_HASH);
 
-    if (isPinEnabled && savedPin && !isUnlocked) {
-        showPinLockOverlay(savedPin);
+    // Auto-migrate legacy plaintext PIN
+    if (isPinEnabled && !savedHash) {
+        const legacyPlain = localStorage.getItem('app_pin_code');
+        if (legacyPlain) {
+            hashSecretPin(legacyPlain).then(h => {
+                localStorage.setItem(KEYS.PIN_HASH, h);
+                localStorage.removeItem('app_pin_code');
+                if (!isUnlocked) showPinLockOverlay(h);
+            });
+            return;
+        }
+    }
+
+    if (isPinEnabled && savedHash && !isUnlocked) {
+        showPinLockOverlay(savedHash);
     }
 }
 
@@ -647,7 +594,7 @@ export function resetPinLock() {
 initSettings();
 
 // --------------------------------------------------------------------------
-// 8. RENDER SETTINGS UI SECTION
+// 6. RENDER SETTINGS UI
 // --------------------------------------------------------------------------
 export function renderSettingsSection(containerElement) {
     injectSettingsStyles();
@@ -728,7 +675,6 @@ export function renderSettingsSection(containerElement) {
     const manualToggle = document.getElementById('manualThemeToggle');
     const manualRow = document.getElementById('manualThemeRow');
 
-    // 🌟 AUTO SYSTEM THEME TOGGLE
     autoToggle.addEventListener('change', (e) => {
         const enabled = e.target.checked;
         if (enabled) {
@@ -748,7 +694,6 @@ export function renderSettingsSection(containerElement) {
         }
     });
 
-    // 🌟 MANUAL DARK MODE TOGGLE
     manualToggle.addEventListener('change', (e) => {
         const mode = e.target.checked ? 'dark' : 'light';
         localStorage.setItem(KEYS.THEME, mode);
@@ -756,7 +701,6 @@ export function renderSettingsSection(containerElement) {
         showToast(`${mode === 'dark' ? 'Dark' : 'Light'} Mode Active!`);
     });
 
-    // GRID COLS SELECTOR
     section.querySelectorAll('.grid-option-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             section.querySelectorAll('.grid-option-btn').forEach(b => b.classList.remove('active'));
@@ -768,19 +712,19 @@ export function renderSettingsSection(containerElement) {
         });
     });
 
-    // PIN LOCK TOGGLE
-    document.getElementById('pinToggle').addEventListener('click', (e) => {
+    // PIN LOCK TOGGLE WITH SHA-256 HASH
+    document.getElementById('pinToggle').addEventListener('click', async (e) => {
         e.preventDefault();
         const isCurrentlyEnabled = localStorage.getItem(KEYS.PIN_ENABLED) === 'true';
 
         if (!isCurrentlyEnabled) {
-            showSmartPinModal({
+            showSmartPinPrompt({
                 title: "Set Security PIN",
-                subtitle: "Enter a 4-digit PIN to lock your gallery",
-                icon: "fa-shield-halved",
-                onConfirm: (enteredPin) => {
+                subtitle: "Enter a 4-digit PIN to lock gallery",
+                onConfirm: async (enteredPin) => {
                     if (enteredPin && /^\d{4}$/.test(enteredPin)) {
-                        localStorage.setItem(KEYS.PIN, enteredPin);
+                        const hash = await hashSecretPin(enteredPin);
+                        localStorage.setItem(KEYS.PIN_HASH, hash);
                         localStorage.setItem(KEYS.PIN_ENABLED, 'true');
                         document.getElementById('pinToggle').checked = true;
                         showToast("App PIN Lock Enabled!");
@@ -794,13 +738,13 @@ export function renderSettingsSection(containerElement) {
                 }
             });
         } else {
-            const savedPin = localStorage.getItem(KEYS.PIN);
-            showSmartPinModal({
+            const savedHash = localStorage.getItem(KEYS.PIN_HASH);
+            showSmartPinPrompt({
                 title: "Disable PIN Lock",
-                subtitle: "Enter current 4-digit PIN to disable lock",
-                icon: "fa-lock-open",
-                onConfirm: (enteredPin) => {
-                    if (enteredPin === savedPin) {
+                subtitle: "Enter current PIN to disable lock",
+                onConfirm: async (enteredPin) => {
+                    const inputHash = await hashSecretPin(enteredPin);
+                    if (inputHash === savedHash) {
                         localStorage.setItem(KEYS.PIN_ENABLED, 'false');
                         document.getElementById('pinToggle').checked = false;
                         showToast("App PIN Lock Disabled!");
@@ -815,4 +759,50 @@ export function renderSettingsSection(containerElement) {
             });
         }
     });
+}
+
+function showSmartPinPrompt({ title, subtitle, onConfirm, onCancel }) {
+    const overlay = document.createElement('div');
+    overlay.className = 'smart-modal-overlay';
+    overlay.innerHTML = `
+        <div class="smart-modal-card">
+            <div class="smart-modal-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <div class="smart-modal-title">${title}</div>
+            <div class="smart-modal-sub">${subtitle}</div>
+            <div class="smart-pin-inputs">
+                <input type="password" maxlength="1" class="pin-box-input" id="p1" inputmode="numeric">
+                <input type="password" maxlength="1" class="pin-box-input" id="p2" inputmode="numeric">
+                <input type="password" maxlength="1" class="pin-box-input" id="p3" inputmode="numeric">
+                <input type="password" maxlength="1" class="pin-box-input" id="p4" inputmode="numeric">
+            </div>
+            <div class="smart-modal-actions">
+                <button class="smart-btn smart-btn-cancel" id="smartCancelBtn">Cancel</button>
+                <button class="smart-btn smart-btn-confirm" id="smartConfirmBtn">Confirm</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const inputs = overlay.querySelectorAll('.pin-box-input');
+    inputs[0].focus();
+
+    inputs.forEach((input, index) => {
+        input.addEventListener('input', (e) => {
+            if (e.target.value.length === 1 && index < 3) inputs[index + 1].focus();
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && !e.target.value && index > 0) inputs[index - 1].focus();
+        });
+    });
+
+    const getPin = () => Array.from(inputs).map(i => i.value).join('');
+    const close = () => overlay.remove();
+
+    overlay.querySelector('#smartCancelBtn').onclick = () => { close(); if (onCancel) onCancel(); };
+    overlay.querySelector('#smartConfirmBtn').onclick = () => {
+        const pin = getPin();
+        close();
+        if (onConfirm) onConfirm(pin);
+    };
 }
