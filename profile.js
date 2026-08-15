@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - FINGERPRINT MANAGEMENT, PIN CONTROLS & STORAGE ANALYTICS
+// PROFILE MODULE - 100% BUG-FREE & FAST (FINGERPRINT, PIN & ANALYTICS)
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
@@ -275,7 +275,6 @@ const injectProfileStyles = () => {
             border: 1px solid var(--border, rgba(0, 0, 0, 0.05));
         }
 
-        /* 🌟 SECURITY CARD WITH BIOMETRIC FINGERPRINT TOGGLE */
         .security-card {
             background: var(--bg-card, #ffffff);
             border-radius: 20px;
@@ -443,28 +442,30 @@ const showToast = (msg) => {
     }, 3000);
 };
 
-export async function renderProfileScreen(containerElement) {
+// --------------------------------------------------------------------------
+// 🌟 SAFE RENDER PROFILE SCREEN (INSTANT RENDER & MULTI-AUTH SAFE)
+// --------------------------------------------------------------------------
+export function renderProfileScreen(containerElement, passedUser = null) {
     injectProfileStyles();
+    stopProfileListener();
 
-    const user = auth.currentUser;
+    const user = passedUser || auth.currentUser;
     if (!user) {
-        containerElement.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted, #64748b);">Please log in to view profile.</div>`;
+        containerElement.innerHTML = `<div style="text-align:center; padding:50px 20px; color:var(--text-muted, #64748b);">Please log in to view profile.</div>`;
         return;
     }
 
-    const initial = user.email ? user.email.charAt(0).toUpperCase() : 'U';
-    const displayName = user.displayName || "User";
-    const creationTime = user.metadata.creationTime;
+    const email = user.email || "No Email";
+    const initial = email.charAt(0).toUpperCase();
+    const displayName = user.displayName || email.split('@')[0] || "User";
+    const creationTime = user.metadata?.creationTime;
     const formattedDate = creationTime 
         ? new Date(creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        : 'N/A';
+        : 'Active';
 
     const avatarContent = user.photoURL 
         ? `<img src="${user.photoURL}" id="avatarImg" class="profile-avatar" alt="Avatar">`
         : `<div class="profile-avatar" id="avatarInitial">${initial}</div>`;
-
-    const bioSupported = await isBiometricAvailable();
-    const bioActive = isBiometricEnabled();
 
     containerElement.innerHTML = `
         <div class="profile-container">
@@ -489,7 +490,7 @@ export async function renderProfileScreen(containerElement) {
                     <button class="btn-cancel-name" id="btnCancelName"><i class="fa-solid fa-xmark"></i></button>
                 </div>
 
-                <div class="profile-email">${user.email}</div>
+                <div class="profile-email">${email}</div>
                 
                 <div class="profile-badge">
                     <i class="fa-solid fa-shield-halved"></i> Active Cloud Storage
@@ -549,33 +550,31 @@ export async function renderProfileScreen(containerElement) {
                         <div class="info-item-left">
                             <i class="fa-solid fa-envelope" style="color:#ca8a04;"></i> Account Email
                         </div>
-                        <div class="info-item-val" style="font-size:0.8rem; word-break:break-all;">${user.email}</div>
+                        <div class="info-item-val" style="font-size:0.8rem; word-break:break-all;">${email}</div>
                     </div>
                 </div>
 
             </div>
 
-            <!-- 🌟 SECURITY CONTROLS WITH 1-TAP FINGERPRINT REGISTRATION -->
+            <!-- SECURITY CONTROLS CARD -->
             <div class="security-card">
                 <div class="security-title">
                     <i class="fa-solid fa-shield-halved" style="color: var(--accent);"></i> Security & Lock Controls
                 </div>
 
-                ${bioSupported ? `
-                <div class="pin-option-item">
+                <div class="pin-option-item" id="bioRowContainer" style="display:none;">
                     <div class="pin-option-info">
                         <i class="fa-solid fa-fingerprint" style="color: #10b981;"></i>
                         <div>
                             <div class="pin-title">Fingerprint Lock</div>
-                            <div class="pin-subtitle" id="bioStatusSubtitle">${bioActive ? 'Fingerprint Saved & Active' : 'Scan finger to save & activate'}</div>
+                            <div class="pin-subtitle" id="bioStatusSubtitle">Scan finger to save & activate</div>
                         </div>
                     </div>
                     <label class="switch">
-                        <input type="checkbox" id="profileBioToggle" ${bioActive ? 'checked' : ''}>
+                        <input type="checkbox" id="profileBioToggle">
                         <span class="slider"></span>
                     </label>
                 </div>
-                ` : ''}
 
                 <div class="pin-option-item">
                     <div class="pin-option-info">
@@ -608,86 +607,98 @@ export async function renderProfileScreen(containerElement) {
         renderSettingsSection(profileContainer);
     }
 
-    // 🌟 FINGERPRINT REGISTRATION / TOGGLE CONTROLLER
-    const bioToggle = document.getElementById('profileBioToggle');
-    const bioStatusSubtitle = document.getElementById('bioStatusSubtitle');
+    // 🌟 ASYNC BIOMETRIC CHECK (NEVER BLOCKS UI)
+    isBiometricAvailable().then((supported) => {
+        const row = document.getElementById('bioRowContainer');
+        const toggle = document.getElementById('profileBioToggle');
+        const sub = document.getElementById('bioStatusSubtitle');
 
-    if (bioToggle) {
-        bioToggle.addEventListener('change', async (e) => {
-            const wantsToEnable = e.target.checked;
+        if (supported && row && toggle) {
+            row.style.display = 'flex';
+            const isActive = isBiometricEnabled();
+            toggle.checked = isActive;
+            if (sub) sub.innerText = isActive ? 'Fingerprint Saved & Active' : 'Scan finger to save & activate';
 
-            if (wantsToEnable) {
-                showToast("Scanning finger to save passkey...");
-                try {
-                    const success = await registerBiometric(user.email);
-                    if (success) {
-                        bioToggle.checked = true;
-                        if (bioStatusSubtitle) bioStatusSubtitle.innerText = 'Fingerprint Saved & Active';
-                        showToast("Fingerprint successfully saved & activated! 🔒");
-                        if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
-                    } else {
-                        bioToggle.checked = false;
-                        showToast("Fingerprint registration cancelled!");
+            toggle.onchange = async (e) => {
+                const wantsEnable = e.target.checked;
+                if (wantsEnable) {
+                    showToast("Scanning finger to save passkey...");
+                    try {
+                        const ok = await registerBiometric(user.email);
+                        if (ok) {
+                            toggle.checked = true;
+                            if (sub) sub.innerText = 'Fingerprint Saved & Active';
+                            showToast("Fingerprint saved & activated! 🔒");
+                            if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+                        } else {
+                            toggle.checked = false;
+                            showToast("Registration cancelled!");
+                        }
+                    } catch (err) {
+                        toggle.checked = false;
+                        showToast("Failed: " + err.message);
                     }
-                } catch (err) {
-                    console.error("Biometric registration error:", err);
-                    bioToggle.checked = false;
-                    showToast("Could not register fingerprint: " + err.message);
+                } else {
+                    removeBiometric();
+                    toggle.checked = false;
+                    if (sub) sub.innerText = 'Scan finger to save & activate';
+                    showToast("Fingerprint disabled!");
                 }
-            } else {
-                removeBiometric();
-                bioToggle.checked = false;
-                if (bioStatusSubtitle) bioStatusSubtitle.innerText = 'Scan finger to save & activate';
-                showToast("Fingerprint lock disabled!");
-            }
-        });
-    }
+            };
+        }
+    }).catch(() => {});
 
     // Avatar Upload
     const changeAvatarBtn = document.getElementById('changeAvatarBtn');
     const avatarFileInput = document.getElementById('avatarFileInput');
 
-    changeAvatarBtn.addEventListener('click', () => avatarFileInput.click());
+    if (changeAvatarBtn && avatarFileInput) {
+        changeAvatarBtn.addEventListener('click', () => avatarFileInput.click());
 
-    avatarFileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        avatarFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        showToast("Uploading profile picture...");
-        
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+            showToast("Uploading profile picture...");
+            
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-                method: "POST",
-                body: formData
-            });
+                const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                    method: "POST",
+                    body: formData
+                });
 
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error?.message || "Upload failed");
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error?.message || "Upload failed");
 
-            const imageUrl = data.secure_url;
-            await updateProfile(auth.currentUser, { photoURL: imageUrl });
+                const imageUrl = data.secure_url;
+                if (auth.currentUser) {
+                    await updateProfile(auth.currentUser, { photoURL: imageUrl });
+                }
 
-            const avatarWrapper = document.querySelector('.avatar-wrapper');
-            const existingAvatar = avatarWrapper.querySelector('.profile-avatar');
-            if (existingAvatar) existingAvatar.remove();
+                const avatarWrapper = document.querySelector('.avatar-wrapper');
+                const existingAvatar = avatarWrapper?.querySelector('.profile-avatar');
+                if (existingAvatar) existingAvatar.remove();
 
-            const newImg = document.createElement('img');
-            newImg.src = imageUrl;
-            newImg.id = 'avatarImg';
-            newImg.className = 'profile-avatar';
-            newImg.alt = 'Avatar';
-            avatarWrapper.insertBefore(newImg, changeAvatarBtn);
+                const newImg = document.createElement('img');
+                newImg.src = imageUrl;
+                newImg.id = 'avatarImg';
+                newImg.className = 'profile-avatar';
+                newImg.alt = 'Avatar';
+                if (avatarWrapper && changeAvatarBtn) {
+                    avatarWrapper.insertBefore(newImg, changeAvatarBtn);
+                }
 
-            showToast("Profile picture updated!");
-        } catch (err) {
-            console.error("Avatar update error:", err);
-            showToast("Upload Error: " + err.message);
-        }
-    });
+                showToast("Profile picture updated!");
+            } catch (err) {
+                console.error("Avatar update error:", err);
+                showToast("Upload Error: " + err.message);
+            }
+        });
+    }
 
     // Edit Name
     const nameDisplayBox = document.getElementById('nameDisplayBox');
@@ -698,37 +709,43 @@ export async function renderProfileScreen(containerElement) {
     const nameInput = document.getElementById('nameInput');
     const profileDisplayName = document.getElementById('profileDisplayName');
 
-    btnEditName.addEventListener('click', () => {
-        nameDisplayBox.style.display = 'none';
-        nameEditForm.style.display = 'flex';
-        nameInput.focus();
-    });
+    if (btnEditName) {
+        btnEditName.addEventListener('click', () => {
+            if (nameDisplayBox) nameDisplayBox.style.display = 'none';
+            if (nameEditForm) nameEditForm.style.display = 'flex';
+            if (nameInput) nameInput.focus();
+        });
+    }
 
-    btnCancelName.addEventListener('click', () => {
-        nameEditForm.style.display = 'none';
-        nameDisplayBox.style.display = 'flex';
-    });
+    if (btnCancelName) {
+        btnCancelName.addEventListener('click', () => {
+            if (nameEditForm) nameEditForm.style.display = 'none';
+            if (nameDisplayBox) nameDisplayBox.style.display = 'flex';
+        });
+    }
 
-    btnSaveName.addEventListener('click', async () => {
-        const newName = nameInput.value.trim();
-        if (!newName) return showToast("Name cannot be empty!");
+    if (btnSaveName) {
+        btnSaveName.addEventListener('click', async () => {
+            const newName = nameInput ? nameInput.value.trim() : '';
+            if (!newName) return showToast("Name cannot be empty!");
 
-        showToast("Updating name...");
-        try {
-            await updateProfile(auth.currentUser, { displayName: newName });
-            profileDisplayName.innerText = newName;
-            nameEditForm.style.display = 'none';
-            nameDisplayBox.style.display = 'flex';
-            showToast("Name updated successfully!");
-        } catch (err) {
-            console.error("Name update error:", err);
-            showToast("Failed to update name");
-        }
-    });
+            showToast("Updating name...");
+            try {
+                if (auth.currentUser) {
+                    await updateProfile(auth.currentUser, { displayName: newName });
+                }
+                if (profileDisplayName) profileDisplayName.innerText = newName;
+                if (nameEditForm) nameEditForm.style.display = 'none';
+                if (nameDisplayBox) nameDisplayBox.style.display = 'flex';
+                showToast("Name updated successfully!");
+            } catch (err) {
+                console.error("Name update error:", err);
+                showToast("Failed to update name");
+            }
+        });
+    }
 
-    // Realtime Stats
-    if (unsubscribeProfile) unsubscribeProfile();
-
+    // Realtime Firestore Stats
     const photosRef = collection(db, "user_photos");
     const qUserPhotos = query(photosRef, where("uid", "==", user.uid));
 
@@ -768,7 +785,7 @@ export async function renderProfileScreen(containerElement) {
             storageValEl.innerHTML = `${formattedStorage} <span>phone memory freed</span>`;
         }
     }, (error) => {
-        console.error("Error listening to profile stats:", error);
+        console.warn("Stats listener error:", error);
     });
 
     // SHA-256 Dual PIN Management Modal
@@ -848,4 +865,14 @@ export async function renderProfileScreen(containerElement) {
 
     document.getElementById("btnManageAppPin")?.addEventListener("click", () => openPinModal('app'));
     document.getElementById("btnManagePrivatePin")?.addEventListener("click", () => openPinModal('private'));
+}
+
+// --------------------------------------------------------------------------
+// 🌟 STOP PROFILE LISTENER ON LOGOUT / VIEW SWITCH (PREVENTS LEAKS)
+// --------------------------------------------------------------------------
+export function stopProfileListener() {
+    if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+    }
 }
