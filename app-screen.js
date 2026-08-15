@@ -1,12 +1,7 @@
 // ==========================================================================
-// APP SCREEN LAYOUT & HIGH-PERFORMANCE PWA ENGINE (ULTRA-SMOOTH & FAST)
+// APP SCREEN LAYOUT & HIGH-PERFORMANCE PWA ENGINE (1-TAP NATIVE PROMPT)
 // ==========================================================================
 
-let deferredInstallPrompt = null;
-
-/**
- * 🌟 Smart Standalone & App Mode Detection
- */
 export function isAppInstalled() {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isIOSStandalone = window.navigator.standalone === true;
@@ -283,6 +278,38 @@ const appScreenStyles = `
 
 .btn-pwa-close:active { transform: scale(0.85); }
 
+/* 🌟 CUSTOM INSTALL INSTRUCTION MODAL */
+.pwa-guide-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 10005;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.pwa-guide-card {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+    border-radius: 24px;
+    padding: 24px 20px;
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+    animation: popUp 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popUp {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 #toast {
     position: fixed; 
     top: 80px; 
@@ -319,7 +346,33 @@ function injectStyles() {
 }
 
 /**
- * 🌟 Fast PWA Card Checker & Renderer
+ * 🌟 Show Custom Visual PWA Install Guide
+ */
+function showInstallGuide() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    let guide = document.createElement('div');
+    guide.className = 'pwa-guide-modal';
+    guide.innerHTML = `
+        <div class="pwa-guide-card">
+            <div class="pwa-install-icon-box" style="margin:0 auto 14px auto; width:52px; height:52px; font-size:1.5rem;">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+            </div>
+            <h3 style="font-size:1.15rem; font-weight:700; color:var(--text-main); margin-bottom:8px;">Install Anant Gallery</h3>
+            <p style="font-size:0.84rem; color:var(--text-muted); line-height:1.45; margin-bottom:20px;">
+                ${isIOS 
+                    ? `Tap the <strong>Share</strong> button <i class="fa-solid fa-arrow-up-from-bracket" style="color:var(--accent);"></i> at bottom and choose <strong>'Add to Home Screen'</strong>.`
+                    : `Tap top-right menu <i class="fa-solid fa-ellipsis-vertical" style="color:var(--accent);"></i> and select <strong>'Install app'</strong> or <strong>'Add to Home screen'</strong>.`}
+            </p>
+            <button id="closePwaGuide" style="width:100%; padding:12px; border-radius:14px; background:var(--accent); color:#ffffff; font-weight:700; border:none; cursor:pointer;">Got it!</button>
+        </div>
+    `;
+    document.body.appendChild(guide);
+    guide.querySelector('#closePwaGuide').onclick = () => guide.remove();
+    guide.onclick = (e) => { if (e.target === guide) guide.remove(); };
+}
+
+/**
+ * 🌟 Check & Render PWA Card Board
  */
 export function checkAndRenderPWAInstallBanner() {
     if (isAppInstalled()) {
@@ -327,7 +380,6 @@ export function checkAndRenderPWAInstallBanner() {
         return;
     }
 
-    // यदि यूज़र ने इसी सेशन में कार्ड को क्लोज़ किया हो तो दोबारा न दिखाएं
     if (sessionStorage.getItem('anant_pwa_dismissed') === 'true') {
         return;
     }
@@ -365,36 +417,27 @@ export function checkAndRenderPWAInstallBanner() {
         scrollContainer.prepend(pwaBoard);
     }
 
-    // 🌟 Install Click Handler
+    // 🌟 Instant 1-Tap Native Install Trigger
     document.getElementById('btnPwaInstallAction')?.addEventListener('click', async () => {
-        if (deferredInstallPrompt) {
-            deferredInstallPrompt.prompt();
-            const { outcome } = await deferredInstallPrompt.userChoice;
+        const promptEvent = window.deferredInstallPrompt;
+        if (promptEvent) {
+            promptEvent.prompt();
+            const { outcome } = await promptEvent.userChoice;
             if (outcome === 'accepted') {
                 smoothRemovePWABanner();
             }
-            deferredInstallPrompt = null;
+            window.deferredInstallPrompt = null;
         } else {
-            // iOS Safari & Other Browsers Smart Instructions
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-            if (isIOS) {
-                alert("To Install: Tap the Share button (⎋) at the bottom and select 'Add to Home Screen' (+).");
-            } else {
-                alert("To Install: Tap your browser menu (⋮) at top-right and select 'Install app' or 'Add to Home screen'.");
-            }
+            showInstallGuide();
         }
     });
 
-    // 🌟 Dismiss Click Handler
     document.getElementById('btnPwaDismissAction')?.addEventListener('click', () => {
         sessionStorage.setItem('anant_pwa_dismissed', 'true');
         smoothRemovePWABanner();
     });
 }
 
-/**
- * 🌟 Smooth Slide-Out Removal
- */
 export function smoothRemovePWABanner() {
     const banner = document.getElementById('pwaInstallBoard');
     if (!banner) return;
@@ -402,9 +445,6 @@ export function smoothRemovePWABanner() {
     setTimeout(() => { banner.remove(); }, 280);
 }
 
-/**
- * 🌟 Immediate Removal (Used when App runs in standalone mode)
- */
 export function removePWAInstallBannerImmediately() {
     const banner = document.getElementById('pwaInstallBoard');
     if (banner) banner.remove();
@@ -453,16 +493,14 @@ function injectHTML() {
 }
 
 function setupPWAEventListeners() {
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredInstallPrompt = e;
+    window.addEventListener('anant_pwa_ready', () => {
         if (!isAppInstalled()) {
             checkAndRenderPWAInstallBanner();
         }
     });
 
     window.addEventListener('appinstalled', () => {
-        deferredInstallPrompt = null;
+        window.deferredInstallPrompt = null;
         smoothRemovePWABanner();
     });
 
