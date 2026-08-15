@@ -1,5 +1,5 @@
 // ==========================================================================
-// PRIVATE PHOTOS MODULE - ULTRA-SECURE (SHA-256 HASHED, FAST & SMART LOCK)
+// PRIVATE PHOTOS MODULE - ULTRA-SECURE (SHA-256 HASHED, FAST & SMART  LOCK)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
