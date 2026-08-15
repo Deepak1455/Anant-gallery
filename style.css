@@ -4,27 +4,26 @@
 
 /* --- 1. THEME VARIABLES (LIGHT & DARK MODE) --- */
 :root {
-    --bg-body: #f8fafc;        /* Crisp Off-White */
-    --bg-card: #ffffff;        /* Pure White Card */
-    --bg-glass: rgba(255, 255, 255, 0.88);
-    --accent: #4f46e5;         /* Vibrant Indigo */
+    --bg-body: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-glass: rgba(255, 255, 255, 0.92);
+    --accent: #4f46e5;
     --accent-glow: rgba(79, 70, 229, 0.25);
     --danger: #ef4444;
     --success: #16a34a;
-    --text-main: #0f172a;      /* Dark Slate Charcoal */
-    --text-muted: #64748b;     /* Slate Gray */
+    --text-main: #0f172a;
+    --text-muted: #64748b;
     --border: rgba(0, 0, 0, 0.08);
 }
 
-/* Eye-Friendly Dark Theme Overrides */
 [data-theme="dark"] {
-    --bg-body: #0f172a !important;        /* Deep Slate Dark */
-    --bg-card: #1e293b !important;        /* Card Dark Slate */
-    --bg-glass: rgba(15, 23, 42, 0.92) !important;
-    --accent: #818cf8 !important;         /* Lighter Indigo for Dark Theme */
+    --bg-body: #0f172a !important;
+    --bg-card: #1e293b !important;
+    --bg-glass: rgba(15, 23, 42, 0.94) !important;
+    --accent: #818cf8 !important;
     --accent-glow: rgba(129, 140, 248, 0.3) !important;
-    --text-main: #f8fafc !important;      /* Crisp White Text */
-    --text-muted: #94a3b8 !important;     /* Muted Slate Text */
+    --text-main: #f8fafc !important;
+    --text-muted: #94a3b8 !important;
     --border: rgba(255, 255, 255, 0.12) !important;
 }
 
@@ -68,12 +67,7 @@ body {
     100% { background-position: 200% 0; }
 }
 
-@keyframes pulseGlow {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.05); opacity: 0.85; }
-}
-
-/* --- 4. SIDEBAR & OVERLAY (SMOOTH SLIDE MENU) --- */
+/* --- 4. SIDEBAR & OVERLAY --- */
 #sidebarOverlay {
     position: fixed; 
     inset: 0; 
@@ -104,9 +98,7 @@ body {
     will-change: transform;
 }
 
-#sidebar.open { 
-    transform: translateX(0); 
-}
+#sidebar.open { transform: translateX(0); }
 
 .sb-header { 
     font-size: 1.55rem; 
@@ -132,21 +124,11 @@ body {
     font-size: 0.95rem;
 }
 
-.sb-item i { 
-    width: 28px; 
-    font-size: 1.15rem; 
-}
+.sb-item i { width: 28px; font-size: 1.15rem; }
+.sb-item:hover, .sb-item.active { background: rgba(79, 70, 229, 0.12); color: var(--accent); }
+.sb-item.active { font-weight: 700; }
 
-.sb-item:hover, .sb-item.active { 
-    background: rgba(79, 70, 229, 0.12); 
-    color: var(--accent); 
-}
-
-.sb-item.active { 
-    font-weight: 700; 
-}
-
-/* --- 5. AUTH / LOGIN SCREEN (DARK MODE SMART COMPATIBLE) --- */
+/* --- 5. AUTH / LOGIN SCREEN --- */
 #authScreen {
     position: fixed; 
     inset: 0; 
@@ -161,10 +143,6 @@ body {
     transition: opacity 0.4s ease, background 0.35s ease, color 0.35s ease;
 }
 
-[data-theme="dark"] #authScreen {
-    background-image: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.18) 0%, #0f172a 75%) !important;
-}
-
 .auth-box { 
     width: 100%; 
     max-width: 330px; 
@@ -172,7 +150,6 @@ body {
     animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* BRAND LOGO STYLES */
 .auth-logo-box {
     width: 85px;
     height: 85px;
@@ -187,20 +164,9 @@ body {
     overflow: hidden;
     color: var(--accent);
     font-size: 2rem;
-    transition: border-color 0.35s, box-shadow 0.35s;
 }
 
-[data-theme="dark"] .auth-logo-box {
-    border-color: rgba(129, 140, 248, 0.45);
-    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.35);
-}
-
-.auth-logo-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
-}
+.auth-logo-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
 .app-title {
     font-size: 2.3rem;
@@ -212,12 +178,6 @@ body {
     letter-spacing: -0.5px;
 }
 
-[data-theme="dark"] .app-title {
-    background: linear-gradient(135deg, #ffffff 0%, #818cf8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
 .auth-subtitle {
     color: var(--text-muted);
     margin-bottom: 28px;
@@ -225,11 +185,7 @@ body {
     font-weight: 500;
 }
 
-.input-group { 
-    margin-bottom: 16px; 
-    position: relative; 
-}
-
+.input-group { margin-bottom: 16px; position: relative; }
 .input-group i { 
     position: absolute; 
     left: 16px; 
@@ -272,9 +228,7 @@ input:focus {
     box-shadow: 0 10px 22px var(--accent-glow);
 }
 
-.btn:active { 
-    transform: scale(0.96); 
-}
+.btn:active { transform: scale(0.96); }
 
 .link { 
     margin-top: 22px; 
@@ -284,10 +238,7 @@ input:focus {
     font-weight: 500;
 }
 
-.link span { 
-    color: var(--accent); 
-    font-weight: 700; 
-}
+.link span { color: var(--accent); font-weight: 700; }
 
 /* --- 6. APP SCREEN LAYOUT --- */
 #appScreen { 
@@ -302,7 +253,7 @@ input:focus {
 
 header {
     height: 70px; 
-    padding: 0 20px; 
+    padding: 0 16px; 
     display: flex; 
     align-items: center; 
     justify-content: space-between;
@@ -318,11 +269,7 @@ header {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
 }
 
-.header-left { 
-    display: flex; 
-    align-items: center; 
-    gap: 15px; 
-}
+.header-left { display: flex; align-items: center; gap: 12px; }
 
 .menu-btn { 
     font-size: 1.25rem; 
@@ -333,17 +280,10 @@ header {
     transition: transform 0.15s ease;
 }
 
-.menu-btn:active {
-    transform: scale(0.9);
-}
+.menu-btn:active { transform: scale(0.9); }
+.header-title { font-size: 1.2rem; font-weight: 700; color: var(--text-main); }
 
-.header-title { 
-    font-size: 1.3rem; 
-    font-weight: 700; 
-    color: var(--text-main); 
-}
-
-/* Selection Header */
+/* 🌟 PERFECT FIT HORIZONTAL SCROLLABLE SELECTION HEADER */
 #selectionHeader {
     position: absolute; 
     top: 0; 
@@ -355,37 +295,52 @@ header {
     display: none;
     align-items: center; 
     justify-content: space-between; 
-    padding: 0 20px;
+    padding: 0 10px 0 14px;
     border-bottom: 2px solid var(--accent);
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+    gap: 6px;
+}
+
+.selection-left-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 #selectionCount { 
     font-weight: 700; 
-    font-size: 1.2rem; 
+    font-size: 1rem; 
     color: var(--text-main); 
+    white-space: nowrap;
 }
 
 .selection-actions { 
     display: flex; 
-    gap: 18px; 
+    gap: 12px; 
     align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 2px;
+    flex: 1;
+    justify-content: flex-end;
 }
+
+.selection-actions::-webkit-scrollbar { display: none; }
 
 .selection-actions i { 
     font-size: 1.25rem; 
     cursor: pointer; 
-    padding: 6px; 
+    padding: 8px 6px; 
     border-radius: 8px;
-    color: var(--text-main); 
+    flex-shrink: 0;
     transition: transform 0.15s ease;
 }
 
-.selection-actions i:active {
-    transform: scale(0.88);
-}
+.selection-actions i:active { transform: scale(0.85); }
 
-/* --- 7. SCROLL AREA & DATE GROUPS --- */
+/* --- 7. SCROLL AREA --- */
 .scroll-container {
     flex: 1; 
     overflow-y: auto; 
@@ -394,54 +349,7 @@ header {
     -webkit-overflow-scrolling: touch;
 }
 
-/* --- 8. CARD BOARD GRID LAYOUT --- */
-.date-group.card-board {
-    margin: 15px 10px 25px 10px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 14px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
-}
-
-.date-header {
-    position: relative; 
-    top: 0; 
-    z-index: 10;
-    padding: 4px 4px 14px 4px;
-    font-size: 0.95rem; 
-    font-weight: 600; 
-    color: var(--text-main);
-    display: flex; 
-    align-items: center;
-}
-
-.board-title {
-    background: rgba(79, 70, 229, 0.12);
-    border: 1px solid rgba(79, 70, 229, 0.22);
-    color: var(--accent);
-    padding: 6px 14px; 
-    border-radius: 20px;
-    font-size: 0.85rem; 
-    font-weight: 700; 
-    letter-spacing: 0.3px;
-}
-
-.grid {
-    display: grid; 
-    grid-template-columns: repeat(3, 1fr); 
-    gap: 10px; 
-    padding: 0;
-}
-
-@media(min-width: 600px) { 
-    .grid { 
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
-        gap: 12px; 
-    } 
-}
-
-/* --- 9. PHOTO CARD DESIGN --- */
+/* --- 8. PHOTO CARD --- */
 .photo-card {
     position: relative; 
     aspect-ratio: 1/1; 
@@ -454,18 +362,6 @@ header {
     opacity: 0; 
     animation: fadeInUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    will-change: transform;
-}
-
-.photo-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
-}
-
-.card-img-wrapper { 
-    width: 100%; 
-    height: 100%; 
-    overflow: hidden; 
 }
 
 .photo-card img { 
@@ -473,10 +369,6 @@ header {
     height: 100%; 
     object-fit: cover; 
     transition: transform 0.38s ease; 
-}
-
-.photo-card:hover img { 
-    transform: scale(1.05); 
 }
 
 .photo-card.selected::after {
@@ -508,10 +400,7 @@ header {
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
 }
 
-.photo-card.selected .check-circle { 
-    opacity: 1; 
-    transform: scale(1); 
-}
+.photo-card.selected .check-circle { opacity: 1; transform: scale(1); }
 
 .fav-icon {
     position: absolute; 
@@ -519,15 +408,11 @@ header {
     right: 8px; 
     color: #ec4899;
     font-size: 13px; 
-    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35)); 
     display: none;
 }
 
-.photo-card.is-fav .fav-icon { 
-    display: block; 
-}
+.photo-card.is-fav .fav-icon { display: block; }
 
-/* --- 10. SKELETON LOADING --- */
 .skeleton {
     width: 100%; 
     aspect-ratio: 1/1; 
@@ -538,45 +423,6 @@ header {
     border-radius: 12px;
 }
 
-/* --- 11. FAB FLOATING ACTION BUTTON --- */
-.fab {
-    position: fixed; 
-    bottom: 30px; 
-    left: 50%; 
-    transform: translateX(-50%);
-    background: var(--accent); 
-    color: #ffffff; 
-    height: 60px; 
-    width: 60px;
-    border-radius: 50%; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    font-size: 1.5rem; 
-    box-shadow: 0 10px 25px var(--accent-glow);
-    cursor: pointer; 
-    z-index: 80; 
-    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.fab:active { 
-    transform: translateX(-50%) scale(0.9); 
-}
-
-/* --- 12. TRASH BANNER --- */
-.trash-info {
-    padding: 16px; 
-    text-align: center; 
-    color: var(--text-muted); 
-    font-size: 0.85rem;
-    background: var(--bg-card); 
-    margin: 12px 10px; 
-    border-radius: 14px;
-    border: 1px solid var(--border); 
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
-}
-
-/* --- 13. TOAST NOTIFICATION --- */
 #toast {
     position: fixed; 
     top: 80px; 
@@ -588,7 +434,7 @@ header {
     border-radius: 30px;
     font-size: 0.88rem; 
     font-weight: 600;
-    z-index: 3000; 
+    z-index: 9999; 
     pointer-events: none; 
     opacity: 0; 
     transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), top 0.3s cubic-bezier(0.16, 1, 0.3, 1);
