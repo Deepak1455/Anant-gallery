@@ -1,5 +1,5 @@
 // ==========================================================================
-// IMAGE VIEWER (LIGHTBOX CARD BOARD) - NATIVE WEB SHARE & GESTURES
+// IMAGE VIEWER (LIGHTBOX) - SCROLLABLE ACTION BAR & NATIVE WEB SHARE
 // ==========================================================================
 
 let currentIndex = -1;
@@ -19,32 +19,30 @@ let tsX = 0, tsY = 0;
 let lastTapTime = 0;
 
 // --------------------------------------------------------------------------
-// 1. DYNAMIC STYLES
+// 1. DYNAMIC STYLES (SMOOTH HORIZONTAL SCROLLABLE ICON BAR)
 // --------------------------------------------------------------------------
 const viewerStyles = `
 #lightbox {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.82);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     z-index: 2000;
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 12px;
+    padding: 10px;
     opacity: 0;
     transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#lightbox.active {
-    opacity: 1;
-}
+#lightbox.active { opacity: 1; }
 
 .lb-card-board {
     width: 100%;
     max-width: 920px;
-    height: 90vh;
+    height: 92vh;
     background: var(--bg-card, #ffffff);
     border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     border-radius: 26px;
@@ -62,63 +60,72 @@ const viewerStyles = `
 }
 
 .lb-header {
-    padding: 12px 18px;
+    padding: 10px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     background: var(--bg-body, #f8fafc);
     border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
     z-index: 10;
+    gap: 10px;
 }
 
 .lb-header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 #closeLb {
     color: var(--text-main, #0f172a);
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     cursor: pointer;
     padding: 6px;
     border-radius: 50%;
     transition: transform 0.15s ease, color 0.15s ease;
 }
 
-#closeLb:hover {
-    color: #ef4444;
-    transform: scale(1.1);
-}
+#closeLb:active { transform: scale(0.88); }
 
 .lb-counter {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--accent, #4f46e5);
     background: rgba(79, 70, 229, 0.1);
     border: 1px solid rgba(79, 70, 229, 0.2);
-    padding: 4px 12px;
-    border-radius: 14px;
+    padding: 4px 10px;
+    border-radius: 12px;
     font-weight: 700;
     letter-spacing: 0.3px;
+    white-space: nowrap;
 }
 
+/* 🌟 SMOOTH HORIZONTAL SCROLLABLE ICON ACTIONS */
 .lb-actions {
     display: flex;
     gap: 14px;
     align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 4px;
+    scroll-behavior: smooth;
+    flex: 1;
+    justify-content: flex-end;
 }
 
+.lb-actions::-webkit-scrollbar { display: none; }
+
 .lb-actions i {
-    font-size: 1.2rem;
+    font-size: 1.25rem;
     cursor: pointer;
-    padding: 6px;
-    border-radius: 8px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
     transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.lb-actions i:active {
-    transform: scale(0.85);
-}
+.lb-actions i:active { transform: scale(0.85); }
 
 #lbShareBtn { color: #0284c7; }
 #lbFavBtn { color: #64748b; }
@@ -187,7 +194,7 @@ const viewerStyles = `
 .lb-next { right: 14px; }
 
 @media(max-width: 600px) {
-    .lb-card-board { height: 94vh; border-radius: 20px; }
+    .lb-card-board { height: 95vh; border-radius: 20px; }
     .lb-nav { display: none; }
 }
 `;
@@ -224,38 +231,46 @@ function injectHTML() {
 }
 
 // --------------------------------------------------------------------------
-// 2. NATIVE DIRECT WEB SHARE HELPER
+// 2. 100% WORKING DIRECT WEB SHARE (VIA VERCEL CORS PROXY)
 // --------------------------------------------------------------------------
 export async function shareSinglePhotoDirect(imageUrl) {
     try {
-        if (navigator.vibrate) navigator.vibrate(20);
+        if (navigator.vibrate) navigator.vibrate(25);
 
-        // 1. Fetch image blob to share as a real file
-        const response = await fetch(imageUrl);
+        const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
+        const response = await fetch(proxyUrl);
         const blob = await response.blob();
         const file = new File([blob], `anant-photo-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({
                 title: 'Anant Gallery',
-                text: 'Shared via Anant Gallery - Infinite Cloud Storage 📸',
+                text: 'Shared via Anant Gallery - Infinite Cloud 📸',
                 files: [file]
             });
         } else if (navigator.share) {
-            // Fallback for browsers supporting URL share only
             await navigator.share({
                 title: 'Anant Gallery',
-                text: 'Shared via Anant Gallery - Infinite Cloud Storage 📸',
+                text: 'Shared via Anant Gallery - Infinite Cloud 📸',
                 url: imageUrl
             });
         } else {
-            // Fallback to Clipboard Copy
             await navigator.clipboard.writeText(imageUrl);
             alert("Photo link copied to clipboard!");
         }
     } catch (err) {
         if (err.name !== 'AbortError') {
-            console.error("Share error:", err);
+            try {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: 'Anant Gallery',
+                        text: 'Shared via Anant Gallery 📸',
+                        url: imageUrl
+                    });
+                }
+            } catch (e) {
+                console.error("Share error:", e);
+            }
         }
     }
 }
@@ -445,7 +460,7 @@ function showPrevImage() {
 }
 
 // --------------------------------------------------------------------------
-// 5. RENDER VIEWER ACTIONS WITH DIRECT SHARE BUTTON
+// 5. RENDER VIEWER ACTIONS
 // --------------------------------------------------------------------------
 function updateViewerContent(currentView) {
     const data = photosList[currentIndex];
@@ -475,12 +490,10 @@ function updateViewerContent(currentView) {
                 <i class="fa-solid fa-trash" id="lbTrashBtn" title="Trash"></i>
             `;
 
-            // 🌟 NATIVE DIRECT SHARE BUTTON
             document.getElementById('lbShareBtn').onclick = () => {
                 shareSinglePhotoDirect(data.image);
             };
 
-            // Favorite Button
             document.getElementById('lbFavBtn').onclick = () => {
                 const newFavStatus = !data.isFavorite;
                 data.isFavorite = newFavStatus;
@@ -496,23 +509,19 @@ function updateViewerContent(currentView) {
                 }
             };
 
-            // Album
             document.getElementById('lbAlbumBtn').onclick = () => {
                 if (callbacks.onAddToAlbum) callbacks.onAddToAlbum(data.id);
             };
 
-            // Private Photos
             document.getElementById('lbHideBtn').onclick = () => {
                 if (callbacks.onToggleHide) callbacks.onToggleHide(data.id, true);
                 handleImageDeleted(data.id);
             };
 
-            // Download
             document.getElementById('lbDownloadBtn').onclick = () => {
                 if (callbacks.onDownload) callbacks.onDownload(data.image);
             };
 
-            // Trash
             document.getElementById('lbTrashBtn').onclick = () => {
                 if (callbacks.onMoveToTrash) callbacks.onMoveToTrash(data.id);
             };
