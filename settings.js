@@ -1,5 +1,5 @@
 // ==========================================================================
-// APP PREFERENCES, PRIVACY SHIELD & FINGERPRINT + SHA-256 PIN LOCK ENGINE
+// APP PREFERENCES, ANTI-SNOOP PRIVACY SHIELD & FINGERPRINT + PIN LOCK ENGINE
 // ==========================================================================
 
 import { hashSecretPin } from "./hidden-photos.js";
@@ -80,7 +80,7 @@ if (!autoThemeCheckInterval) {
 }
 
 // --------------------------------------------------------------------------
-// 2. DYNAMIC CSS FOR PRIVACY SHIELD, LIGHT/DARK THEMES & PIN LOCK
+// 2. DYNAMIC STYLES (RECENT APPS PRIVACY SHIELD & THEMES)
 // --------------------------------------------------------------------------
 const injectSettingsStyles = () => {
     let existingStyle = document.getElementById('settings-styles');
@@ -89,27 +89,56 @@ const injectSettingsStyles = () => {
     const style = document.createElement('style');
     style.id = 'settings-styles';
     style.textContent = `
-        /* ANTI-SNOOP RECENT APPS PRIVACY SHIELD (NON-BLOCKING) */
+        /* 🌟 ULTRA-SMOOTH ANTI-SNOOP RECENT APPS PRIVACY SHIELD */
         #privacyShield {
             position: fixed;
             inset: 0;
             z-index: 999999;
-            background: rgba(15, 23, 42, 0.96);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            background: #090d16;
             display: none;
             align-items: center;
             justify-content: center;
             color: #ffffff;
-            font-weight: 700;
-            font-size: 1.2rem;
             flex-direction: column;
-            gap: 14px;
+            gap: 10px;
             user-select: none;
             pointer-events: none;
+            transform: translateZ(0);
+            text-align: center;
+            padding: 20px;
         }
 
-        #privacyShield.active { display: flex; }
+        #privacyShield.active { 
+            display: flex !important; 
+        }
+
+        .privacy-shield-icon-box {
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.3), rgba(147, 51, 234, 0.3));
+            border: 2px solid rgba(79, 70, 229, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.3rem;
+            color: #818cf8;
+            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.35);
+            margin-bottom: 8px;
+        }
+
+        .privacy-shield-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.3px;
+        }
+
+        .privacy-shield-sub {
+            font-size: 0.84rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
 
         body, #appScreen, .profile-card, .settings-card, header, #sidebar, .all-photos-board, .albums-main-board {
             transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease !important;
@@ -473,7 +502,7 @@ export async function showPinLockOverlay(correctHash) {
 }
 
 // --------------------------------------------------------------------------
-// 4. SMART PRIVACY SHIELD (ONLY ON APP MINIMIZE, NEVER BLOCKS LOGIN)
+// 4. SMART ANTI-SNOOP RECENT APPS PRIVACY SHIELD (INSTANT ON TASK SWITCHER)
 // --------------------------------------------------------------------------
 function setupPrivacyShield() {
     let shield = document.getElementById('privacyShield');
@@ -481,23 +510,47 @@ function setupPrivacyShield() {
         shield = document.createElement('div');
         shield.id = 'privacyShield';
         shield.innerHTML = `
-            <i class="fa-solid fa-user-shield" style="font-size:2.5rem; color:var(--accent);"></i>
-            <span>Anant Gallery Protected</span>
+            <div class="privacy-shield-icon-box">
+                <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <div class="privacy-shield-title">Anant Gallery Protected</div>
+            <div class="privacy-shield-sub">Sensitive memories hidden for privacy</div>
         `;
         document.body.appendChild(shield);
     }
 
+    const showShield = () => {
+        const appScreen = document.getElementById('appScreen');
+        // Only trigger if user is logged into the gallery
+        if (!appScreen || appScreen.style.display === 'none') return;
+        
+        // Don't show shield if user is typing on keyboard
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+            return;
+        }
+
+        shield.classList.add('active');
+    };
+
+    const hideShield = () => {
+        shield.classList.remove('active');
+    };
+
+    // Instant triggers before OS Recent Apps Snapshot
+    window.addEventListener('blur', showShield);
+    window.addEventListener('pagehide', showShield);
+    
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            const appScreen = document.getElementById('appScreen');
-            // Only activate if user is actually inside app
-            if (appScreen && appScreen.style.display !== 'none') {
-                shield.classList.add('active');
-            }
+            showShield();
         } else {
-            shield.classList.remove('active');
+            hideShield();
         }
     });
+
+    window.addEventListener('focus', hideShield);
+    window.addEventListener('pageshow', hideShield);
 }
 
 // --------------------------------------------------------------------------
