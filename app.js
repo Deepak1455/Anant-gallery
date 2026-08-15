@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - CORE CONTROLLER & ULTRA-SMOOTH ENGINE (BRANDED DOWNLOAD)
+// ANANT GALLERY - CORE CONTROLLER WITH GOOGLE AUTH & BRANDED DOWNLOAD
 // ==========================================================================
 
 // --------------------------------------------------------------------------
@@ -9,6 +9,8 @@ import { auth, db } from "./firebase-config.js";
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
+    signInWithPopup,
+    GoogleAuthProvider,
     onAuthStateChanged,
     setPersistence,
     browserLocalPersistence
@@ -144,7 +146,6 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
     };
 }
 
-// 🌟 100% BRANDED "anant-gallery" DOWNLOAD ENGINE
 async function downloadPhoto(imageUrl, customFilename = null) {
     try {
         const finalFilename = customFilename || `anant-gallery-${Date.now()}.jpg`;
@@ -251,11 +252,12 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 6. AUTHENTICATION CONTROLLER
+// 6. AUTHENTICATION CONTROLLER (EMAIL/PASS & GOOGLE AUTH)
 // --------------------------------------------------------------------------
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
 const authBtn = document.getElementById('authBtn');
+const googleAuthBtn = document.getElementById('googleAuthBtn');
 const emailInput = document.getElementById('email');
 const passInput = document.getElementById('pass');
 
@@ -270,6 +272,7 @@ if (toggleAuthBtn) {
     });
 }
 
+// 🌟 SMART EMAIL & PASSWORD AUTH
 async function handleAuth() {
     const email = emailInput ? emailInput.value.trim() : '';
     const pass = passInput ? passInput.value.trim() : '';
@@ -308,7 +311,45 @@ async function handleAuth() {
     }
 }
 
+// 🌟 SMART 1-TAP GOOGLE SIGN-IN / SIGN-UP
+async function handleGoogleAuth() {
+    if (googleAuthBtn) {
+        googleAuthBtn.disabled = true;
+        googleAuthBtn.style.opacity = '0.75';
+    }
+
+    try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        showToast("Connecting to Google...");
+        
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        showToast(`Welcome, ${user.displayName || 'User'}!`);
+    } catch (e) {
+        console.error("Google Auth Error:", e);
+        let msg = "Google Sign-In failed!";
+        if (e.code === 'auth/popup-closed-by-user') {
+            msg = "Sign-In cancelled!";
+        } else if (e.code === 'auth/popup-blocked') {
+            msg = "Popup blocked! Please allow popups.";
+        } else if (e.code === 'auth/account-exists-with-different-credential') {
+            msg = "Account already registered with another method!";
+        } else if (e.code === 'auth/network-request-failed') {
+            msg = "Network error! Check your connection.";
+        }
+        showToast(msg);
+    } finally {
+        if (googleAuthBtn) {
+            googleAuthBtn.disabled = false;
+            googleAuthBtn.style.opacity = '1';
+        }
+    }
+}
+
 if (authBtn) authBtn.addEventListener('click', handleAuth);
+if (googleAuthBtn) googleAuthBtn.addEventListener('click', handleGoogleAuth);
+
 if (passInput) {
     passInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') handleAuth();
@@ -606,7 +647,7 @@ function loadGalleryData(view) {
 }
 
 // --------------------------------------------------------------------------
-// 10. SMART SELECTION MODE WITH MULTI-ACTIONS (SHARE-FREE & CLEAN)
+// 10. SMART SELECTION MODE WITH MULTI-ACTIONS
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
