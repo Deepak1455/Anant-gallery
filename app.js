@@ -1,6 +1,10 @@
 // ==========================================================================
-// 1. ALL IMPORTS
+// ANANT GALLERY - CORE CONTROLLER & ULTRA-SMOOTH APPLICATION ENGINE
 // ==========================================================================
+
+// --------------------------------------------------------------------------
+// 1. ALL MODULE IMPORTS
+// --------------------------------------------------------------------------
 import { auth, db } from "./firebase-config.js";
 import { 
     createUserWithEmailAndPassword, 
@@ -22,13 +26,27 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { initSettings, resetPinLock } from "./settings.js";
-import { initAppScreen } from "./app-screen.js";
+import { initAppScreen, checkAndRenderPWAInstallBanner } from "./app-screen.js";
 import { renderProfileScreen } from "./profile.js";
 import { SmartExitManager } from "./exit-handler.js";
 import { renderGroupedGallery } from "./gallery-card.js";
-import { initImageViewer, openImageViewer, closeImageViewer, isImageViewerOpen, handleImageDeleted, shareSinglePhotoDirect } from "./image-viewer.js";
-import { renderFavoritesScreen, stopFavoritesListener, batchUnfavoritePhotos } from "./favorites.js";
-import { renderHiddenScreen, stopHiddenListener, lockVault } from "./hidden-photos.js";
+import { 
+    initImageViewer, 
+    openImageViewer, 
+    closeImageViewer, 
+    isImageViewerOpen, 
+    handleImageDeleted 
+} from "./image-viewer.js";
+import { 
+    renderFavoritesScreen, 
+    stopFavoritesListener, 
+    batchUnfavoritePhotos 
+} from "./favorites.js";
+import { 
+    renderHiddenScreen, 
+    stopHiddenListener, 
+    lockVault 
+} from "./hidden-photos.js";
 import { 
     renderAlbumsScreen, 
     renderAlbumsMainBoard, 
@@ -44,25 +62,27 @@ import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
 
-setPersistence(auth, browserLocalPersistence).catch(err => console.warn("Persistence Error:", err));
+// Fast Login Persistence Setup
+setPersistence(auth, browserLocalPersistence).catch(err => console.warn("Persistence Warning:", err));
 
-// ==========================================================================
+// --------------------------------------------------------------------------
 // 2. INITIALIZE APP MODULES
-// ==========================================================================
+// --------------------------------------------------------------------------
 initSplashScreen();
 initAppScreen();
 initSettings();
 initOfflineSync(() => currentUser, uploadPhotoToTelegram, showToast);
 
-// ==========================================================================
-// 3. STATE VARIABLES & DOM ELEMENTS
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 3. STATE VARIABLES & DOM ELEMENTS CACHE
+// --------------------------------------------------------------------------
 let currentUser = null;
 let isSelectionMode = false;
 let selectedIds = new Set();
 let galleryData = []; 
 let currentView = 'photos'; 
 let unsubscribe = null; 
+let toastTimer = null;
 
 const galleryContent = document.getElementById('galleryContent');
 const selectionHeader = document.getElementById('selectionHeader');
@@ -73,22 +93,25 @@ const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const menuBtn = document.getElementById('menuBtn');
 
-// ==========================================================================
-// 4. GLOBAL HELPERS
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 4. GLOBAL ULTRA-FAST HELPERS (TOAST, MODALS, DOWNLOAD & MULTI-SHARE)
+// --------------------------------------------------------------------------
 function showToast(msg) {
     if (!toast) return;
+    if (toastTimer) clearTimeout(toastTimer);
+
     toast.innerText = msg;
     toast.style.opacity = '1';
     toast.style.top = "100px";
-    setTimeout(() => { 
+
+    toastTimer = setTimeout(() => { 
         toast.style.opacity = '0'; 
         toast.style.top = "80px"; 
-    }, 2800);
+    }, 2600);
 }
 
 function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Confirm", onConfirm }) {
-    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    if (navigator.vibrate) navigator.vibrate([25, 35, 25]);
 
     let overlay = document.getElementById("customConfirmOverlay");
     if (!overlay) {
@@ -121,7 +144,7 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
     };
 }
 
-async function downloadPhoto(imageUrl, filename = `anant-gallery-${Date.now()}.jpg`) {
+async function downloadPhoto(imageUrl, filename = `photo-${Date.now()}.jpg`) {
     try {
         const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
@@ -133,7 +156,7 @@ async function downloadPhoto(imageUrl, filename = `anant-gallery-${Date.now()}.j
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (e) {
         window.open(imageUrl, '_blank');
     }
@@ -141,15 +164,10 @@ async function downloadPhoto(imageUrl, filename = `anant-gallery-${Date.now()}.j
 
 async function multiDownload() {
     if (selectedIds.size === 0) return;
-    showToast(`Downloading ${selectedIds.size} photos...`);
+    showToast(`Downloading ${selectedIds.size} photo(s)...`);
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
-        let item = galleryData.find(x => x.id === id);
-        let imgUrl = item ? item.image : null;
-        if (!imgUrl) {
-            const cardImg = document.querySelector(`.photo-card[data-id="${id}"] img`);
-            if (cardImg) imgUrl = cardImg.src;
-        }
-        if (imgUrl) return downloadPhoto(imgUrl, `anant-gallery-${Date.now()}-${index + 1}.jpg`);
+        const item = galleryData.find(x => x.id === id);
+        if (item && item.image) return downloadPhoto(item.image, `gallery-photo-${Date.now()}-${index + 1}.jpg`);
         return Promise.resolve();
     });
     await Promise.all(downloadPromises);
@@ -157,58 +175,27 @@ async function multiDownload() {
     exitSelectionMode();
 }
 
-// 🌟 100% WORKING SELECTION MODE DIRECT SHARE (INSTANT BATCH SHARE)
+// 🌟 100% WORKING BATCH MULTI-PHOTO SHARE (CORS-SAFE VIA PROXY)
 async function multiSharePhotos() {
     if (selectedIds.size === 0) return;
     
-    if (navigator.vibrate) navigator.vibrate(25);
     showToast(`Preparing ${selectedIds.size} photo(s) to share...`);
-
     try {
-        const selectedItems = [];
-        selectedIds.forEach(id => {
-            const found = galleryData.find(x => x.id === id);
-            if (found && found.image) {
-                selectedItems.push(found);
-            } else {
-                const card = document.querySelector(`.photo-card[data-id="${id}"]`);
-                const img = card ? card.querySelector('img') : null;
-                if (img && img.src) {
-                    selectedItems.push({ id, image: img.src });
-                }
-            }
-        });
+        const selectedItems = galleryData.filter(x => selectedIds.has(x.id) && x.image);
+        if (!selectedItems.length) return;
 
-        if (selectedItems.length === 0) {
-            showToast("No photos found to share!");
-            return;
-        }
-
-        // Single Selection -> Share Directly
-        if (selectedItems.length === 1) {
-            await shareSinglePhotoDirect(selectedItems[0].image);
-            exitSelectionMode();
-            return;
-        }
-
-        // Multiple Selection -> Proxy Blob Array
         const filesToShare = [];
         for (let i = 0; i < selectedItems.length; i++) {
-            try {
-                const imgUrl = selectedItems[i].image;
-                const proxyUrl = `/api/upload?url=${encodeURIComponent(imgUrl)}`;
-                const res = await fetch(proxyUrl);
-                const blob = await res.blob();
-                filesToShare.push(new File([blob], `anant-gallery-${Date.now()}-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
-            } catch (e) {
-                console.warn("Item fetch error during share:", e);
-            }
+            const proxyUrl = `/api/upload?url=${encodeURIComponent(selectedItems[i].image)}`;
+            const res = await fetch(proxyUrl);
+            const blob = await res.blob();
+            filesToShare.push(new File([blob], `anant-photo-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
         }
 
-        if (filesToShare.length > 0 && navigator.canShare && navigator.canShare({ files: filesToShare })) {
+        if (navigator.canShare && navigator.canShare({ files: filesToShare })) {
             await navigator.share({
                 title: 'Anant Gallery',
-                text: `Shared ${filesToShare.length} photos via Anant Gallery - Infinite Cloud 📸`,
+                text: `Shared ${filesToShare.length} photo(s) via Anant Gallery - Infinite Cloud 📸`,
                 files: filesToShare
             });
         } else if (navigator.share) {
@@ -218,7 +205,7 @@ async function multiSharePhotos() {
                 url: selectedItems[0].image
             });
         } else {
-            showToast("Direct share not supported on this device");
+            showToast("Direct sharing not supported on this browser");
         }
         exitSelectionMode();
     } catch (err) {
@@ -228,14 +215,14 @@ async function multiSharePhotos() {
     }
 }
 
-// ==========================================================================
-// 5. INIT IMAGE VIEWER
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 5. INIT IMAGE VIEWER (LIGHTBOX ACTIONS)
+// --------------------------------------------------------------------------
 initImageViewer({
     getCurrentView: () => currentView,
     onDownload: (imageData) => {
         const url = typeof imageData === 'object' ? imageData.image : imageData;
-        downloadPhoto(url, `anant-gallery-${Date.now()}.jpg`);
+        downloadPhoto(url, `photo-${Date.now()}.jpg`);
     },
     onAddToAlbum: (docId) => {
         showAddToAlbumModal([docId], currentUser, () => {
@@ -297,9 +284,9 @@ initImageViewer({
     }
 });
 
-// ==========================================================================
-// 6. AUTHENTICATION ENGINE
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 6. AUTHENTICATION CONTROLLER
+// --------------------------------------------------------------------------
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
 const authBtn = document.getElementById('authBtn');
@@ -377,7 +364,7 @@ onAuthStateChanged(auth, (user) => {
         if (authScreen) authScreen.style.display = 'none';
         if (appScreen) {
             appScreen.style.display = 'flex';
-            appScreen.style.opacity = '1';
+            requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
         switchView('photos');
         processOfflineQueue(user, uploadPhotoToTelegram, showToast);
@@ -389,14 +376,14 @@ onAuthStateChanged(auth, (user) => {
         if (appScreen) appScreen.style.display = 'none';
         if (authScreen) {
             authScreen.style.display = 'flex';
-            authScreen.style.opacity = '1';
+            requestAnimationFrame(() => authScreen.style.opacity = '1');
         }
     }
 });
 
-// ==========================================================================
-// 7. SWITCH VIEW FUNCTION
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 7. ULTRA-SMOOTH VIEW SWITCHER
+// --------------------------------------------------------------------------
 function switchView(view, extraParam = null) {
     currentView = view;
     exitSelectionMode();
@@ -525,16 +512,19 @@ function switchView(view, extraParam = null) {
 
     const trashBanner = document.getElementById('trashBanner');
     if (trashBanner) trashBanner.style.display = view === 'trash' ? 'block' : 'none';
+
+    // 🌟 Check and Render PWA Banner smoothly on view switch
+    checkAndRenderPWAInstallBanner();
 }
 
-// ==========================================================================
-// 8. SIDEBAR LISTENERS
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 8. SIDEBAR CONTROLLER
+// --------------------------------------------------------------------------
 const openSidebar = () => {
     if (sidebar) sidebar.classList.add('open');
     if (sidebarOverlay) {
         sidebarOverlay.style.display = 'block';
-        setTimeout(() => sidebarOverlay.style.opacity = '1', 10);
+        requestAnimationFrame(() => sidebarOverlay.style.opacity = '1');
     }
 };
 
@@ -572,9 +562,9 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
     exitManager.showExitModal();
 });
 
-// ==========================================================================
-// 9. HIGH-PERFORMANCE GALLERY LOAD
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 9. HIGH-PERFORMANCE GALLERY DATA STREAM
+// --------------------------------------------------------------------------
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
     galleryContent.innerHTML = `<div class="grid" style="padding:10px;">${'<div class="skeleton" style="border-radius:12px;"></div>'.repeat(9)}</div>`;
@@ -650,21 +640,20 @@ function loadGalleryData(view) {
     });
 }
 
-// ==========================================================================
-// 10. SELECTION MODE WITH PROMINENT FIRST-POSITION SHARE BUTTON
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 10. SMART SELECTION MODE WITH MULTI-ACTIONS
+// --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
     selectionHeader.style.display = 'flex';
     document.getElementById('mainHeader').style.display = 'none';
 
     document.getElementById('albumsMainBoard')?.classList.add('selection-active');
-    if (navigator.vibrate) navigator.vibrate(30);
+    if (navigator.vibrate) navigator.vibrate(25);
     
-    // 🌟 1ST POSITION: SKY BLUE DIRECT SHARE ICON (#0284c7)
     if (currentView === 'photos' || customContext === 'album') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
             <i class="fa-solid fa-folder-plus" id="multiAlbumBtn" style="color: #0ea5e9;" title="Move to Album"></i>
             ${customContext === 'album' ? `<i class="fa-solid fa-folder-minus" id="multiRemoveAlbumBtn" style="color: #f59e0b;" title="Remove from Album"></i>` : ''}
@@ -689,7 +678,7 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'favorites') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save Photos"></i>
             <i class="fa-solid fa-heart-crack" id="multiUnfavBtn" style="color: #ec4899;" title="Remove from Favorites"></i>
             <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
@@ -706,7 +695,7 @@ function enterSelectionMode(initialId, customContext) {
 
     } else if (currentView === 'hidden') {
         selectActions.innerHTML = `
-            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
+            <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7;" title="Direct Share"></i>
             <i class="fa-solid fa-eye" id="multiUnhideBtn" style="color: var(--success);" title="Unhide Photos"></i>
             <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
         `;
@@ -824,9 +813,9 @@ function multiDeletePerm() {
     });
 }
 
-// ==========================================================================
+// --------------------------------------------------------------------------
 // 11. FILE UPLOAD ENGINE
-// ==========================================================================
+// --------------------------------------------------------------------------
 const fileInputEl = document.getElementById('fileInput');
 if (fileInputEl) {
     fileInputEl.addEventListener('change', async (e) => {
