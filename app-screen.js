@@ -1,5 +1,5 @@
 // ==========================================================================
-// APP SCREEN LAYOUT & HIGH-PERFORMANCE PWA ENGINE (1-TAP NATIVE PROMPT)
+// APP SCREEN LAYOUT & HIGH-PERFORMANCE PWA ENGINE (SMART SCROLL SELECTION)
 // ==========================================================================
 
 export function isAppInstalled() {
@@ -52,12 +52,18 @@ const appScreenStyles = `
     font-size: 1.25rem; 
     cursor: pointer; 
     color: var(--text-main, #0f172a); 
-    padding: 6px;
-    border-radius: 10px;
+    padding: 8px;
+    border-radius: 12px;
     transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.menu-btn:active { transform: scale(0.9); }
+.menu-btn:active { 
+    transform: scale(0.88); 
+    background: rgba(0,0,0,0.05);
+}
 
 .header-title-box { 
     display: flex; 
@@ -80,7 +86,7 @@ const appScreenStyles = `
     letter-spacing: 0.3px; 
 }
 
-/* 🌟 SMOOTH HORIZONTAL SCROLLABLE SELECTION HEADER */
+/* 🌟 SMART, FAST & SMOOTH HORIZONTAL SCROLL SELECTION HEADER */
 #selectionHeader {
     position: absolute; 
     top: 0; 
@@ -92,7 +98,7 @@ const appScreenStyles = `
     display: none;
     align-items: center; 
     justify-content: space-between; 
-    padding: 0 12px;
+    padding: 0 10px;
     border-bottom: 2px solid var(--accent, #4f46e5);
     box-shadow: 0 4px 18px rgba(0,0,0,0.06);
     gap: 8px;
@@ -106,39 +112,81 @@ const appScreenStyles = `
     flex-shrink: 0;
 }
 
+#cancelSelect {
+    padding: 8px;
+    cursor: pointer;
+    font-size: 1.15rem;
+    color: var(--text-main, #0f172a);
+    border-radius: 50%;
+    transition: transform 0.15s ease, background 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#cancelSelect:active {
+    transform: scale(0.86);
+    background: rgba(0,0,0,0.06);
+}
+
 #selectionCount { 
     font-weight: 700; 
-    font-size: 1rem; 
+    font-size: 0.95rem; 
     color: var(--text-main, #0f172a);
     white-space: nowrap;
 }
 
+/* 🌟 SMOOTH HORIZONTAL SCROLL BAR FOR ALL SELECTION ACTION ICONS */
 .selection-actions { 
     display: flex; 
-    gap: 14px; 
+    gap: 8px; 
     align-items: center;
     overflow-x: auto;
+    overflow-y: hidden;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 6px;
+    padding: 4px 4px 6px 4px;
     scroll-behavior: smooth;
+    overscroll-behavior-x: contain;
     flex: 1;
-    justify-content: flex-end;
+    margin-left: auto;
+    scroll-snap-type: x proximity;
 }
 
-.selection-actions::-webkit-scrollbar { display: none; }
+/* SLEEK MODERN MICRO SCROLLBAR */
+.selection-actions::-webkit-scrollbar { 
+    height: 3px; 
+}
+
+.selection-actions::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 10px;
+}
+
+.selection-actions::-webkit-scrollbar-thumb {
+    background: var(--accent, #4f46e5);
+    border-radius: 10px;
+}
 
 .selection-actions i { 
     font-size: 1.2rem; 
     cursor: pointer; 
-    padding: 6px 8px; 
-    border-radius: 8px;
+    padding: 8px 10px; 
+    border-radius: 12px;
     color: var(--text-main, #0f172a);
     flex-shrink: 0;
-    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.14s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease;
+    scroll-snap-align: start;
+    user-select: none;
 }
 
-.selection-actions i:active { transform: scale(0.88); }
+.selection-actions i:active { 
+    transform: scale(0.85); 
+    background: rgba(79, 70, 229, 0.1);
+}
 
 .scroll-container {
     flex: 1; 
@@ -263,7 +311,9 @@ const appScreenStyles = `
     white-space: nowrap;
 }
 
-.btn-pwa-install:active { transform: scale(0.92); }
+.btn-pwa-install:active { 
+    transform: scale(0.92); 
+}
 
 .btn-pwa-close {
     background: transparent;
@@ -274,9 +324,14 @@ const appScreenStyles = `
     cursor: pointer;
     border-radius: 50%;
     transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.btn-pwa-close:active { transform: scale(0.85); }
+.btn-pwa-close:active { 
+    transform: scale(0.85); 
+}
 
 /* 🌟 CUSTOM INSTALL INSTRUCTION MODAL */
 .pwa-guide-modal {
