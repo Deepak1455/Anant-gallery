@@ -1,5 +1,5 @@
 // ==========================================================================
-// IMAGE VIEWER (LIGHTBOX) - SMART SMOOTH HORIZONTAL SCROLL ACTION BAR
+// IMAGE VIEWER (LIGHTBOX) - SMART, SMOOTH & FAST WITH BULLETPROOF SHARE
 // ==========================================================================
 
 let currentIndex = -1;
@@ -19,7 +19,7 @@ let tsX = 0, tsY = 0;
 let lastTapTime = 0;
 
 // --------------------------------------------------------------------------
-// 1. DYNAMIC STYLES (SMOOTH HORIZONTAL SCROLLABLE ICON BAR)
+// 1. DYNAMIC STYLES (SMOOTH HORIZONTAL SCROLLABLE ICON BAR & CONTROLS)
 // --------------------------------------------------------------------------
 const viewerStyles = `
 #lightbox {
@@ -37,7 +37,9 @@ const viewerStyles = `
     transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#lightbox.active { opacity: 1; }
+#lightbox.active { 
+    opacity: 1; 
+}
 
 .lb-card-board {
     width: 100%;
@@ -154,7 +156,7 @@ const viewerStyles = `
     background: #9333ea;
 }
 
-/* ACTION ICONS WITH FAST HAPTIC-LIKE TAP FEEDBACK */
+/* ACTION ICONS WITH FAST HAPTIC TAP FEEDBACK */
 .lb-action-btn {
     font-size: 1.18rem;
     cursor: pointer;
@@ -282,37 +284,68 @@ function injectHTML() {
 }
 
 // --------------------------------------------------------------------------
-// 2. 100% WORKING DIRECT WEB SHARE (BRANDED: ANANT GALLERY)
+// 2. 100% BULLETPROOF DIRECT WEB SHARE (BRANDED: ANANT GALLERY)
 // --------------------------------------------------------------------------
 export async function shareSinglePhotoDirect(imageUrl) {
+    if (!imageUrl) return;
+
     try {
         if (navigator.vibrate) navigator.vibrate(25);
 
-        const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
-        const response = await fetch(proxyUrl);
-        const blob = await response.blob();
-        
-        const fileName = `anant-gallery-${Date.now()}.jpg`;
-        const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+        let blob = null;
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                title: 'Anant Gallery',
-                text: 'Shared via Anant Gallery - Infinite Cloud 📸',
-                files: [file]
-            });
-        } else if (navigator.share) {
+        // Step 1: Proxy Fetch (Bypasses CORS from Telegram/Cloud)
+        try {
+            const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+                blob = await response.blob();
+            }
+        } catch (e) {
+            console.warn("Proxy fetch fallback...", e);
+        }
+
+        // Step 2: Direct Fetch Fallback
+        if (!blob) {
+            try {
+                const directRes = await fetch(imageUrl, { mode: 'cors' });
+                if (directRes.ok) blob = await directRes.blob();
+            } catch (e) {
+                console.warn("Direct fetch fallback...", e);
+            }
+        }
+
+        const fileName = `anant-gallery-${Date.now()}.jpg`;
+
+        // Step 3: Native Web Share (Shares the actual image file to WhatsApp/Apps)
+        if (blob && navigator.canShare) {
+            const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: 'Anant Gallery',
+                    text: 'Shared via Anant Gallery - Infinite Cloud 📸',
+                    files: [file]
+                });
+                return;
+            }
+        }
+
+        // Step 4: Web Share URL Fallback
+        if (navigator.share) {
             await navigator.share({
                 title: 'Anant Gallery',
                 text: 'Shared via Anant Gallery - Infinite Cloud 📸',
                 url: imageUrl
             });
-        } else {
-            await navigator.clipboard.writeText(imageUrl);
-            alert("Photo link copied to clipboard!");
+            return;
         }
+
+        // Step 5: Clipboard Fallback
+        await navigator.clipboard.writeText(imageUrl);
+        alert("Photo link copied to clipboard!");
     } catch (err) {
         if (err.name !== 'AbortError') {
+            console.error("Share error:", err);
             try {
                 if (navigator.share) {
                     await navigator.share({
@@ -321,9 +354,7 @@ export async function shareSinglePhotoDirect(imageUrl) {
                         url: imageUrl
                     });
                 }
-            } catch (e) {
-                console.error("Share error:", e);
-            }
+            } catch (e) {}
         }
     }
 }
@@ -356,6 +387,7 @@ function setupZoomAndPan() {
     const container = document.getElementById('lbImgContainer');
     if (!container) return;
 
+    // Double Tap Zoom Toggle
     container.addEventListener('click', () => {
         const now = Date.now();
         if (now - lastTapTime < 280) {
@@ -412,6 +444,7 @@ function setupZoomAndPan() {
         isDragging = false;
         if (currentScale < 1) resetZoom(true);
 
+        // Swipe Left/Right to Navigate or Swipe Down to Close
         if (currentScale === 1 && e.changedTouches.length === 1) {
             let diffX = e.changedTouches[0].clientX - tsX;
             let diffY = e.changedTouches[0].clientY - tsY;
@@ -513,7 +546,7 @@ function showPrevImage() {
 }
 
 // --------------------------------------------------------------------------
-// 5. RENDER VIEWER ACTIONS WITH SMOOTH HORIZONTAL SCROLL
+// 5. RENDER VIEWER ACTIONS WITH ULTRA-SMOOTH HORIZONTAL SCROLL
 // --------------------------------------------------------------------------
 function updateViewerContent(currentView) {
     const data = photosList[currentIndex];
