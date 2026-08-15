@@ -1,27 +1,23 @@
 // ==========================================================================
-// PROFILE MODULE - ANANT CLOUD BRANDED & DUAL PIN MANAGEMENT
+// PROFILE MODULE - SHA-256 DUAL PIN MANAGEMENT & STORAGE ANALYTICS
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
 import { auth, db } from "./firebase-config.js";
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { hashSecretPin } from "./hidden-photos.js";
 
-// Cloudinary Credentials (For Profile Avatar)
 const CLOUDINARY_CLOUD_NAME = "gvickscl";
 const CLOUDINARY_UPLOAD_PRESET = "my_photo";
 
 let unsubscribeProfile = null;
 
-// Standardized Storage Keys Across Entire App
-const KEYS = {
-    APP_PIN: "app_pin_code",
-    PRIVATE_PIN: "private_photos_pin"
+const HASH_KEYS = {
+    APP_PIN_HASH: "app_pin_code_hash",
+    PRIVATE_PIN_HASH: "private_photos_pin_hash"
 };
 
-// --------------------------------------------------------------------------
-// 1. DYNAMIC STYLES FOR PROFILE & PIN MANAGEMENT
-// --------------------------------------------------------------------------
 const injectProfileStyles = () => {
     if (document.getElementById('profile-styles')) {
         document.getElementById('profile-styles').remove();
@@ -46,8 +42,6 @@ const injectProfileStyles = () => {
             overflow: hidden;
             margin-bottom: 20px;
         }
-        
-        /* AVATAR STYLES */
         .avatar-wrapper {
             position: relative;
             width: 90px;
@@ -89,11 +83,7 @@ const injectProfileStyles = () => {
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
             transition: transform 0.2s, background 0.2s;
         }
-        .avatar-edit-badge:hover {
-            transform: scale(1.1);
-        }
-
-        /* DISPLAY NAME STYLES */
+        .avatar-edit-badge:hover { transform: scale(1.1); }
         .profile-name-container {
             margin-bottom: 6px;
             display: flex;
@@ -113,10 +103,7 @@ const injectProfileStyles = () => {
             padding: 4px;
             transition: transform 0.2s;
         }
-        .edit-name-icon:hover {
-            transform: scale(1.15);
-        }
-
+        .edit-name-icon:hover { transform: scale(1.15); }
         .name-edit-form {
             display: none;
             align-items: center;
@@ -144,7 +131,6 @@ const injectProfileStyles = () => {
             font-size: 1.1rem;
             padding: 4px;
         }
-
         .profile-email {
             font-size: 0.88rem;
             color: var(--text-muted, #64748b);
@@ -164,8 +150,6 @@ const injectProfileStyles = () => {
             margin-bottom: 25px;
             border: 1px solid rgba(79, 70, 229, 0.2);
         }
-        
-        /* STATS & STORAGE CARD */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -191,7 +175,6 @@ const injectProfileStyles = () => {
             margin-top: 4px;
             font-weight: 500;
         }
-
         .storage-analytics-card {
             background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
             border: 1px solid rgba(79, 70, 229, 0.2);
@@ -269,7 +252,6 @@ const injectProfileStyles = () => {
             width: 100%;
             background: linear-gradient(90deg, #4f46e5, #9333ea);
         }
-
         .info-list {
             margin-top: 15px;
             display: flex;
@@ -286,8 +268,6 @@ const injectProfileStyles = () => {
             font-size: 0.88rem;
             border: 1px solid var(--border, rgba(0, 0, 0, 0.05));
         }
-
-        /* --- 🛡️ DUAL PIN SECURITY CARD STYLES --- */
         .security-card {
             background: var(--bg-card, #ffffff);
             border-radius: 20px;
@@ -316,17 +296,13 @@ const injectProfileStyles = () => {
             border: 1px solid var(--border, rgba(0, 0, 0, 0.05));
             margin-bottom: 10px;
         }
-        .pin-option-item:last-child {
-            margin-bottom: 0;
-        }
+        .pin-option-item:last-child { margin-bottom: 0; }
         .pin-option-info {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        .pin-option-info i {
-            font-size: 1.3rem;
-        }
+        .pin-option-info i { font-size: 1.3rem; }
         .pin-title {
             font-weight: 600;
             font-size: 0.9rem;
@@ -347,11 +323,8 @@ const injectProfileStyles = () => {
             cursor: pointer;
             transition: transform 0.15s;
         }
-        .btn-pin-action:active {
-            transform: scale(0.95);
-        }
+        .btn-pin-action:active { transform: scale(0.95); }
 
-        /* 🌟 PIN CHANGE MODAL */
         .pin-modal-overlay {
             position: fixed;
             inset: 0;
@@ -376,9 +349,7 @@ const injectProfileStyles = () => {
             animation: modalPopUp 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             transition: transform 0.2s ease;
         }
-        .pin-modal-box.shake {
-            animation: modalShake 0.35s ease-in-out;
-        }
+        .pin-modal-box.shake { animation: modalShake 0.35s ease-in-out; }
         @keyframes modalShake {
             0%, 100% { transform: translateX(0); }
             20%, 60% { transform: translateX(-10px); }
@@ -386,7 +357,6 @@ const injectProfileStyles = () => {
         }
         @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes modalPopUp { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
-
         .pin-modal-box h4 {
             font-size: 1.2rem;
             font-weight: 700;
@@ -431,9 +401,7 @@ const injectProfileStyles = () => {
             cursor: pointer;
             transition: transform 0.15s;
         }
-        .pin-modal-btn:active {
-            transform: scale(0.96);
-        }
+        .pin-modal-btn:active { transform: scale(0.96); }
         .pin-modal-btn.save {
             background: var(--accent, #4f46e5);
             color: #ffffff;
@@ -447,7 +415,6 @@ const injectProfileStyles = () => {
     document.head.appendChild(style);
 };
 
-// Helper: Format Storage Bytes
 function formatStorageSize(bytes) {
     if (!bytes || bytes === 0) return "0 MB";
     const k = 1024;
@@ -456,7 +423,6 @@ function formatStorageSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Toast Notification
 const showToast = (msg) => {
     const toast = document.getElementById('toast');
     if (!toast) return alert(msg);
@@ -469,9 +435,6 @@ const showToast = (msg) => {
     }, 3000);
 };
 
-// --------------------------------------------------------------------------
-// 2. RENDER PROFILE SCREEN
-// --------------------------------------------------------------------------
 export function renderProfileScreen(containerElement) {
     injectProfileStyles();
 
@@ -496,7 +459,6 @@ export function renderProfileScreen(containerElement) {
         <div class="profile-container">
             <div class="profile-card">
                 
-                <!-- AVATAR WITH CAMERA BADGE -->
                 <div class="avatar-wrapper">
                     ${avatarContent}
                     <div class="avatar-edit-badge" id="changeAvatarBtn" title="Change Profile Picture">
@@ -505,13 +467,11 @@ export function renderProfileScreen(containerElement) {
                     <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
                 </div>
 
-                <!-- DISPLAY NAME & EDIT CONTROL -->
                 <div class="profile-name-container" id="nameDisplayBox">
                     <span class="profile-display-name" id="profileDisplayName">${displayName}</span>
                     <i class="fa-solid fa-pen-to-square edit-name-icon" id="btnEditName" title="Edit Name"></i>
                 </div>
 
-                <!-- EDIT NAME FORM -->
                 <div class="name-edit-form" id="nameEditForm">
                     <input type="text" id="nameInput" class="name-input" value="${displayName !== 'User' ? displayName : ''}" placeholder="Enter Name">
                     <button class="btn btn-save-name" id="btnSaveName">Save</button>
@@ -542,7 +502,6 @@ export function renderProfileScreen(containerElement) {
                     </div>
                 </div>
 
-                <!-- SMART CLOUD STORAGE TRACKER CARD BOARD (ANANT CLOUD BRANDED) -->
                 <div class="storage-analytics-card">
                     <div class="storage-card-header">
                         <div class="storage-title-box">
@@ -585,31 +544,28 @@ export function renderProfileScreen(containerElement) {
 
             </div>
 
-            <!-- 🛡️ DUAL PIN SECURITY MANAGEMENT CARD -->
             <div class="security-card">
                 <div class="security-title">
                     <i class="fa-solid fa-key" style="color: var(--accent);"></i> PIN Security Controls
                 </div>
 
-                <!-- 1. App Lock PIN Option -->
                 <div class="pin-option-item">
                     <div class="pin-option-info">
                         <i class="fa-solid fa-mobile-screen-button" style="color: #4f46e5;"></i>
                         <div>
                             <div class="pin-title">App Lock PIN</div>
-                            <div class="pin-subtitle">Used to lock gallery app</div>
+                            <div class="pin-subtitle">SHA-256 Encrypted PIN</div>
                         </div>
                     </div>
                     <button class="btn-pin-action" id="btnManageAppPin">Change PIN</button>
                 </div>
 
-                <!-- 2. Private Photos PIN Option -->
                 <div class="pin-option-item">
                     <div class="pin-option-info">
                         <i class="fa-solid fa-user-shield" style="color: #9333ea;"></i>
                         <div>
                             <div class="pin-title">Private Photos PIN</div>
-                            <div class="pin-subtitle">Used to unlock Private Photos</div>
+                            <div class="pin-subtitle">SHA-256 Encrypted PIN</div>
                         </div>
                     </div>
                     <button class="btn-pin-action" id="btnManagePrivatePin" style="background: #9333ea;">Set / Change</button>
@@ -619,13 +575,12 @@ export function renderProfileScreen(containerElement) {
         </div>
     `;
 
-    // Render Settings Preferences below
     const profileContainer = containerElement.querySelector('.profile-container');
     if (profileContainer) {
         renderSettingsSection(profileContainer);
     }
 
-    // A. CHANGE AVATAR LOGIC
+    // Avatar Upload
     const changeAvatarBtn = document.getElementById('changeAvatarBtn');
     const avatarFileInput = document.getElementById('avatarFileInput');
 
@@ -671,7 +626,7 @@ export function renderProfileScreen(containerElement) {
         }
     });
 
-    // B. EDIT DISPLAY NAME LOGIC
+    // Edit Name
     const nameDisplayBox = document.getElementById('nameDisplayBox');
     const nameEditForm = document.getElementById('nameEditForm');
     const btnEditName = document.getElementById('btnEditName');
@@ -708,7 +663,7 @@ export function renderProfileScreen(containerElement) {
         }
     });
 
-    // C. REALTIME STATS & STORAGE LISTENER
+    // Realtime Stats
     if (unsubscribeProfile) unsubscribeProfile();
 
     const photosRef = collection(db, "user_photos");
@@ -753,12 +708,12 @@ export function renderProfileScreen(containerElement) {
         console.error("Error listening to profile stats:", error);
     });
 
-    // D. DUAL PIN MANAGEMENT MODAL LOGIC
-    function openPinModal(pinType) {
+    // SHA-256 Dual PIN Management Modal
+    async function openPinModal(pinType) {
         const isAppPin = pinType === 'app';
-        const STORAGE_KEY = isAppPin ? KEYS.APP_PIN : KEYS.PRIVATE_PIN;
+        const STORAGE_KEY = isAppPin ? HASH_KEYS.APP_PIN_HASH : HASH_KEYS.PRIVATE_PIN_HASH;
         const title = isAppPin ? "App Lock PIN" : "Private Photos PIN";
-        const currentSavedPin = localStorage.getItem(STORAGE_KEY) || (isAppPin ? "" : "1234");
+        const currentSavedHash = localStorage.getItem(STORAGE_KEY);
 
         let modal = document.getElementById("managePinModal");
         if (!modal) {
@@ -771,8 +726,8 @@ export function renderProfileScreen(containerElement) {
         modal.innerHTML = `
             <div class="pin-modal-box" id="pinModalCard">
                 <h4>${title}</h4>
-                <p>${currentSavedPin ? 'Change your 4-digit PIN' : 'Set a new 4-digit PIN'}</p>
-                ${currentSavedPin ? `<input type="password" id="oldPinInput" class="pin-input-field" maxlength="4" placeholder="Old PIN" inputmode="numeric">` : ''}
+                <p>${currentSavedHash ? 'Change your 4-digit PIN' : 'Set a new 4-digit PIN'}</p>
+                ${currentSavedHash ? `<input type="password" id="oldPinInput" class="pin-input-field" maxlength="4" placeholder="Old PIN" inputmode="numeric">` : ''}
                 <input type="password" id="newPinInput" class="pin-input-field" maxlength="4" placeholder="New 4-Digit PIN" inputmode="numeric">
                 <input type="password" id="confirmPinInput" class="pin-input-field" maxlength="4" placeholder="Confirm New PIN" inputmode="numeric">
                 <div class="pin-modal-actions">
@@ -797,14 +752,17 @@ export function renderProfileScreen(containerElement) {
             modal.style.display = "none";
         };
 
-        document.getElementById("savePinBtn").onclick = () => {
+        document.getElementById("savePinBtn").onclick = async () => {
             const oldPinInput = document.getElementById("oldPinInput");
             const newPin = document.getElementById("newPinInput").value.trim();
             const confirmPin = document.getElementById("confirmPinInput").value.trim();
 
-            if (currentSavedPin && oldPinInput && oldPinInput.value.trim() !== currentSavedPin) {
-                triggerShake();
-                return showToast("Incorrect Old PIN!");
+            if (currentSavedHash && oldPinInput) {
+                const oldHash = await hashSecretPin(oldPinInput.value.trim());
+                if (oldHash !== currentSavedHash) {
+                    triggerShake();
+                    return showToast("Incorrect Old PIN!");
+                }
             }
 
             if (newPin.length !== 4 || isNaN(newPin)) {
@@ -817,14 +775,11 @@ export function renderProfileScreen(containerElement) {
                 return showToast("New PINs do not match!");
             }
 
-            localStorage.setItem(STORAGE_KEY, newPin);
-
-            if (!isAppPin) {
-                localStorage.setItem("vault_pin", newPin);
-            }
+            const newHash = await hashSecretPin(newPin);
+            localStorage.setItem(STORAGE_KEY, newHash);
 
             modal.style.display = "none";
-            showToast(`${title} updated successfully!`);
+            showToast(`${title} updated securely!`);
         };
     }
 
