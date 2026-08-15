@@ -143,8 +143,13 @@ async function multiDownload() {
     if (selectedIds.size === 0) return;
     showToast(`Downloading ${selectedIds.size} photos...`);
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
-        const item = galleryData.find(x => x.id === id);
-        if (item && item.image) return downloadPhoto(item.image, `anant-gallery-${Date.now()}-${index + 1}.jpg`);
+        let item = galleryData.find(x => x.id === id);
+        let imgUrl = item ? item.image : null;
+        if (!imgUrl) {
+            const cardImg = document.querySelector(`.photo-card[data-id="${id}"] img`);
+            if (cardImg) imgUrl = cardImg.src;
+        }
+        if (imgUrl) return downloadPhoto(imgUrl, `anant-gallery-${Date.now()}-${index + 1}.jpg`);
         return Promise.resolve();
     });
     await Promise.all(downloadPromises);
@@ -152,7 +157,7 @@ async function multiDownload() {
     exitSelectionMode();
 }
 
-// 🌟 100% WORKING SELECTION MODE DIRECT SHARE
+// 🌟 100% WORKING SELECTION MODE DIRECT SHARE (INSTANT BATCH SHARE)
 async function multiSharePhotos() {
     if (selectedIds.size === 0) return;
     
@@ -160,24 +165,41 @@ async function multiSharePhotos() {
     showToast(`Preparing ${selectedIds.size} photo(s) to share...`);
 
     try {
-        const selectedItems = galleryData.filter(x => selectedIds.has(x.id) && x.image);
-        if (!selectedItems.length) return;
+        const selectedItems = [];
+        selectedIds.forEach(id => {
+            const found = galleryData.find(x => x.id === id);
+            if (found && found.image) {
+                selectedItems.push(found);
+            } else {
+                const card = document.querySelector(`.photo-card[data-id="${id}"]`);
+                const img = card ? card.querySelector('img') : null;
+                if (img && img.src) {
+                    selectedItems.push({ id, image: img.src });
+                }
+            }
+        });
 
-        // A. If 1 Photo Selected $\rightarrow$ Share instantly
+        if (selectedItems.length === 0) {
+            showToast("No photos found to share!");
+            return;
+        }
+
+        // Single Selection -> Share Directly
         if (selectedItems.length === 1) {
             await shareSinglePhotoDirect(selectedItems[0].image);
             exitSelectionMode();
             return;
         }
 
-        // B. If Multiple Photos Selected $\rightarrow$ Fetch blobs via proxy
+        // Multiple Selection -> Proxy Blob Array
         const filesToShare = [];
         for (let i = 0; i < selectedItems.length; i++) {
             try {
-                const proxyUrl = `/api/upload?url=${encodeURIComponent(selectedItems[i].image)}`;
+                const imgUrl = selectedItems[i].image;
+                const proxyUrl = `/api/upload?url=${encodeURIComponent(imgUrl)}`;
                 const res = await fetch(proxyUrl);
                 const blob = await res.blob();
-                filesToShare.push(new File([blob], `anant-gallery-${i + 1}-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' }));
+                filesToShare.push(new File([blob], `anant-gallery-${Date.now()}-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
             } catch (e) {
                 console.warn("Item fetch error during share:", e);
             }
@@ -629,7 +651,7 @@ function loadGalleryData(view) {
 }
 
 // ==========================================================================
-// 10. SELECTION MODE WITH FIRST-POSITION SHARE BUTTON
+// 10. SELECTION MODE WITH PROMINENT FIRST-POSITION SHARE BUTTON
 // ==========================================================================
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -639,7 +661,7 @@ function enterSelectionMode(initialId, customContext) {
     document.getElementById('albumsMainBoard')?.classList.add('selection-active');
     if (navigator.vibrate) navigator.vibrate(30);
     
-    // 🌟 SHARE ICON IS PROMINENTLY AT THE FIRST POSITION (#0284c7 SKY BLUE)
+    // 🌟 1ST POSITION: SKY BLUE DIRECT SHARE ICON (#0284c7)
     if (currentView === 'photos' || customContext === 'album') {
         selectActions.innerHTML = `
             <i class="fa-solid fa-share-nodes" id="multiShareBtn" style="color: #0284c7; font-size: 1.3rem;" title="Direct Share"></i>
