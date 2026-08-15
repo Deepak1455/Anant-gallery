@@ -3,7 +3,7 @@
 // ==========================================================================
 
 import { hashSecretPin } from "./hidden-photos.js";
-import { isBiometricAvailable, authenticateWithBiometric, isBiometricEnabled, setBiometricEnabled } from "./biometric-auth.js";
+import { isBiometricAvailable, authenticateWithBiometric } from "./biometric-auth.js";
 
 const KEYS = {
     THEME: 'app_theme',
@@ -89,7 +89,7 @@ const injectSettingsStyles = () => {
     const style = document.createElement('style');
     style.id = 'settings-styles';
     style.textContent = `
-        /* ANTI-SNOOP RECENT APPS PRIVACY SHIELD */
+        /* ANTI-SNOOP RECENT APPS PRIVACY SHIELD (NON-BLOCKING) */
         #privacyShield {
             position: fixed;
             inset: 0;
@@ -371,9 +371,9 @@ const injectSettingsStyles = () => {
 };
 
 // --------------------------------------------------------------------------
-// 3. FULL SCREEN APP LOCK OVERLAY (WITH FINGERPRINT ICON)
+// 3. FULL SCREEN APP LOCK OVERLAY
 // --------------------------------------------------------------------------
-async function showPinLockOverlay(correctHash) {
+export async function showPinLockOverlay(correctHash) {
     if (document.getElementById('pinLockOverlay')) return;
 
     let enteredPin = "";
@@ -421,15 +421,12 @@ async function showPinLockOverlay(correctHash) {
         setTimeout(() => overlay.remove(), 280);
     };
 
-    // 🌟 BIOMETRIC SENSOR TRIGGER
     const bioBtn = document.getElementById('keypadBio');
     if (bioBtn && hasBiometric) {
-        const triggerBio = async () => {
+        bioBtn.onclick = async () => {
             const ok = await authenticateWithBiometric();
             if (ok) unlockSuccess();
         };
-        bioBtn.onclick = triggerBio;
-        setTimeout(() => triggerBio(), 200);
     }
 
     const updateDots = () => {
@@ -476,7 +473,7 @@ async function showPinLockOverlay(correctHash) {
 }
 
 // --------------------------------------------------------------------------
-// 4. SMART PRIVACY SHIELD
+// 4. SMART PRIVACY SHIELD (ONLY ON APP MINIMIZE, NEVER BLOCKS LOGIN)
 // --------------------------------------------------------------------------
 function setupPrivacyShield() {
     let shield = document.getElementById('privacyShield');
@@ -490,19 +487,21 @@ function setupPrivacyShield() {
         document.body.appendChild(shield);
     }
 
-    const showShield = () => shield.classList.add('active');
-    const hideShield = () => shield.classList.remove('active');
-
-    window.addEventListener('blur', showShield);
-    window.addEventListener('focus', hideShield);
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) showShield();
-        else hideShield();
+        if (document.hidden) {
+            const appScreen = document.getElementById('appScreen');
+            // Only activate if user is actually inside app
+            if (appScreen && appScreen.style.display !== 'none') {
+                shield.classList.add('active');
+            }
+        } else {
+            shield.classList.remove('active');
+        }
     });
 }
 
 // --------------------------------------------------------------------------
-// 5. INITIALIZE PREFERENCES & APP LOCK
+// 5. INITIALIZE PREFERENCES
 // --------------------------------------------------------------------------
 export function initSettings() {
     injectSettingsStyles();
@@ -513,21 +512,11 @@ export function initSettings() {
 
     const savedCols = localStorage.getItem(KEYS.GRID_COLS) || '3';
     document.documentElement.style.setProperty('--grid-cols', savedCols);
+}
 
+export function checkAppPinLock() {
     const isPinEnabled = localStorage.getItem(KEYS.PIN_ENABLED) === 'true';
-    let savedHash = localStorage.getItem(KEYS.PIN_HASH);
-
-    if (isPinEnabled && !savedHash) {
-        const legacyPlain = localStorage.getItem('app_pin_code');
-        if (legacyPlain) {
-            hashSecretPin(legacyPlain).then(h => {
-                localStorage.setItem(KEYS.PIN_HASH, h);
-                localStorage.removeItem('app_pin_code');
-                if (!isUnlocked) showPinLockOverlay(h);
-            });
-            return;
-        }
-    }
+    const savedHash = localStorage.getItem(KEYS.PIN_HASH);
 
     if (isPinEnabled && savedHash && !isUnlocked) {
         showPinLockOverlay(savedHash);
@@ -538,10 +527,8 @@ export function resetPinLock() {
     isUnlocked = false;
 }
 
-initSettings();
-
 // --------------------------------------------------------------------------
-// 6. RENDER SETTINGS UI (WITH BIOMETRIC & GRID & THEME)
+// 6. RENDER SETTINGS UI
 // --------------------------------------------------------------------------
 export function renderSettingsSection(containerElement) {
     injectSettingsStyles();
@@ -674,7 +661,7 @@ export function renderSettingsSection(containerElement) {
                         localStorage.setItem(KEYS.PIN_HASH, hash);
                         localStorage.setItem(KEYS.PIN_ENABLED, 'true');
                         document.getElementById('pinToggle').checked = true;
-                        showToast("App Lock Enabled (PIN & Fingerprint)!");
+                        showToast("App Lock Enabled!");
                     } else {
                         showToast("PIN must be exactly 4 digits!");
                         document.getElementById('pinToggle').checked = false;
