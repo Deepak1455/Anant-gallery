@@ -1,30 +1,19 @@
 // ==========================================================================
-// APP SCREEN LAYOUT COMPONENT - SMART CARD-BOARD TOAST, THEME & PWA INSTALL
+// APP SCREEN LAYOUT COMPONENT - SCROLLABLE HEADERS & PWA ENGINE
 // ==========================================================================
 
 let deferredInstallPrompt = null;
 
-// --------------------------------------------------------------------------
-// 1. CHECK IF APP IS ALREADY INSTALLED (PWA / APK STANDALONE CHECK)
-// --------------------------------------------------------------------------
 export function isAppInstalled() {
-    // 1. Android / Chrome / Desktop PWA Standalone Mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    // 2. iOS Safari Add to Home Screen Mode
     const isIOSStandalone = window.navigator.standalone === true;
-    // 3. Android TWA / APK Wrapper Check
     const isAndroidApp = document.referrer.includes('android-app://') || window.location.search.includes('mode=apk');
-    // 4. LocalStorage Dismiss / Install Flag
     const isManuallyInstalled = localStorage.getItem('anant_app_installed') === 'true';
 
     return isStandalone || isIOSStandalone || isAndroidApp || isManuallyInstalled;
 }
 
-// --------------------------------------------------------------------------
-// 2. AUTO-INJECT APP SCREEN CSS STYLES (LIGHT / DARK & PWA GLASS CARD)
-// --------------------------------------------------------------------------
 const appScreenStyles = `
-/* APP SCREEN CONTAINER */
 #appScreen { 
     display: none; 
     flex-direction: column; 
@@ -37,10 +26,9 @@ const appScreenStyles = `
     background: var(--bg-body, #f8fafc);
 }
 
-/* MAIN HEADER GLASS CARD BOARD */
 #mainHeader {
     height: 70px; 
-    padding: 0 20px; 
+    padding: 0 16px; 
     display: flex; 
     align-items: center; 
     justify-content: space-between;
@@ -59,7 +47,7 @@ const appScreenStyles = `
 .header-left { 
     display: flex; 
     align-items: center; 
-    gap: 15px; 
+    gap: 12px; 
 }
 
 .menu-btn { 
@@ -71,9 +59,7 @@ const appScreenStyles = `
     transition: transform 0.15s ease, background 0.2s ease;
 }
 
-.menu-btn:active {
-    transform: scale(0.9);
-}
+.menu-btn:active { transform: scale(0.9); }
 
 .header-title-box { 
     display: flex; 
@@ -82,7 +68,7 @@ const appScreenStyles = `
 }
 
 .header-title { 
-    font-size: 1.25rem; 
+    font-size: 1.2rem; 
     font-weight: 700; 
     color: var(--text-main, #0f172a); 
     line-height: 1.1; 
@@ -96,7 +82,7 @@ const appScreenStyles = `
     letter-spacing: 0.3px; 
 }
 
-/* SELECTION HEADER CARD BOARD */
+/* 🌟 SMOOTH HORIZONTAL SCROLLABLE SELECTION HEADER */
 #selectionHeader {
     position: absolute; 
     top: 0; 
@@ -108,35 +94,52 @@ const appScreenStyles = `
     display: none;
     align-items: center; 
     justify-content: space-between; 
-    padding: 0 20px;
+    padding: 0 12px;
     border-bottom: 2px solid var(--accent, #4f46e5);
     box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+    gap: 8px;
+}
+
+.selection-left-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 #selectionCount { 
-    font-weight: 600; 
-    font-size: 1.15rem; 
+    font-weight: 700; 
+    font-size: 1rem; 
     color: var(--text-main, #0f172a);
+    white-space: nowrap;
 }
 
 .selection-actions { 
     display: flex; 
-    gap: 18px; 
+    gap: 14px; 
     align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 6px;
+    scroll-behavior: smooth;
+    flex: 1;
+    justify-content: flex-end;
 }
 
+.selection-actions::-webkit-scrollbar { display: none; }
+
 .selection-actions i { 
-    font-size: 1.25rem; 
+    font-size: 1.2rem; 
     cursor: pointer; 
-    padding: 6px; 
+    padding: 6px 8px; 
     border-radius: 8px;
     color: var(--text-main, #0f172a);
+    flex-shrink: 0;
     transition: transform 0.15s ease;
 }
 
-.selection-actions i:active {
-    transform: scale(0.88);
-}
+.selection-actions i:active { transform: scale(0.88); }
 
 .scroll-container {
     flex: 1; 
@@ -146,7 +149,6 @@ const appScreenStyles = `
     -webkit-overflow-scrolling: touch;
 }
 
-/* TRASH INFO BANNER */
 .trash-info {
     padding: 14px 18px; 
     text-align: center; 
@@ -159,7 +161,6 @@ const appScreenStyles = `
     box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
-/* 🌟 SMART PWA / APK INSTALL CARD BOARD */
 .pwa-install-board {
     background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
     border: 1px solid rgba(79, 70, 229, 0.22);
@@ -208,11 +209,7 @@ const appScreenStyles = `
     overflow: hidden;
 }
 
-.pwa-install-icon-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+.pwa-install-icon-img { width: 100%; height: 100%; object-fit: cover; }
 
 .pwa-install-text-box {
     display: flex;
@@ -260,9 +257,7 @@ const appScreenStyles = `
     white-space: nowrap;
 }
 
-.btn-pwa-install:active {
-    transform: scale(0.92);
-}
+.btn-pwa-install:active { transform: scale(0.92); }
 
 .btn-pwa-close {
     background: transparent;
@@ -275,11 +270,8 @@ const appScreenStyles = `
     transition: transform 0.15s ease;
 }
 
-.btn-pwa-close:active {
-    transform: scale(0.85);
-}
+.btn-pwa-close:active { transform: scale(0.85); }
 
-/* 🌟 ULTRA-SMOOTH CARD-BOARD FLOATING TOAST NOTIFICATION */
 #toast {
     position: fixed; 
     top: 80px; 
@@ -315,11 +307,7 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
-// --------------------------------------------------------------------------
-// 3. PWA INSTALL BANNER CONTROLLER (AUTO-REMOVE ON INSTALLED)
-// --------------------------------------------------------------------------
 export function checkAndRenderPWAInstallBanner() {
-    // 🌟 अगर ऐप पहले से इंस्टॉल है या APK मोड में है, तो कार्ड कभी नहीं दिखेगा
     if (isAppInstalled()) {
         removePWAInstallBannerImmediately();
         return;
@@ -327,8 +315,6 @@ export function checkAndRenderPWAInstallBanner() {
 
     const scrollContainer = document.getElementById('scrollContainer');
     if (!scrollContainer) return;
-
-    // अगर पहले से कार्ड मौजूद है तो दोबारा न बनाएं
     if (document.getElementById('pwaInstallBoard')) return;
 
     const pwaBoard = document.createElement('div');
@@ -353,7 +339,6 @@ export function checkAndRenderPWAInstallBanner() {
         </div>
     `;
 
-    // गैलरी कंटेंट से ठीक ऊपर जोड़ें
     const galleryContent = document.getElementById('galleryContent');
     if (galleryContent) {
         scrollContainer.insertBefore(pwaBoard, galleryContent);
@@ -361,7 +346,6 @@ export function checkAndRenderPWAInstallBanner() {
         scrollContainer.prepend(pwaBoard);
     }
 
-    // इंस्टॉल बटन क्लिक हैंडलर
     document.getElementById('btnPwaInstallAction')?.addEventListener('click', async () => {
         if (deferredInstallPrompt) {
             deferredInstallPrompt.prompt();
@@ -372,12 +356,10 @@ export function checkAndRenderPWAInstallBanner() {
             }
             deferredInstallPrompt = null;
         } else {
-            // iOS या ब्राउज़र प्रॉम्प्ट फॉलबैक
-            alert("To install: Tap the browser share/menu button (⋮ or Share) and select 'Add to Home Screen' / 'Install App'.");
+            alert("To install: Tap the browser menu (⋮ or Share) and select 'Add to Home Screen'.");
         }
     });
 
-    // डिसमिस बटन (स्मूथ क्लोज)
     document.getElementById('btnPwaDismissAction')?.addEventListener('click', () => {
         smoothRemovePWABanner();
     });
@@ -387,9 +369,7 @@ export function smoothRemovePWABanner() {
     const banner = document.getElementById('pwaInstallBoard');
     if (!banner) return;
     banner.classList.add('pwa-leaving');
-    setTimeout(() => {
-        banner.remove();
-    }, 280);
+    setTimeout(() => { banner.remove(); }, 280);
 }
 
 export function removePWAInstallBannerImmediately() {
@@ -397,16 +377,12 @@ export function removePWAInstallBannerImmediately() {
     if (banner) banner.remove();
 }
 
-// --------------------------------------------------------------------------
-// 4. AUTO-INJECT HTML LAYOUT
-// --------------------------------------------------------------------------
 function injectHTML() {
     if (document.getElementById('appScreen')) return;
 
     const appScreenDiv = document.createElement('div');
     appScreenDiv.id = 'appScreen';
     appScreenDiv.innerHTML = `
-        <!-- Normal Header -->
         <header id="mainHeader">
             <div class="header-left">
                 <i class="fa-solid fa-bars menu-btn" id="menuBtn"></i>
@@ -420,73 +396,52 @@ function injectHTML() {
             </div>
         </header>
 
-        <!-- Selection Header -->
+        <!-- 🌟 SMART SCROLLABLE SELECTION HEADER -->
         <div id="selectionHeader">
-            <i class="fa-solid fa-xmark" id="cancelSelect" style="padding:10px; cursor:pointer;"></i>
-            <div id="selectionCount">0 Selected</div>
-            <div class="selection-actions" id="selectActions">
-                <!-- Injected via JS based on context -->
+            <div class="selection-left-group">
+                <i class="fa-solid fa-xmark" id="cancelSelect" style="padding:8px; cursor:pointer; font-size:1.15rem;"></i>
+                <div id="selectionCount">0 Selected</div>
             </div>
+            <div class="selection-actions" id="selectActions"></div>
         </div>
 
-        <!-- Scrollable Area -->
         <div class="scroll-container" id="scrollContainer">
             <div id="trashBanner" style="display:none;">
                 <div class="trash-info">Items in trash are deleted forever after 30 days.</div>
             </div>
-            <div id="galleryContent">
-                <!-- Date Headers, Grids, or Profile go here -->
-            </div>
+            <div id="galleryContent"></div>
         </div>
 
         <input type="file" id="fileInput" hidden accept="image/jpeg,image/png,image/webp,image/heic,image/gif,image/*" multiple>
-
-        <!-- SMART CARD-BOARD TOAST -->
         <div id="toast">Message</div>
     `;
 
     document.body.appendChild(appScreenDiv);
 }
 
-// --------------------------------------------------------------------------
-// 5. SETUP GLOBAL PWA EVENT LISTENERS
-// --------------------------------------------------------------------------
 function setupPWAEventListeners() {
-    // 🌟 1. ब्राउज़र का 'beforeinstallprompt' इवेंट कैप्चर करना
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredInstallPrompt = e;
-
-        // अगर पहले से ऐप में नहीं है तभी कार्ड रेंडर करो
-        if (!isAppInstalled()) {
-            checkAndRenderPWAInstallBanner();
-        }
+        if (!isAppInstalled()) checkAndRenderPWAInstallBanner();
     });
 
-    // 🌟 2. ऐप इंस्टॉल होते ही तुरंत बैनर रिमूव करना
     window.addEventListener('appinstalled', () => {
         localStorage.setItem('anant_app_installed', 'true');
         deferredInstallPrompt = null;
         smoothRemovePWABanner();
     });
 
-    // 🌟 3. डिस्प्ले मोड बदलने पर (जैसे स्टैंडअलोन में स्विच होने पर)
     window.matchMedia('(display-mode: standalone)').addEventListener('change', (e) => {
-        if (e.matches) {
-            removePWAInstallBannerImmediately();
-        }
+        if (e.matches) removePWAInstallBannerImmediately();
     });
 }
 
-// --------------------------------------------------------------------------
-// 6. MAIN INITIALIZATION FUNCTION
-// --------------------------------------------------------------------------
 export function initAppScreen() {
     injectStyles();
     injectHTML();
     setupPWAEventListeners();
 
-    // प्रारंभिक चेक
     if (!isAppInstalled()) {
         setTimeout(() => checkAndRenderPWAInstallBanner(), 600);
     }
