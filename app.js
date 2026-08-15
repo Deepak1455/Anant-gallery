@@ -122,7 +122,8 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
     };
 }
 
-async function downloadPhoto(imageUrl, filename = `photo-${Date.now()}.jpg`) {
+// 🌟 BRANDED DOWNLOAD: anant-gallery-....jpg
+async function downloadPhoto(imageUrl, filename = `anant-gallery-${Date.now()}.jpg`) {
     try {
         const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
@@ -145,7 +146,7 @@ async function multiDownload() {
     showToast(`Downloading ${selectedIds.size} photos...`);
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
         const item = galleryData.find(x => x.id === id);
-        if (item && item.image) return downloadPhoto(item.image, `gallery-photo-${Date.now()}-${index + 1}.jpg`);
+        if (item && item.image) return downloadPhoto(item.image, `anant-gallery-${Date.now()}-${index + 1}.jpg`);
         return Promise.resolve();
     });
     await Promise.all(downloadPromises);
@@ -168,7 +169,7 @@ async function multiSharePhotos() {
                 const proxyUrl = `/api/upload?url=${encodeURIComponent(selectedItems[i].image)}`;
                 const res = await fetch(proxyUrl);
                 const blob = await res.blob();
-                filesToShare.push(new File([blob], `anant-photo-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
+                filesToShare.push(new File([blob], `anant-gallery-${i + 1}-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' }));
             } catch (e) {
                 console.warn("Item fetch skipped for share:", e);
             }
@@ -204,7 +205,7 @@ initImageViewer({
     getCurrentView: () => currentView,
     onDownload: (imageData) => {
         const url = typeof imageData === 'object' ? imageData.image : imageData;
-        downloadPhoto(url, `photo-${Date.now()}.jpg`);
+        downloadPhoto(url, `anant-gallery-${Date.now()}.jpg`);
     },
     onAddToAlbum: (docId) => {
         showAddToAlbumModal([docId], currentUser, () => {
