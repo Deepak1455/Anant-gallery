@@ -1,5 +1,5 @@
 // ==========================================================================
-// APP PREFERENCES, ANTI-SNOOP PRIVACY SHIELD & SHA-256 PIN LOCK ENGINE
+// APP PREFERENCES, ANTI-SNOOP PRIVACY SHIELD & SHA-256 PIN LOCK ENGINE 
 // ==========================================================================
 
 import { hashSecretPin } from "./hidden-photos.js";
