@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Anant Gallery - Infinite Cloud Storage</title>
     
+    <!-- 🌟 CRITICAL: Capture beforeinstallprompt IMMEDIATELY before modules load -->
+    <script>
+        window.deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.deferredInstallPrompt = e;
+            window.dispatchEvent(new CustomEvent('anant_pwa_ready'));
+        });
+    </script>
+
     <!-- App Favicon & Apple Touch Icons -->
     <link rel="icon" type="image/png" href="loadingphoto.png">
     <link rel="apple-touch-icon" href="loadingphoto.png">
@@ -31,7 +41,6 @@
         <div class="sb-item active" id="navPhotos">
             <i class="fa-regular fa-images"></i> Photos
         </div>
-        <!-- 🌟 NEW ALBUMS TAB -->
         <div class="sb-item" id="navAlbums">
             <i class="fa-solid fa-folder-open" style="color: #0ea5e9;"></i> Albums
         </div>
@@ -56,7 +65,6 @@
     <!-- AUTHENTICATION SCREEN -->
     <div id="authScreen">
         <div class="auth-box">
-            <!-- 🌟 ANANT GALLERY LOGO -->
             <div class="auth-logo-box">
                 <img src="loadingphoto.png" class="auth-logo-img" alt="Anant Gallery" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <i class="fa-solid fa-infinity" style="display:none;"></i>
