@@ -1,5 +1,5 @@
 // ==========================================================================
-// GALLERY CARD & UNIFIED ALL-PHOTOS BOARD COMPONENT (DRAG & RANGE SELECT READY)
+// GALLERY CARD & UNIFIED ALL-PHOTOS BOARD COMPONENT (WITH AUTO-RETRY & CDN)
 // ==========================================================================
 
 const dateCache = new Map();
@@ -40,7 +40,7 @@ const injectCardBoardStyles = () => {
             gap: 8px;
         }
 
-        /* 🌟 TIMELINE INLINE DATE DIVIDERS (INSIDE SINGLE CARD BOARD) */
+        /* 🌟 TIMELINE INLINE DATE DIVIDERS */
         .timeline-date-divider {
             display: flex;
             align-items: center;
@@ -98,6 +98,9 @@ const injectCardBoardStyles = () => {
             transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
             user-select: none;
             -webkit-user-drag: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .photo-card:active {
@@ -120,12 +123,39 @@ const injectCardBoardStyles = () => {
             100% { opacity: 1; transform: scale(1); }
         }
 
+        /* 🌟 SILKY SMOOTH IMAGE LOADING */
         .photo-card img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: transform 0.35s ease;
+            transition: opacity 0.3s ease, transform 0.35s ease;
             pointer-events: none;
+            opacity: 0;
+        }
+
+        .photo-card img.loaded {
+            opacity: 1 !important;
+        }
+
+        /* 🌟 SOFT BROKEN IMAGE FALLBACK */
+        .photo-error-box {
+            position: absolute;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(239, 68, 68, 0.06);
+            color: var(--text-muted, #64748b);
+            font-size: 0.75rem;
+            gap: 4px;
+            z-index: 1;
+        }
+
+        .photo-error-box i {
+            font-size: 1.4rem;
+            color: #ef4444;
+            opacity: 0.6;
         }
 
         /* 🟦 BLUE TICK SELECTION */
@@ -223,7 +253,7 @@ export function getDateLabel(timestamp) {
 // 3. SMART DRAG & AUTO-SCROLL SELECTION ENGINE
 // --------------------------------------------------------------------------
 let isDragSelecting = false;
-let dragMode = 'select'; // 'select' or 'unselect'
+let dragMode = 'select';
 let rangeAnchorIndex = null;
 let lastTouchedIndex = null;
 let autoScrollFrame = null;
@@ -299,7 +329,7 @@ function stopAutoScroll() {
 }
 
 // --------------------------------------------------------------------------
-// 4. CREATE PHOTO CARD (CLEAN TOGGLE, LONG-PRESS, DRAG)
+// 4. CREATE PHOTO CARD (WITH SMART AUTO-RETRY & LAZY-LOAD)
 // --------------------------------------------------------------------------
 export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     const div = document.createElement('div');
@@ -319,9 +349,49 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
 
     div.innerHTML = `
         <img src="${data.image}" loading="lazy" decoding="async" draggable="false" alt="Photo">
+        <div class="photo-error-box">
+            <i class="fa-solid fa-cloud-arrow-down"></i>
+            <span>Retry</span>
+        </div>
         <div class="check-circle"><i class="fa-solid fa-check"></i></div>
         <div class="fav-icon" title="Toggle Favorite"><i class="fa-solid fa-heart"></i></div>
     `;
+
+    const imgEl = div.querySelector('img');
+    const errorBox = div.querySelector('.photo-error-box');
+
+    // 🌟 Smooth Loaded Fade-in
+    imgEl.onload = () => {
+        imgEl.classList.add('loaded');
+        if (errorBox) errorBox.style.display = 'none';
+    };
+
+    // 🌟 Smart Exponential Auto-Retry Engine for Telegram Rate-Limit
+    let retryCount = 0;
+    imgEl.onerror = () => {
+        if (retryCount < 3) {
+            retryCount++;
+            const delay = retryCount * 1200; // 1.2s, 2.4s, 3.6s backoff
+            setTimeout(() => {
+                const separator = data.image.includes('?') ? '&' : '?';
+                imgEl.src = `${data.image}${separator}retry=${Date.now()}`;
+            }, delay);
+        } else {
+            imgEl.style.display = 'none';
+            if (errorBox) errorBox.style.display = 'flex';
+        }
+    };
+
+    if (errorBox) {
+        errorBox.onclick = (e) => {
+            e.stopPropagation();
+            retryCount = 0;
+            imgEl.style.display = 'block';
+            errorBox.style.display = 'none';
+            const separator = data.image.includes('?') ? '&' : '?';
+            imgEl.src = `${data.image}${separator}manual=${Date.now()}`;
+        };
+    }
 
     div.querySelector('.fav-icon')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -409,7 +479,7 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     div.addEventListener('touchend', cancelPress);
     div.addEventListener('touchcancel', cancelPress);
 
-    // TAP / CLICK HANDLER (INSTANT UNSELECT / SELECT OR OPEN LIGHTBOX)
+    // TAP / CLICK HANDLER
     div.addEventListener('click', () => {
         if (callbacks.getIsSelectionMode()) {
             callbacks.toggleSelection(data.id, div);
