@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - 100% RELIABLE AUTH & FAST APP CONTROLLER
+// ANANT GALLERY - 100% RELIABLE AUTH & ULTRA-FAST APP CONTROLLER
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -65,7 +65,7 @@ import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // --------------------------------------------------------------------------
-// 2. INITIALIZE APP MODULES
+// 1. INITIALIZE APP MODULES
 // --------------------------------------------------------------------------
 initSplashScreen();
 initAppScreen();
@@ -73,7 +73,7 @@ initSettings();
 initOfflineSync(() => currentUser, uploadPhotoToTelegram, showToast);
 
 // --------------------------------------------------------------------------
-// 3. STATE VARIABLES & DOM ELEMENTS CACHE
+// 2. STATE VARIABLES & DOM ELEMENTS CACHE
 // --------------------------------------------------------------------------
 let currentUser = null;
 let isSelectionMode = false;
@@ -82,6 +82,7 @@ let galleryData = [];
 let currentView = 'photos'; 
 let unsubscribe = null; 
 let toastTimer = null;
+let galleryRenderTimer = null; // 🌟 Smooth Render Debounce Timer
 
 const galleryContent = document.getElementById('galleryContent');
 const selectionHeader = document.getElementById('selectionHeader');
@@ -177,7 +178,7 @@ async function multiDownload() {
 }
 
 // --------------------------------------------------------------------------
-// 5. INIT IMAGE VIEWER
+// 3. INIT IMAGE VIEWER (LIGHTBOX)
 // --------------------------------------------------------------------------
 initImageViewer({
     getCurrentView: () => currentView,
@@ -246,7 +247,7 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 6. 100% RELIABLE AUTH CONTROLLER WITH FORGOT PASSWORD
+// 4. AUTH CONTROLLER WITH FORGOT PASSWORD & GOOGLE SIGN-IN
 // --------------------------------------------------------------------------
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
@@ -268,7 +269,6 @@ if (toggleAuthBtn) {
     };
 }
 
-// 🌟 PASSWORD RESET HANDLER
 if (forgotPassBtn) {
     forgotPassBtn.onclick = async () => {
         const email = emailInput ? emailInput.value.trim() : '';
@@ -400,7 +400,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // --------------------------------------------------------------------------
-// 7. ULTRA-SMOOTH VIEW SWITCHER
+// 5. ULTRA-SMOOTH VIEW SWITCHER
 // --------------------------------------------------------------------------
 function switchView(view, extraParam = null) {
     currentView = view;
@@ -536,7 +536,7 @@ function switchView(view, extraParam = null) {
 }
 
 // --------------------------------------------------------------------------
-// 8. SIDEBAR CONTROLLER
+// 6. SIDEBAR CONTROLLER
 // --------------------------------------------------------------------------
 const openSidebar = () => {
     if (sidebar) sidebar.classList.add('open');
@@ -581,7 +581,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
 });
 
 // --------------------------------------------------------------------------
-// 9. GALLERY DATA STREAM
+// 7. GALLERY DATA STREAM (HIGH PERFORMANCE WITH 120ms DEBOUNCE)
 // --------------------------------------------------------------------------
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
@@ -594,72 +594,77 @@ function loadGalleryData(view) {
     );
 
     unsubscribe = onSnapshot(q, (snapshot) => {
-        galleryContent.innerHTML = "";
-        galleryData = [];
-        const rawData = [];
+        if (galleryRenderTimer) clearTimeout(galleryRenderTimer);
 
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            const docIsDeleted = data.isDeleted === true;
-            const docIsFavorite = data.isFavorite === true;
-            const docIsHidden = data.isHidden === true;
-            const hasAlbum = !!data.albumId;
+        // 🌟 120ms Debounce: Prevents UI lag & flickering during multiple parallel uploads
+        galleryRenderTimer = setTimeout(() => {
+            galleryContent.innerHTML = "";
+            galleryData = [];
+            const rawData = [];
 
-            if (isTrash) {
-                if (docIsDeleted) rawData.push({ id: docSnap.id, ...data });
-            } else {
-                if (!docIsDeleted && !docIsFavorite && !docIsHidden && !hasAlbum) {
-                    rawData.push({ id: docSnap.id, ...data });
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                const docIsDeleted = data.isDeleted === true;
+                const docIsFavorite = data.isFavorite === true;
+                const docIsHidden = data.isHidden === true;
+                const hasAlbum = !!data.albumId;
+
+                if (isTrash) {
+                    if (docIsDeleted) rawData.push({ id: docSnap.id, ...data });
+                } else {
+                    if (!docIsDeleted && !docIsFavorite && !docIsHidden && !hasAlbum) {
+                        rawData.push({ id: docSnap.id, ...data });
+                    }
                 }
-            }
-        });
-
-        if (view === 'photos') {
-            renderAlbumsMainBoard(galleryContent, currentUser, {
-                switchView,
-                showToast,
-                getIsSelectionMode: () => isSelectionMode,
-                getSelectedIds: () => Array.from(selectedIds),
-                exitSelectionMode
             });
-        }
-        
-        const countBadge = document.getElementById('photoCountBadge');
-        if (rawData.length === 0) {
-            if (countBadge) countBadge.innerText = view === 'photos' ? '0 photos' : '0 items in trash';
-            const emptyNotice = document.createElement('div');
-            emptyNotice.style.cssText = "text-align:center; padding:40px 20px; color:var(--text-muted, #64748b); font-size:0.9rem;";
-            emptyNotice.innerHTML = isTrash ? 'Trash Bin is Empty' : 'All photos are organized in albums!';
-            galleryContent.appendChild(emptyNotice);
-            return;
-        }
 
-        rawData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        galleryData = rawData;
-        if (countBadge) countBadge.innerText = `${rawData.length} ${rawData.length === 1 ? 'photo' : 'photos'}`;
-
-        const photosSection = document.createElement('div');
-        photosSection.id = "mainPhotosSection";
-        galleryContent.appendChild(photosSection);
-
-        renderGroupedGallery(rawData, photosSection, {
-            getIsSelectionMode: () => isSelectionMode,
-            enterSelectionMode,
-            toggleSelection,
-            selectId,
-            deselectId,
-            onToggleFav: async (docId, newFavStatus) => {
-                await updateDoc(doc(db, "user_photos", docId), { isFavorite: newFavStatus });
-            },
-            openLightbox: (index) => {
-                openImageViewer(index, rawData, currentView);
+            if (view === 'photos') {
+                renderAlbumsMainBoard(galleryContent, currentUser, {
+                    switchView,
+                    showToast,
+                    getIsSelectionMode: () => isSelectionMode,
+                    getSelectedIds: () => Array.from(selectedIds),
+                    exitSelectionMode
+                });
             }
-        });
+            
+            const countBadge = document.getElementById('photoCountBadge');
+            if (rawData.length === 0) {
+                if (countBadge) countBadge.innerText = view === 'photos' ? '0 photos' : '0 items in trash';
+                const emptyNotice = document.createElement('div');
+                emptyNotice.style.cssText = "text-align:center; padding:40px 20px; color:var(--text-muted, #64748b); font-size:0.9rem;";
+                emptyNotice.innerHTML = isTrash ? 'Trash Bin is Empty' : 'All photos are organized in albums!';
+                galleryContent.appendChild(emptyNotice);
+                return;
+            }
+
+            rawData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            galleryData = rawData;
+            if (countBadge) countBadge.innerText = `${rawData.length} ${rawData.length === 1 ? 'photo' : 'photos'}`;
+
+            const photosSection = document.createElement('div');
+            photosSection.id = "mainPhotosSection";
+            galleryContent.appendChild(photosSection);
+
+            renderGroupedGallery(rawData, photosSection, {
+                getIsSelectionMode: () => isSelectionMode,
+                enterSelectionMode,
+                toggleSelection,
+                selectId,
+                deselectId,
+                onToggleFav: async (docId, newFavStatus) => {
+                    await updateDoc(doc(db, "user_photos", docId), { isFavorite: newFavStatus });
+                },
+                openLightbox: (index) => {
+                    openImageViewer(index, rawData, currentView);
+                }
+            });
+        }, 120);
     });
 }
 
 // --------------------------------------------------------------------------
-// 10. SMART SELECTION MODE
+// 8. SMART SELECTION MODE
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -828,7 +833,7 @@ function multiDeletePerm() {
 }
 
 // --------------------------------------------------------------------------
-// 11. FILE UPLOAD ENGINE
+// 9. FILE UPLOAD ENGINE
 // --------------------------------------------------------------------------
 const fileInputEl = document.getElementById('fileInput');
 if (fileInputEl) {
