@@ -1,11 +1,19 @@
 // ==========================================================================
-// PROFILE MODULE - 100% BUG-FREE & FAST (FINGERPRINT, PIN & ANALYTICS)
+// PROFILE MODULE - 100% BUG-FREE & FAST (WITH ACCOUNT DELETION)
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
 import { auth, db } from "./firebase-config.js";
-import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    collection, 
+    query, 
+    where, 
+    getDocs, 
+    onSnapshot, 
+    writeBatch, 
+    doc 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { updateProfile, deleteUser, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { hashSecretPin } from "./hidden-photos.js";
 import { 
     isBiometricAvailable, 
@@ -109,7 +117,6 @@ const injectProfileStyles = () => {
             padding: 4px;
             transition: transform 0.2s;
         }
-        .edit-name-icon:hover { transform: scale(1.15); }
         .name-edit-form {
             display: none;
             align-items: center;
@@ -332,6 +339,49 @@ const injectProfileStyles = () => {
         }
         .btn-pin-action:active { transform: scale(0.95); }
 
+        /* 🌟 DANGER ZONE / DELETE ACCOUNT CARD */
+        .danger-card {
+            background: rgba(239, 68, 68, 0.05);
+            border: 1.5px dashed rgba(239, 68, 68, 0.3);
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .danger-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #ef4444;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .danger-desc {
+            font-size: 0.78rem;
+            color: var(--text-muted, #64748b);
+            line-height: 1.4;
+            margin-bottom: 14px;
+        }
+        .btn-delete-account {
+            width: 100%;
+            padding: 12px;
+            background: #ef4444;
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
+            transition: transform 0.15s;
+        }
+        .btn-delete-account:active { transform: scale(0.96); }
+
         .pin-modal-overlay {
             position: fixed;
             inset: 0;
@@ -443,7 +493,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// 🌟 SAFE RENDER PROFILE SCREEN (INSTANT RENDER & MULTI-AUTH SAFE)
+// RENDER PROFILE SCREEN
 // --------------------------------------------------------------------------
 export function renderProfileScreen(containerElement, passedUser = null) {
     injectProfileStyles();
@@ -599,6 +649,19 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                 </div>
             </div>
 
+            <!-- 🌟 GOOGLE PLAY MANDATORY: DELETE ACCOUNT & DATA -->
+            <div class="danger-card">
+                <div class="danger-title">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Danger Zone
+                </div>
+                <div class="danger-desc">
+                    Permanently delete your account, albums, and wipe all backed-up photos from Anant Cloud. This action is irreversible.
+                </div>
+                <button class="btn-delete-account" id="btnDeleteAccountAction">
+                    <i class="fa-solid fa-trash-can"></i> Delete My Account & Data
+                </button>
+            </div>
+
         </div>
     `;
 
@@ -607,7 +670,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         renderSettingsSection(profileContainer);
     }
 
-    // 🌟 ASYNC BIOMETRIC CHECK (NEVER BLOCKS UI)
+    // Biometric Check
     isBiometricAvailable().then((supported) => {
         const row = document.getElementById('bioRowContainer');
         const toggle = document.getElementById('profileBioToggle');
@@ -629,7 +692,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                             toggle.checked = true;
                             if (sub) sub.innerText = 'Fingerprint Saved & Active';
                             showToast("Fingerprint saved & activated! 🔒");
-                            if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
                         } else {
                             toggle.checked = false;
                             showToast("Registration cancelled!");
@@ -745,7 +807,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         });
     }
 
-    // Realtime Firestore Stats
+    // Realtime Stats
     const photosRef = collection(db, "user_photos");
     const qUserPhotos = query(photosRef, where("uid", "==", user.uid));
 
@@ -788,7 +850,12 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         console.warn("Stats listener error:", error);
     });
 
-    // SHA-256 Dual PIN Management Modal
+    // 🌟 DELETE ACCOUNT MODAL HANDLER
+    document.getElementById('btnDeleteAccountAction')?.addEventListener('click', () => {
+        showDeleteAccountModal(user);
+    });
+
+    // PIN Management Modal
     async function openPinModal(pinType) {
         const isAppPin = pinType === 'app';
         const STORAGE_KEY = isAppPin ? HASH_KEYS.APP_PIN_HASH : HASH_KEYS.PRIVATE_PIN_HASH;
@@ -868,8 +935,72 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 STOP PROFILE LISTENER ON LOGOUT / VIEW SWITCH (PREVENTS LEAKS)
+// 🌟 GOOGLE PLAY DELETE ACCOUNT MODAL & DATA PURGE ENGINE
 // --------------------------------------------------------------------------
+function showDeleteAccountModal(user) {
+    let overlay = document.createElement('div');
+    overlay.className = 'pin-modal-overlay';
+    overlay.innerHTML = `
+        <div class="pin-modal-box" style="border: 2px solid #ef4444;">
+            <div style="width:58px; height:58px; border-radius:50%; background:rgba(239, 68, 68, 0.15); color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:1.5rem; margin:0 auto 12px auto;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h4 style="color:#ef4444;">Delete Account Permanently?</h4>
+            <p style="font-size:0.83rem; color:var(--text-muted); line-height:1.45;">
+                This will permanently delete your account, albums, and wipe all your backed-up photos from Anant Cloud. <strong>This cannot be undone.</strong>
+            </p>
+            <div class="pin-modal-actions">
+                <button class="pin-modal-btn cancel" id="cancelDeleteAcc">Keep Account</button>
+                <button class="pin-modal-btn" id="confirmDeleteAcc" style="background:#ef4444; color:#fff; font-weight:700;">Delete Forever</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#cancelDeleteAcc').onclick = close;
+
+    overlay.querySelector('#confirmDeleteAcc').onclick = async () => {
+        const btn = overlay.querySelector('#confirmDeleteAcc');
+        btn.disabled = true;
+        btn.innerText = "Deleting All Data...";
+
+        try {
+            // 1. Delete all user photos from Firestore
+            const qPhotos = query(collection(db, "user_photos"), where("uid", "==", user.uid));
+            const photoSnap = await getDocs(qPhotos);
+            const batch1 = writeBatch(db);
+            photoSnap.forEach(d => batch1.delete(doc(db, "user_photos", d.id)));
+            await batch1.commit();
+
+            // 2. Delete all user albums from Firestore
+            const qAlbums = query(collection(db, "user_albums"), where("uid", "==", user.uid));
+            const albumSnap = await getDocs(qAlbums);
+            const batch2 = writeBatch(db);
+            albumSnap.forEach(d => batch2.delete(doc(db, "user_albums", d.id)));
+            await batch2.commit();
+
+            // 3. Clear Local Storage
+            localStorage.clear();
+            sessionStorage.clear();
+
+            // 4. Delete Firebase Auth User
+            await deleteUser(user);
+
+            close();
+            showToast("Account and all data permanently deleted!");
+        } catch (err) {
+            console.error("Account delete error:", err);
+            if (err.code === 'auth/requires-recent-login') {
+                showToast("Security: Please log out and log in again to delete your account.");
+            } else {
+                showToast("Failed to delete account: " + err.message);
+            }
+            close();
+        }
+    };
+}
+
 export function stopProfileListener() {
     if (unsubscribeProfile) {
         unsubscribeProfile();
