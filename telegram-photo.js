@@ -1,5 +1,5 @@
 // ==========================================================================
-// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (100% SECURE & TOKEN-FREE)
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (100% ACCURATE & FAST)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -12,11 +12,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { addToOfflineQueue } from "./offline-sync.js";
 
-// 🌟 SECURE PROXY ENDPOINT (No Tokens Exposed in Frontend!)
+// 🌟 SECURE PROXY ENDPOINT
 const UPLOAD_API_ENDPOINT = "/api/upload";
 
 // --------------------------------------------------------------------------
-// 1. SMART TOP FLOATING PROGRESS BAR CSS
+// 1. SMART FLOATING PROGRESS BAR STYLES
 // --------------------------------------------------------------------------
 const photoCSS = `
     .photo-upload-topbar {
@@ -123,7 +123,7 @@ const photoCSS = `
 })();
 
 // --------------------------------------------------------------------------
-// 2. TOP FLOATING PROGRESS BAR CONTROLLER
+// 2. PROGRESS BAR CONTROLLER
 // --------------------------------------------------------------------------
 function getTopProgressBar() {
     let topBar = document.getElementById("photoTopProgressBar");
@@ -179,11 +179,10 @@ function hideProgressModal() {
 }
 
 // --------------------------------------------------------------------------
-// 3. SMART ADAPTIVE CANVAS COMPRESSION (SAFE FOR VERCEL & TELEGRAM)
+// 3. ADAPTIVE CANVAS COMPRESSION
 // --------------------------------------------------------------------------
 async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
     return new Promise((resolve) => {
-        // If file is already small JPEG, pass it directly
         if (file.size < 400 * 1024 && file.type === "image/jpeg") {
             resolve(file);
             return;
@@ -244,11 +243,8 @@ async function isDuplicatePhoto(uid, fileHash) {
         );
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) return false;
-        
-        // 🌟 Safe in-memory check to prevent Firebase Composite Index requirements
         return querySnapshot.docs.some(docSnap => docSnap.data().isDeleted !== true);
     } catch (err) {
-        console.warn("[Duplicate Check] Warning:", err);
         return false;
     }
 }
@@ -284,13 +280,12 @@ export async function batchFilterDuplicates(files, currentUser) {
 
         return { uniqueFiles, skippedCount };
     } catch (err) {
-        console.error("Batch duplicate filter error:", err);
         return { uniqueFiles: files, skippedCount: 0 };
     }
 }
 
 // --------------------------------------------------------------------------
-// 5. BATCH UPLOAD ENGINE (PARALLEL & SMOOTH)
+// 5. BATCH UPLOAD ENGINE (ACCURATE STATUS TRACKING)
 // --------------------------------------------------------------------------
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
@@ -306,7 +301,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
     const { uniqueFiles, skippedCount } = await batchFilterDuplicates(files, currentUser);
 
     if (uniqueFiles.length === 0) {
-        if (showToast) showToast(`All ${files.length} selected photos already exist in gallery!`);
+        if (showToast) showToast(`All ${files.length} photo(s) already exist in gallery!`);
         return;
     }
 
@@ -315,10 +310,12 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         showToast(`Uploading ${totalBatch} new photos (${skippedCount} duplicates skipped)`);
     }
 
-    showProgressModal(`Preparing ${totalBatch} photos...`);
+    showProgressModal(`Preparing ${totalBatch} photo(s)...`);
 
     let completedCount = 0;
-    const CONCURRENCY_LIMIT = 2; // Optimal parallel pipeline for mobile devices
+    let successCount = 0;
+    let lastErrorMsg = null;
+    const CONCURRENCY_LIMIT = 2;
     let activeWorkers = 0;
     let fileIndex = 0;
 
@@ -330,12 +327,13 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 
         const processNext = async () => {
             if (fileIndex >= totalBatch && activeWorkers === 0) {
-                updateProgress(100, "All uploads completed!");
-                setTimeout(() => {
-                    hideProgressModal();
-                    if (showToast) showToast(`Successfully backed up ${totalBatch} photo(s)!`);
-                }, 400);
-                resolve(true);
+                hideProgressModal();
+                if (successCount > 0) {
+                    if (showToast) showToast(`Successfully backed up ${successCount} photo(s)!`);
+                } else if (lastErrorMsg && showToast) {
+                    showToast(lastErrorMsg);
+                }
+                resolve(successCount > 0);
                 return;
             }
 
@@ -345,12 +343,13 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 
                 (async (file) => {
                     try {
-                        await uploadPhotoToTelegram(file, currentUser, currentView, null, {
+                        const result = await uploadPhotoToTelegram(file, currentUser, currentView, null, {
                             isQueueSync: true,
                             skipDuplicateCheck: true
                         });
+                        if (result) successCount++;
                     } catch (err) {
-                        console.error("Batch item upload error:", err);
+                        lastErrorMsg = err.message || "Upload Failed";
                     } finally {
                         activeWorkers--;
                         completedCount++;
@@ -367,7 +366,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 }
 
 // --------------------------------------------------------------------------
-// 6. SINGLE PHOTO UPLOAD ENGINE (TOKEN-SAFE PROXY STREAMING)
+// 6. SINGLE PHOTO UPLOAD ENGINE (EXACT ERROR THROWING)
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
@@ -391,7 +390,6 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
         }
 
         const compressedFile = await smartCompressImage(file);
-        
         if (!options.isQueueSync) updateProgress(20, "Securing Anant Cloud Backup...");
 
         return await new Promise((resolve, reject) => {
@@ -400,23 +398,24 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable && !options.isQueueSync) {
                     const percent = 20 + Math.round((event.loaded / event.total) * 70);
-                    updateProgress(percent, "Uploading to Secure Cloud...");
+                    updateProgress(percent, "Uploading to Telegram Cloud...");
                 }
             };
 
             xhr.onload = async () => {
-                if (xhr.status === 200) {
-                    try {
-                        if (!options.isQueueSync) updateProgress(94, "Finalizing Cloud Storage...");
-                        const response = JSON.parse(xhr.responseText);
-                        if (!response.ok || !response.fileId) {
-                            throw new Error(response.error || "Upload Error");
-                        }
+                let response = {};
+                try {
+                    response = JSON.parse(xhr.responseText);
+                } catch {
+                    response = { error: "Server returned non-JSON response" };
+                }
 
-                        // 🌟 SECURE MASKED URL: Zero Bot Token stored in Database
+                if (xhr.status === 200 && response.ok && response.fileId) {
+                    try {
+                        if (!options.isQueueSync) updateProgress(95, "Saving Cloud Index...");
+
                         const secureMaskedUrl = response.imageUrl || `/api/upload?file_id=${encodeURIComponent(response.fileId)}`;
 
-                        // Save clean metadata to Firestore
                         await addDoc(collection(db, "user_photos"), {
                             uid: currentUser.uid,
                             image: secureMaskedUrl,
@@ -438,14 +437,16 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                         }
 
                         resolve(true);
-                    } catch (err) {
+                    } catch (firestoreErr) {
                         if (!options.isQueueSync) hideProgressModal();
-                        console.error("Save Error:", err);
-                        reject(err);
+                        if (showToast) showToast("Firestore Error: " + firestoreErr.message);
+                        reject(firestoreErr);
                     }
                 } else {
                     if (!options.isQueueSync) hideProgressModal();
-                    reject(new Error("Secure Proxy Upload Error"));
+                    const errText = response.error || `Upload Failed (${xhr.status})`;
+                    if (showToast) showToast(errText);
+                    reject(new Error(errText));
                 }
             };
 
@@ -454,7 +455,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                     hideProgressModal();
                     await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
                 }
-                resolve(false);
+                reject(new Error("Network connection failed during upload"));
             };
 
             xhr.open("POST", UPLOAD_API_ENDPOINT);
@@ -466,6 +467,6 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
             hideProgressModal();
             await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
         }
-        return false;
+        throw e;
     }
 }
