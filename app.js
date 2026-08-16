@@ -7,6 +7,7 @@ import {
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
     signInWithPopup,
+    sendPasswordResetEmail,
     GoogleAuthProvider,
     onAuthStateChanged,
     setPersistence,
@@ -142,7 +143,6 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
 async function downloadPhoto(imageUrl, customFilename = null) {
     try {
         const finalFilename = customFilename || `anant-gallery-${Date.now()}.jpg`;
-        // If imageUrl is already an internal API proxy (/api/upload?...), fetch directly
         const proxyUrl = imageUrl.startsWith('/api/') ? imageUrl : `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
         const blob = response.ok ? await response.blob() : await (await fetch(imageUrl, { mode: 'cors' })).blob();
@@ -246,10 +246,11 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 6. 100% RELIABLE AUTH CONTROLLER
+// 6. 100% RELIABLE AUTH CONTROLLER WITH FORGOT PASSWORD
 // --------------------------------------------------------------------------
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
+const forgotPassBtn = document.getElementById('forgotPassBtn');
 const authBtn = document.getElementById('authBtn');
 const googleAuthBtn = document.getElementById('googleAuthBtn');
 const emailInput = document.getElementById('email');
@@ -263,6 +264,25 @@ if (toggleAuthBtn) {
         toggleAuthBtn.innerHTML = isLogin 
             ? "New here? <span>Create Account</span>" 
             : "Have account? <span>Log In</span>";
+        if (forgotPassBtn) forgotPassBtn.style.display = isLogin ? 'block' : 'none';
+    };
+}
+
+// 🌟 PASSWORD RESET HANDLER
+if (forgotPassBtn) {
+    forgotPassBtn.onclick = async () => {
+        const email = emailInput ? emailInput.value.trim() : '';
+        if (!email) return showToast("Enter your email above first!");
+        
+        try {
+            await sendPasswordResetEmail(auth, email);
+            showToast("Password reset link sent! Check your email inbox.");
+        } catch (err) {
+            let msg = "Could not send reset email.";
+            if (err.code === 'auth/user-not-found') msg = "No account found with this email.";
+            else if (err.code === 'auth/invalid-email') msg = "Please enter a valid email!";
+            showToast(msg);
+        }
     };
 }
 
