@@ -1,12 +1,22 @@
 // ==========================================================================
-// VERCEL SECURE SERVERLESS API - AUTO-CLEANED TOKEN TELEGRAM PROXY
+// VERCEL SERVERLESS API - MULTI-BOT LOAD BALANCING & CDN STREAMING ENGINE
 // ==========================================================================
 
 export const config = {
     api: {
-        bodyParser: false,
+        bodyParser: false, // High-speed raw binary streaming
     },
 };
+
+// 🌟 Helper: Parse & Clean Multiple Bot Tokens from Environment Variable
+function getBotTokens() {
+    const raw = process.env.TELEGRAM_BOT_TOKEN || '';
+    return raw
+        .split(',')
+        .map(t => t.replace(/^["']|["']$/g, '').trim())
+        .map(t => t.toLowerCase().startsWith('bot') ? t.slice(3).trim() : t)
+        .filter(t => t.length > 10);
+}
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,52 +27,56 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // 🌟 Auto-Clean BOT_TOKEN (Removes accidental 'bot' prefix, quotes or spaces)
-    let rawToken = process.env.TELEGRAM_BOT_TOKEN || '';
-    let BOT_TOKEN = rawToken.replace(/^["']|["']$/g, '').trim();
-    if (BOT_TOKEN.toLowerCase().startsWith('bot')) {
-        BOT_TOKEN = BOT_TOKEN.slice(3).trim();
-    }
-
-    let rawChatId = process.env.TELEGRAM_CHAT_ID || '';
+    const BOT_TOKENS = getBotTokens();
+    const rawChatId = process.env.TELEGRAM_CHAT_ID || '';
     const CHAT_ID = rawChatId.replace(/^["']|["']$/g, '').trim();
 
-    if (!BOT_TOKEN || !CHAT_ID) {
+    if (BOT_TOKENS.length === 0 || !CHAT_ID) {
         return res.status(500).json({ 
             error: 'Server Config Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in Vercel!' 
         });
     }
 
-    // 🌟 1. GET REQUEST: STREAM FROM TELEGRAM CDN
+    // 🌟 1. GET REQUEST: STREAM PHOTO USING MULTI-BOT POOL
     if (req.method === 'GET') {
         const fileId = req.query.file_id || req.query.id;
         const legacyUrl = req.query.url;
+        const preferredBotIdx = parseInt(req.query.b, 10);
 
         if (fileId) {
-            try {
-                const pathRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`);
-                const pathData = await pathRes.json();
-
-                if (!pathData.ok || !pathData.result?.file_path) {
-                    return res.status(404).json({ error: 'Photo not found on Telegram' });
-                }
-
-                const telegramFileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${pathData.result.file_path}`;
-                const fileResponse = await fetch(telegramFileUrl);
-
-                if (!fileResponse.ok) {
-                    return res.status(fileResponse.status).json({ error: 'Failed to fetch image from Telegram' });
-                }
-
-                const contentType = fileResponse.headers.get('content-type') || 'image/jpeg';
-                const arrayBuffer = await fileResponse.arrayBuffer();
-
-                res.setHeader('Content-Type', contentType);
-                res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
-                return res.status(200).send(Buffer.from(arrayBuffer));
-            } catch (err) {
-                return res.status(500).json({ error: 'Proxy fetch failed: ' + err.message });
+            // Reorder tokens to try preferred bot first, then others as fallback
+            const tokensToTry = [];
+            if (!isNaN(preferredBotIdx) && BOT_TOKENS[preferredBotIdx]) {
+                tokensToTry.push(BOT_TOKENS[preferredBotIdx]);
             }
+            BOT_TOKENS.forEach(t => {
+                if (!tokensToTry.includes(t)) tokensToTry.push(t);
+            });
+
+            for (const token of tokensToTry) {
+                try {
+                    const pathRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`);
+                    const pathData = await pathRes.json();
+
+                    if (pathData.ok && pathData.result?.file_path) {
+                        const telegramFileUrl = `https://api.telegram.org/file/bot${token}/${pathData.result.file_path}`;
+                        const fileResponse = await fetch(telegramFileUrl);
+
+                        if (fileResponse.ok) {
+                            const contentType = fileResponse.headers.get('content-type') || 'image/jpeg';
+                            const arrayBuffer = await fileResponse.arrayBuffer();
+
+                            res.setHeader('Content-Type', contentType);
+                            res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable, stale-while-revalidate=86400');
+                            return res.status(200).send(Buffer.from(arrayBuffer));
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[Bot CDN Fetch Retry]:`, err.message);
+                }
+            }
+
+            return res.status(404).json({ error: 'Photo not found on any Telegram Bot' });
         }
 
         if (legacyUrl) {
@@ -80,7 +94,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing file_id' });
     }
 
-    // 🌟 2. POST REQUEST: BULLETPROOF UPLOAD
+    // 🌟 2. POST REQUEST: MULTI-BOT LOAD BALANCED UPLOAD WITH AUTO-FAILOVER
     if (req.method === 'POST') {
         try {
             const chunks = [];
@@ -93,48 +107,70 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: 'No image data received' });
             }
 
-            // STAGE 1: Try sendPhoto
-            let fileId = null;
-            const photoForm = new FormData();
-            photoForm.append('chat_id', CHAT_ID);
-            photoForm.append('photo', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
+            // Shuffle / Pick a random starting bot from pool for equal load distribution
+            const startIndex = Math.floor(Math.random() * BOT_TOKENS.length);
+            let lastError = null;
 
-            const photoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
-                method: 'POST',
-                body: photoForm,
-            });
+            for (let i = 0; i < BOT_TOKENS.length; i++) {
+                const currentBotIdx = (startIndex + i) % BOT_TOKENS.length;
+                const token = BOT_TOKENS[currentBotIdx];
 
-            const photoData = await photoRes.json();
+                try {
+                    // STAGE 1: Try sendPhoto
+                    let fileId = null;
+                    const photoForm = new FormData();
+                    photoForm.append('chat_id', CHAT_ID);
+                    photoForm.append('photo', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
 
-            if (photoData.ok && photoData.result?.photo) {
-                const photos = photoData.result.photo;
-                fileId = photos[photos.length - 1].file_id;
-            } else {
-                // STAGE 2: Fallback to sendDocument
-                const docForm = new FormData();
-                docForm.append('chat_id', CHAT_ID);
-                docForm.append('document', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
+                    const photoRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+                        method: 'POST',
+                        body: photoForm,
+                    });
 
-                const docRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-                    method: 'POST',
-                    body: docForm,
-                });
+                    const photoData = await photoRes.json();
 
-                const docData = await docRes.json();
-                if (docData.ok && docData.result?.document) {
-                    fileId = docData.result.document.file_id;
-                } else {
-                    const finalErr = docData.description || photoData.description || "Telegram Rejected Upload";
-                    return res.status(500).json({ error: `Telegram Error: ${finalErr}` });
+                    if (photoData.ok && photoData.result?.photo) {
+                        const photos = photoData.result.photo;
+                        fileId = photos[photos.length - 1].file_id;
+                    } else {
+                        // STAGE 2: Fallback to sendDocument
+                        const docForm = new FormData();
+                        docForm.append('chat_id', CHAT_ID);
+                        docForm.append('document', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
+
+                        const docRes = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+                            method: 'POST',
+                            body: docForm,
+                        });
+
+                        const docData = await docRes.json();
+                        if (docData.ok && docData.result?.document) {
+                            fileId = docData.result.document.file_id;
+                        } else {
+                            lastError = docData.description || photoData.description || "Upload rejected";
+                            continue; // Try next bot in pool
+                        }
+                    }
+
+                    if (fileId) {
+                        // 🌟 Return Masked URL with Bot Index for lightning-fast retrieval
+                        const secureImageUrl = `/api/upload?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`;
+
+                        return res.status(200).json({
+                            ok: true,
+                            fileId: fileId,
+                            imageUrl: secureImageUrl,
+                            botIndex: currentBotIdx
+                        });
+                    }
+                } catch (botErr) {
+                    lastError = botErr.message;
+                    console.warn(`[Bot ${currentBotIdx} Failed, switching to next bot]:`, botErr.message);
                 }
             }
 
-            const secureImageUrl = `/api/upload?file_id=${encodeURIComponent(fileId)}`;
-
-            return res.status(200).json({
-                ok: true,
-                fileId: fileId,
-                imageUrl: secureImageUrl
+            return res.status(500).json({ 
+                error: `All ${BOT_TOKENS.length} bots failed. Last error: ${lastError}` 
             });
 
         } catch (err) {
