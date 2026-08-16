@@ -13,8 +13,20 @@ const KEYS = {
 };
 
 let isUnlocked = false;
+let isBiometricAuthInProgress = false; // 🌟 Biometric Shield Guard
 let autoThemeCheckInterval = null;
 const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+// --------------------------------------------------------------------------
+// 1. BIOMETRIC SHIELD STATE CONTROLLER
+// --------------------------------------------------------------------------
+export function setBiometricPromptState(state) {
+    isBiometricAuthInProgress = state;
+    const shield = document.getElementById('privacyShield');
+    if (shield && !state) {
+        shield.classList.remove('active');
+    }
+}
 
 // Toast Helper
 const showToast = (msg) => {
@@ -30,7 +42,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// 1. SMART TIME-AWARE + SYSTEM THEME APPLIER
+// 2. SMART TIME-AWARE + SYSTEM THEME APPLIER
 // --------------------------------------------------------------------------
 export function isNightTime() {
     const currentHour = new Date().getHours();
@@ -80,7 +92,7 @@ if (!autoThemeCheckInterval) {
 }
 
 // --------------------------------------------------------------------------
-// 2. DYNAMIC STYLES (RECENT APPS PRIVACY SHIELD & THEMES)
+// 3. DYNAMIC STYLES (RECENT APPS PRIVACY SHIELD & THEMES)
 // --------------------------------------------------------------------------
 const injectSettingsStyles = () => {
     let existingStyle = document.getElementById('settings-styles');
@@ -106,6 +118,7 @@ const injectSettingsStyles = () => {
             transform: translateZ(0);
             text-align: center;
             padding: 20px;
+            transition: opacity 0.2s ease;
         }
 
         #privacyShield.active { 
@@ -400,7 +413,7 @@ const injectSettingsStyles = () => {
 };
 
 // --------------------------------------------------------------------------
-// 3. FULL SCREEN APP LOCK OVERLAY
+// 4. FULL SCREEN APP LOCK OVERLAY
 // --------------------------------------------------------------------------
 export async function showPinLockOverlay(correctHash) {
     if (document.getElementById('pinLockOverlay')) return;
@@ -453,9 +466,21 @@ export async function showPinLockOverlay(correctHash) {
     const bioBtn = document.getElementById('keypadBio');
     if (bioBtn && hasBiometric) {
         bioBtn.onclick = async () => {
-            const ok = await authenticateWithBiometric();
-            if (ok) unlockSuccess();
+            setBiometricPromptState(true);
+            try {
+                const ok = await authenticateWithBiometric();
+                if (ok) unlockSuccess();
+            } finally {
+                setBiometricPromptState(false);
+            }
         };
+
+        // Auto-trigger biometric on locked overlay open
+        setTimeout(() => {
+            if (!isUnlocked && document.getElementById('pinLockOverlay')) {
+                bioBtn.click();
+            }
+        }, 200);
     }
 
     const updateDots = () => {
@@ -502,7 +527,7 @@ export async function showPinLockOverlay(correctHash) {
 }
 
 // --------------------------------------------------------------------------
-// 4. SMART ANTI-SNOOP RECENT APPS PRIVACY SHIELD (INSTANT ON TASK SWITCHER)
+// 5. SMART ANTI-SNOOP RECENT APPS PRIVACY SHIELD
 // --------------------------------------------------------------------------
 function setupPrivacyShield() {
     let shield = document.getElementById('privacyShield');
@@ -520,11 +545,12 @@ function setupPrivacyShield() {
     }
 
     const showShield = () => {
+        // 🌟 Do not show shield if fingerprint prompt is scanning
+        if (isBiometricAuthInProgress) return;
+
         const appScreen = document.getElementById('appScreen');
-        // Only trigger if user is logged into the gallery
         if (!appScreen || appScreen.style.display === 'none') return;
         
-        // Don't show shield if user is typing on keyboard
         const active = document.activeElement;
         if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
             return;
@@ -537,7 +563,6 @@ function setupPrivacyShield() {
         shield.classList.remove('active');
     };
 
-    // Instant triggers before OS Recent Apps Snapshot
     window.addEventListener('blur', showShield);
     window.addEventListener('pagehide', showShield);
     
@@ -554,7 +579,7 @@ function setupPrivacyShield() {
 }
 
 // --------------------------------------------------------------------------
-// 5. INITIALIZE PREFERENCES
+// 6. INITIALIZE PREFERENCES
 // --------------------------------------------------------------------------
 export function initSettings() {
     injectSettingsStyles();
@@ -581,7 +606,7 @@ export function resetPinLock() {
 }
 
 // --------------------------------------------------------------------------
-// 6. RENDER SETTINGS UI
+// 7. RENDER SETTINGS UI
 // --------------------------------------------------------------------------
 export function renderSettingsSection(containerElement) {
     injectSettingsStyles();
@@ -750,29 +775,31 @@ export function renderSettingsSection(containerElement) {
 
 function showSmartPinPrompt({ title, subtitle, onConfirm, onCancel }) {
     let overlay = document.createElement('div');
-    overlay.className = 'smart-modal-overlay';
+    overlay.className = 'album-modal-overlay';
     overlay.innerHTML = `
-        <div class="smart-modal-card">
-            <div class="smart-modal-icon"><i class="fa-solid fa-shield-halved"></i></div>
-            <div class="smart-modal-title">${title}</div>
-            <div class="smart-modal-sub">${subtitle}</div>
-            <div class="smart-pin-inputs">
-                <input type="password" maxlength="1" class="pin-box-input" id="p1" inputmode="numeric">
-                <input type="password" maxlength="1" class="pin-box-input" id="p2" inputmode="numeric">
-                <input type="password" maxlength="1" class="pin-box-input" id="p3" inputmode="numeric">
-                <input type="password" maxlength="1" class="pin-box-input" id="p4" inputmode="numeric">
+        <div class="album-modal-card">
+            <div style="width:55px; height:55px; border-radius:50%; background:rgba(79, 70, 229, 0.12); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:1.4rem; margin:0 auto 12px auto;">
+                <i class="fa-solid fa-shield-halved"></i>
             </div>
-            <div class="smart-modal-actions">
-                <button class="smart-btn smart-btn-cancel" id="smartCancelBtn">Cancel</button>
-                <button class="smart-btn smart-btn-confirm" id="smartConfirmBtn">Confirm</button>
+            <div class="album-modal-title">${title}</div>
+            <div class="album-modal-sub">${subtitle}</div>
+            <div style="display:flex; justify-content:center; gap:10px; margin: 15px 0 20px 0;">
+                <input type="password" maxlength="1" class="album-modal-input pin-box" id="p1" inputmode="numeric" style="width:48px; height:50px; text-align:center; font-size:1.3rem; margin:0; padding:0;">
+                <input type="password" maxlength="1" class="album-modal-input pin-box" id="p2" inputmode="numeric" style="width:48px; height:50px; text-align:center; font-size:1.3rem; margin:0; padding:0;">
+                <input type="password" maxlength="1" class="album-modal-input pin-box" id="p3" inputmode="numeric" style="width:48px; height:50px; text-align:center; font-size:1.3rem; margin:0; padding:0;">
+                <input type="password" maxlength="1" class="album-modal-input pin-box" id="p4" inputmode="numeric" style="width:48px; height:50px; text-align:center; font-size:1.3rem; margin:0; padding:0;">
+            </div>
+            <div class="album-modal-actions">
+                <button class="album-modal-btn cancel" id="smartCancelBtn">Cancel</button>
+                <button class="album-modal-btn primary" id="smartConfirmBtn">Confirm</button>
             </div>
         </div>
     `;
 
     document.body.appendChild(overlay);
 
-    const inputs = overlay.querySelectorAll('.pin-box-input');
-    inputs[0].focus();
+    const inputs = overlay.querySelectorAll('.pin-box');
+    setTimeout(() => inputs[0].focus(), 100);
 
     inputs.forEach((input, index) => {
         input.addEventListener('input', (e) => {
