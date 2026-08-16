@@ -1,15 +1,14 @@
 // ==========================================================================
-// VERCEL SECURE SERVERLESS API - ROBUST TELEGRAM STORAGE & CDN PROXY
+// VERCEL SECURE SERVERLESS API - AUTO-CLEANED TOKEN TELEGRAM PROXY
 // ==========================================================================
 
 export const config = {
     api: {
-        bodyParser: false, // High-performance raw binary streaming
+        bodyParser: false,
     },
 };
 
 export default async function handler(req, res) {
-    // 🌟 1. CORS Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
@@ -18,16 +17,23 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : null;
-    const CHAT_ID = process.env.TELEGRAM_CHAT_ID ? process.env.TELEGRAM_CHAT_ID.trim() : null;
+    // 🌟 Auto-Clean BOT_TOKEN (Removes accidental 'bot' prefix, quotes or spaces)
+    let rawToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    let BOT_TOKEN = rawToken.replace(/^["']|["']$/g, '').trim();
+    if (BOT_TOKEN.toLowerCase().startsWith('bot')) {
+        BOT_TOKEN = BOT_TOKEN.slice(3).trim();
+    }
+
+    let rawChatId = process.env.TELEGRAM_CHAT_ID || '';
+    const CHAT_ID = rawChatId.replace(/^["']|["']$/g, '').trim();
 
     if (!BOT_TOKEN || !CHAT_ID) {
         return res.status(500).json({ 
-            error: 'Server Config Error: Vercel Environment Variables (TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID) missing!' 
+            error: 'Server Config Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in Vercel!' 
         });
     }
 
-    // 🌟 2. GET REQUEST: FETCH & STREAM IMAGE FROM TELEGRAM CDN (ZERO TOKEN EXPOSED)
+    // 🌟 1. GET REQUEST: STREAM FROM TELEGRAM CDN
     if (req.method === 'GET') {
         const fileId = req.query.file_id || req.query.id;
         const legacyUrl = req.query.url;
@@ -38,23 +44,21 @@ export default async function handler(req, res) {
                 const pathData = await pathRes.json();
 
                 if (!pathData.ok || !pathData.result?.file_path) {
-                    return res.status(404).json({ error: 'Photo not found on Telegram cloud' });
+                    return res.status(404).json({ error: 'Photo not found on Telegram' });
                 }
 
                 const telegramFileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${pathData.result.file_path}`;
                 const fileResponse = await fetch(telegramFileUrl);
 
                 if (!fileResponse.ok) {
-                    return res.status(fileResponse.status).json({ error: 'Failed to download from Telegram' });
+                    return res.status(fileResponse.status).json({ error: 'Failed to fetch image from Telegram' });
                 }
 
                 const contentType = fileResponse.headers.get('content-type') || 'image/jpeg';
                 const arrayBuffer = await fileResponse.arrayBuffer();
 
-                // ⚡ 1-Year Fast Browser & Edge CDN Cache
                 res.setHeader('Content-Type', contentType);
-                res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable, stale-while-revalidate=86400');
-                
+                res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
                 return res.status(200).send(Buffer.from(arrayBuffer));
             } catch (err) {
                 return res.status(500).json({ error: 'Proxy fetch failed: ' + err.message });
@@ -63,25 +67,20 @@ export default async function handler(req, res) {
 
         if (legacyUrl) {
             try {
-                const targetUrl = decodeURIComponent(legacyUrl);
-                const imageRes = await fetch(targetUrl);
-                if (!imageRes.ok) return res.status(imageRes.status).json({ error: 'Failed to fetch remote image' });
-
-                const contentType = imageRes.headers.get('content-type') || 'image/jpeg';
+                const imageRes = await fetch(decodeURIComponent(legacyUrl));
+                if (!imageRes.ok) return res.status(imageRes.status).json({ error: 'Image fetch error' });
                 const arrayBuffer = await imageRes.arrayBuffer();
-
-                res.setHeader('Content-Type', contentType);
-                res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400');
+                res.setHeader('Content-Type', imageRes.headers.get('content-type') || 'image/jpeg');
                 return res.status(200).send(Buffer.from(arrayBuffer));
             } catch (err) {
-                return res.status(500).json({ error: 'Legacy Proxy Error: ' + err.message });
+                return res.status(500).json({ error: err.message });
             }
         }
 
-        return res.status(400).json({ error: 'Missing parameter: file_id or url' });
+        return res.status(400).json({ error: 'Missing file_id' });
     }
 
-    // 🌟 3. POST REQUEST: BULLETPROOF 2-STAGE UPLOAD TO TELEGRAM
+    // 🌟 2. POST REQUEST: BULLETPROOF UPLOAD
     if (req.method === 'POST') {
         try {
             const chunks = [];
@@ -91,10 +90,10 @@ export default async function handler(req, res) {
             const fileBuffer = Buffer.concat(chunks);
 
             if (fileBuffer.length === 0) {
-                return res.status(400).json({ error: 'No image data received on server' });
+                return res.status(400).json({ error: 'No image data received' });
             }
 
-            // STAGE 1: Try upload via sendPhoto
+            // STAGE 1: Try sendPhoto
             let fileId = null;
             const photoForm = new FormData();
             photoForm.append('chat_id', CHAT_ID);
@@ -111,9 +110,7 @@ export default async function handler(req, res) {
                 const photos = photoData.result.photo;
                 fileId = photos[photos.length - 1].file_id;
             } else {
-                // STAGE 2 (FALLBACK): If sendPhoto fails (e.g. format/aspect-ratio issue), upload as Document
-                console.warn("[Telegram sendPhoto Failed, Trying sendDocument Fallback]:", photoData.description);
-                
+                // STAGE 2: Fallback to sendDocument
                 const docForm = new FormData();
                 docForm.append('chat_id', CHAT_ID);
                 docForm.append('document', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
@@ -128,12 +125,10 @@ export default async function handler(req, res) {
                     fileId = docData.result.document.file_id;
                 } else {
                     const finalErr = docData.description || photoData.description || "Telegram Rejected Upload";
-                    console.error("[Telegram Upload Completely Failed]:", finalErr);
                     return res.status(500).json({ error: `Telegram Error: ${finalErr}` });
                 }
             }
 
-            // 🌟 Secure Masked URL (Zero Bot Token Exposed)
             const secureImageUrl = `/api/upload?file_id=${encodeURIComponent(fileId)}`;
 
             return res.status(200).json({
@@ -143,8 +138,7 @@ export default async function handler(req, res) {
             });
 
         } catch (err) {
-            console.error("[Serverless Handler Crash]:", err);
-            return res.status(500).json({ error: 'Server Crash: ' + (err.message || 'Unknown Error') });
+            return res.status(500).json({ error: err.message || 'Upload failed' });
         }
     }
 
