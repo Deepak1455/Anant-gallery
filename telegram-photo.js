@@ -179,11 +179,12 @@ function hideProgressModal() {
 }
 
 // --------------------------------------------------------------------------
-// 3. SMART CANVAS COMPRESSION
+// 3. SMART ADAPTIVE CANVAS COMPRESSION (SAFE FOR VERCEL & TELEGRAM)
 // --------------------------------------------------------------------------
 async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
     return new Promise((resolve) => {
-        if (file.size < 400 * 1024) {
+        // If file is already small JPEG, pass it directly
+        if (file.size < 400 * 1024 && file.type === "image/jpeg") {
             resolve(file);
             return;
         }
@@ -227,10 +228,11 @@ async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
 }
 
 // --------------------------------------------------------------------------
-// 4. FAST FILE HASH & DUPLICATE CHECK
+// 4. FAST FILE HASH & SAFE DUPLICATE CHECK
 // --------------------------------------------------------------------------
 export async function calculateFileHash(file) {
-    return `hash_${file.size}_${file.lastModified}_${file.name.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const safeName = (file.name || 'photo').replace(/[^a-zA-Z0-9]/g, '');
+    return `hash_${file.size}_${file.lastModified || 0}_${safeName}`;
 }
 
 async function isDuplicatePhoto(uid, fileHash) {
@@ -238,12 +240,15 @@ async function isDuplicatePhoto(uid, fileHash) {
         const q = query(
             collection(db, "user_photos"), 
             where("uid", "==", uid),
-            where("fileHash", "==", fileHash),
-            where("isDeleted", "==", false)
+            where("fileHash", "==", fileHash)
         );
         const querySnapshot = await getDocs(q);
-        return !querySnapshot.empty;
+        if (querySnapshot.empty) return false;
+        
+        // 🌟 Safe in-memory check to prevent Firebase Composite Index requirements
+        return querySnapshot.docs.some(docSnap => docSnap.data().isDeleted !== true);
     } catch (err) {
+        console.warn("[Duplicate Check] Warning:", err);
         return false;
     }
 }
@@ -252,15 +257,16 @@ export async function batchFilterDuplicates(files, currentUser) {
     try {
         const q = query(
             collection(db, "user_photos"), 
-            where("uid", "==", currentUser.uid),
-            where("isDeleted", "==", false)
+            where("uid", "==", currentUser.uid)
         );
         const querySnapshot = await getDocs(q);
         const existingHashes = new Set();
         
         querySnapshot.forEach(docSnap => {
             const data = docSnap.data();
-            if (data.fileHash) existingHashes.add(data.fileHash);
+            if (data.fileHash && data.isDeleted !== true) {
+                existingHashes.add(data.fileHash);
+            }
         });
 
         const uniqueFiles = [];
@@ -284,7 +290,7 @@ export async function batchFilterDuplicates(files, currentUser) {
 }
 
 // --------------------------------------------------------------------------
-// 5. BATCH UPLOAD ENGINE (2X PARALLEL SPEED)
+// 5. BATCH UPLOAD ENGINE (PARALLEL & SMOOTH)
 // --------------------------------------------------------------------------
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
@@ -293,7 +299,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         for (const file of files) {
             await addToOfflineQueue(file, currentUser.uid, currentView, null);
         }
-        if (showToast) showToast(`Offline: ${files.length} photos added to upload queue!`);
+        if (showToast) showToast(`Offline: ${files.length} photo(s) added to upload queue!`);
         return;
     }
 
@@ -312,7 +318,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
     showProgressModal(`Preparing ${totalBatch} photos...`);
 
     let completedCount = 0;
-    const CONCURRENCY_LIMIT = 2;
+    const CONCURRENCY_LIMIT = 2; // Optimal parallel pipeline for mobile devices
     let activeWorkers = 0;
     let fileIndex = 0;
 
@@ -361,7 +367,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 }
 
 // --------------------------------------------------------------------------
-// 6. SINGLE PHOTO UPLOAD ENGINE (SAVES MASKED TOKEN-SAFE URL IN FIRESTORE)
+// 6. SINGLE PHOTO UPLOAD ENGINE (TOKEN-SAFE PROXY STREAMING)
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
