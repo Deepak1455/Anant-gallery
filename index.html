@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Anant Gallery - Infinite Cloud Storage</title>
     
-    <!-- 🌟 CRITICAL: Capture beforeinstallprompt IMMEDIATELY before modules load -->
+    <!-- Capture beforeinstallprompt IMMEDIATELY before modules load -->
     <script>
         window.deferredInstallPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -62,7 +62,7 @@
         </div>
     </nav>
 
-    <!-- AUTHENTICATION SCREEN WITH GOOGLE SIGN-IN -->
+    <!-- AUTHENTICATION SCREEN WITH GOOGLE SIGN-IN & FORGOT PASSWORD -->
     <div id="authScreen">
         <div class="auth-box">
             <div class="auth-logo-box">
@@ -72,7 +72,7 @@
             <div class="app-title">Anant Gallery</div>
             <p class="auth-subtitle">Secure Infinite Photo Cloud</p>
 
-            <!-- 🌟 1-TAP GOOGLE SIGN-IN BUTTON -->
+            <!-- 1-TAP GOOGLE SIGN-IN BUTTON -->
             <button type="button" class="btn-google" id="googleAuthBtn">
                 <svg class="google-icon" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -88,9 +88,14 @@
             </div>
 
             <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="email" placeholder="Email" autocomplete="email"></div>
-            <div class="input-group"><i class="fa-solid fa-lock"></i><input type="password" id="pass" placeholder="Password" autocomplete="current-password"></div>
+            <div class="input-group" id="passGroup"><i class="fa-solid fa-lock"></i><input type="password" id="pass" placeholder="Password" autocomplete="current-password"></div>
+            
             <button class="btn" id="authBtn">Enter Gallery</button>
-            <div class="link" id="toggleAuth">New here? <span>Create Account</span></div>
+            
+            <!-- 🌟 FORGOT PASSWORD LINK -->
+            <div class="link" id="forgotPassBtn" style="margin-top: 14px; font-size: 0.82rem; color: var(--accent);">Forgot Password?</div>
+            
+            <div class="link" id="toggleAuth" style="margin-top: 14px;">New here? <span>Create Account</span></div>
         </div>
     </div>
 
