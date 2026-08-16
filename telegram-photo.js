@@ -1,5 +1,5 @@
 // ==========================================================================
-// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (SECURE VERCEL PROXY ENGINE)
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (100% SECURE & TOKEN-FREE)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -361,7 +361,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 }
 
 // --------------------------------------------------------------------------
-// 6. SINGLE PHOTO UPLOAD ENGINE (CALLS SECURE VERCEL API)
+// 6. SINGLE PHOTO UPLOAD ENGINE (SAVES MASKED TOKEN-SAFE URL IN FIRESTORE)
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
@@ -403,14 +403,17 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                     try {
                         if (!options.isQueueSync) updateProgress(94, "Finalizing Cloud Storage...");
                         const response = JSON.parse(xhr.responseText);
-                        if (!response.ok || !response.imageUrl) {
+                        if (!response.ok || !response.fileId) {
                             throw new Error(response.error || "Upload Error");
                         }
+
+                        // 🌟 SECURE MASKED URL: Zero Bot Token stored in Database
+                        const secureMaskedUrl = response.imageUrl || `/api/upload?file_id=${encodeURIComponent(response.fileId)}`;
 
                         // Save clean metadata to Firestore
                         await addDoc(collection(db, "user_photos"), {
                             uid: currentUser.uid,
-                            image: response.imageUrl,
+                            image: secureMaskedUrl,
                             fileId: response.fileId,
                             fileHash: fileHash,
                             fileSize: file.size,
@@ -448,7 +451,6 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                 resolve(false);
             };
 
-            // 🌟 Calls secure serverless API on Vercel
             xhr.open("POST", UPLOAD_API_ENDPOINT);
             xhr.setRequestHeader("Content-Type", "application/octet-stream");
             xhr.send(compressedFile);
