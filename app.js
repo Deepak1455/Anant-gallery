@@ -142,7 +142,8 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
 async function downloadPhoto(imageUrl, customFilename = null) {
     try {
         const finalFilename = customFilename || `anant-gallery-${Date.now()}.jpg`;
-        const proxyUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}`;
+        // If imageUrl is already an internal API proxy (/api/upload?...), fetch directly
+        const proxyUrl = imageUrl.startsWith('/api/') ? imageUrl : `/api/upload?url=${encodeURIComponent(imageUrl)}`;
         const response = await fetch(proxyUrl);
         const blob = response.ok ? await response.blob() : await (await fetch(imageUrl, { mode: 'cors' })).blob();
         const blobUrl = URL.createObjectURL(blob);
