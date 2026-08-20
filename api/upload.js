@@ -1,18 +1,16 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - MULTI-BOT, MULTI-CHANNEL, SENDMEDIAGROUP & CLOUDFLARE CDN
+// VERCEL SERVERLESS API - MULTI-BOT, MULTI-CHANNEL, SENDMEDIAGROUP & SMART CDN
 // ==========================================================================
 
 export const config = {
     api: {
-        bodyParser: false, // High-speed raw binary & multipart streaming
+        bodyParser: false,
         responseLimit: false,
     },
 };
 
-// 🌟 Cloudflare Worker CDN URL
 const CLOUDFLARE_CDN_URL = "https://anant-cdn.dt8484970.workers.dev";
 
-// 🌟 Helper: Parse Multiple Bot Tokens
 function getBotTokens() {
     const raw = process.env.TELEGRAM_BOT_TOKEN || '';
     return raw
@@ -22,7 +20,6 @@ function getBotTokens() {
         .filter(t => t.length > 10);
 }
 
-// 🌟 Helper: Parse Multiple Channel IDs
 function getChatIds() {
     const raw = process.env.TELEGRAM_CHAT_ID || '';
     return raw
@@ -31,7 +28,6 @@ function getChatIds() {
         .filter(id => id.length > 5);
 }
 
-// 🌟 Lightweight Zero-Dependency Multipart Buffer Parser
 function parseMultipartBuffer(buffer, boundary) {
     const parts = [];
     const boundaryBuffer = Buffer.from(`--${boundary}`);
@@ -39,12 +35,8 @@ function parseMultipartBuffer(buffer, boundary) {
 
     while ((start = buffer.indexOf(boundaryBuffer, start)) !== -1) {
         start += boundaryBuffer.length;
-        if (buffer.slice(start, start + 2).toString() === '--') {
-            break;
-        }
-        if (buffer.slice(start, start + 2).toString() === '\r\n') {
-            start += 2;
-        }
+        if (buffer.slice(start, start + 2).toString() === '--') break;
+        if (buffer.slice(start, start + 2).toString() === '\r\n') start += 2;
 
         const nextBoundary = buffer.indexOf(boundaryBuffer, start);
         if (nextBoundary === -1) break;
@@ -54,7 +46,6 @@ function parseMultipartBuffer(buffer, boundary) {
         if (headerEnd !== -1) {
             const headerStr = partBuffer.slice(0, headerEnd).toString('utf-8');
             const body = partBuffer.slice(headerEnd + 4);
-
             const nameMatch = headerStr.match(/name="([^"]+)"/);
             const filenameMatch = headerStr.match(/filename="([^"]+)"/);
             const typeMatch = headerStr.match(/Content-Type:\s*([^\r\n]+)/i);
@@ -85,12 +76,12 @@ export default async function handler(req, res) {
 
     if (BOT_TOKENS.length === 0 || CHAT_IDS.length === 0) {
         return res.status(500).json({ 
-            error: 'Server Config Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in Vercel Environment Variables!' 
+            error: 'Server Config Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing!' 
         });
     }
 
     // --------------------------------------------------------------------------
-    // 🌟 1. GET REQUEST: FETCH PHOTO WITH EDGE CDN
+    // 🌟 1. GET: DIRECT ULTRA-FAST HIGH RESOLUTION STREAMING
     // --------------------------------------------------------------------------
     if (req.method === 'GET') {
         const fileId = req.query.file_id || req.query.id;
@@ -105,12 +96,10 @@ export default async function handler(req, res) {
                 if (!tokensToTry.includes(t)) tokensToTry.push(t);
             });
 
-            let lastErrorMsg = 'File not found';
-
             for (const token of tokensToTry) {
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
                     const pathRes = await fetch(
                         `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`,
@@ -129,40 +118,31 @@ export default async function handler(req, res) {
                             const arrayBuffer = await fileResponse.arrayBuffer();
 
                             res.setHeader('Content-Type', contentType);
-                            res.setHeader(
-                                'Cache-Control', 
-                                'public, max-age=31536000, s-maxage=31536000, immutable, stale-while-revalidate=86400'
-                            );
+                            res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
                             return res.status(200).send(Buffer.from(arrayBuffer));
                         }
-                    } else {
-                        lastErrorMsg = pathData.description || 'Telegram getFile rejected';
                     }
-                } catch (err) {
-                    lastErrorMsg = err.message || 'Network fetch error';
-                }
+                } catch (err) {}
             }
 
-            return res.status(404).json({ error: 'Photo not found on any Telegram Bot', details: lastErrorMsg });
+            return res.status(404).json({ error: 'Photo not found' });
         }
 
-        return res.status(400).json({ error: 'Missing file_id query parameter' });
+        return res.status(400).json({ error: 'Missing file_id' });
     }
 
     // --------------------------------------------------------------------------
-    // 🌟 2. POST REQUEST: MULTI-CHANNEL & SENDMEDIAGROUP BATCH UPLOADS
+    // 🌟 2. POST: 4-PHOTO BATCH SENDMEDIAGROUP & DIRECT STREAMING URL
     // --------------------------------------------------------------------------
     if (req.method === 'POST') {
         try {
             const contentTypeHeader = req.headers['content-type'] || '';
             const chunks = [];
-            for await (const chunk of req) {
-                chunks.push(chunk);
-            }
+            for await (const chunk of req) chunks.push(chunk);
             const rawBodyBuffer = Buffer.concat(chunks);
 
             if (rawBodyBuffer.length === 0) {
-                return res.status(400).json({ error: 'No image data received in request' });
+                return res.status(400).json({ error: 'No image data' });
             }
 
             let uploadedPhotos = [];
@@ -176,13 +156,12 @@ export default async function handler(req, res) {
             }
 
             const startBotIndex = Math.floor(Math.random() * BOT_TOKENS.length);
-            // 🌟 5 चैनल्स में से रैंडम चैनल चुनना (Even Multi-Channel Load Balancing)
             const targetChatId = CHAT_IDS[Math.floor(Math.random() * CHAT_IDS.length)];
             let lastError = null;
 
-            // 🚀 BATCH UPLOAD: sendMediaGroup (2 to 10 photos)
+            // 🚀 BATCH UPLOAD: sendMediaGroup
             if (uploadedPhotos.length >= 2) {
-                const photosToBatch = uploadedPhotos.slice(0, 10);
+                const photosToBatch = uploadedPhotos.slice(0, 5);
 
                 for (let i = 0; i < BOT_TOKENS.length; i++) {
                     const currentBotIdx = (startBotIndex + i) % BOT_TOKENS.length;
@@ -220,7 +199,7 @@ export default async function handler(req, res) {
                                 const fileId = largest ? largest.file_id : (msg.document ? msg.document.file_id : null);
                                 return {
                                     fileId: fileId,
-                                    imageUrl: `${CLOUDFLARE_CDN_URL}/?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`,
+                                    imageUrl: `/api/upload?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`,
                                     filename: photosToBatch[idx]?.filename || `photo_${idx}.jpg`,
                                     index: idx
                                 };
@@ -240,10 +219,10 @@ export default async function handler(req, res) {
                     }
                 }
 
-                return res.status(500).json({ error: `Batch upload failed. Last error: ${lastError}` });
+                return res.status(500).json({ error: `Batch upload failed: ${lastError}` });
             }
 
-            // 🚀 SINGLE UPLOAD: sendPhoto
+            // 🚀 SINGLE UPLOAD
             const singleBuffer = uploadedPhotos.length === 1 ? uploadedPhotos[0].data : rawBodyBuffer;
 
             for (let i = 0; i < BOT_TOKENS.length; i++) {
@@ -287,13 +266,11 @@ export default async function handler(req, res) {
                     }
 
                     if (fileId) {
-                        const secureImageUrl = `${CLOUDFLARE_CDN_URL}/?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`;
-
                         return res.status(200).json({
                             ok: true,
                             batch: false,
                             fileId: fileId,
-                            imageUrl: secureImageUrl,
+                            imageUrl: `/api/upload?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`,
                             botIndex: currentBotIdx
                         });
                     }
@@ -302,10 +279,10 @@ export default async function handler(req, res) {
                 }
             }
 
-            return res.status(500).json({ error: `Upload failed. Last error: ${lastError}` });
+            return res.status(500).json({ error: `Upload failed: ${lastError}` });
 
         } catch (err) {
-            return res.status(500).json({ error: err.message || 'Internal Upload Error' });
+            return res.status(500).json({ error: err.message || 'Upload error' });
         }
     }
 
