@@ -1,15 +1,18 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - MULTI-BOT LOAD BALANCING & CDN STREAMING ENGINE
+// VERCEL SERVERLESS API - MULTI-BOT, MULTI-CHANNEL, SENDMEDIAGROUP & CLOUDFLARE CDN
 // ==========================================================================
 
 export const config = {
     api: {
-        bodyParser: false, // High-speed raw binary streaming
+        bodyParser: false, // High-speed raw binary & multipart streaming
         responseLimit: false,
     },
 };
 
-// 🌟 Helper: Parse & Clean Multiple Bot Tokens from Environment Variable
+// 🌟 Cloudflare Worker CDN URL
+const CLOUDFLARE_CDN_URL = "https://anant-cdn.dt8484970.workers.dev";
+
+// 🌟 Helper: Parse Multiple Bot Tokens
 function getBotTokens() {
     const raw = process.env.TELEGRAM_BOT_TOKEN || '';
     return raw
@@ -19,8 +22,56 @@ function getBotTokens() {
         .filter(t => t.length > 10);
 }
 
+// 🌟 Helper: Parse Multiple Channel IDs
+function getChatIds() {
+    const raw = process.env.TELEGRAM_CHAT_ID || '';
+    return raw
+        .split(',')
+        .map(id => id.replace(/^["']|["']$/g, '').trim())
+        .filter(id => id.length > 5);
+}
+
+// 🌟 Lightweight Zero-Dependency Multipart Buffer Parser
+function parseMultipartBuffer(buffer, boundary) {
+    const parts = [];
+    const boundaryBuffer = Buffer.from(`--${boundary}`);
+    let start = 0;
+
+    while ((start = buffer.indexOf(boundaryBuffer, start)) !== -1) {
+        start += boundaryBuffer.length;
+        if (buffer.slice(start, start + 2).toString() === '--') {
+            break;
+        }
+        if (buffer.slice(start, start + 2).toString() === '\r\n') {
+            start += 2;
+        }
+
+        const nextBoundary = buffer.indexOf(boundaryBuffer, start);
+        if (nextBoundary === -1) break;
+
+        const partBuffer = buffer.slice(start, nextBoundary - 2);
+        const headerEnd = partBuffer.indexOf('\r\n\r\n');
+        if (headerEnd !== -1) {
+            const headerStr = partBuffer.slice(0, headerEnd).toString('utf-8');
+            const body = partBuffer.slice(headerEnd + 4);
+
+            const nameMatch = headerStr.match(/name="([^"]+)"/);
+            const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+            const typeMatch = headerStr.match(/Content-Type:\s*([^\r\n]+)/i);
+
+            parts.push({
+                name: nameMatch ? nameMatch[1] : null,
+                filename: filenameMatch ? filenameMatch[1] : 'photo.jpg',
+                contentType: typeMatch ? typeMatch[1].trim() : 'image/jpeg',
+                data: body
+            });
+        }
+        start = nextBoundary;
+    }
+    return parts;
+}
+
 export default async function handler(req, res) {
-    // Enable CORS for all domains
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, Authorization');
@@ -30,25 +81,22 @@ export default async function handler(req, res) {
     }
 
     const BOT_TOKENS = getBotTokens();
-    const rawChatId = process.env.TELEGRAM_CHAT_ID || '';
-    const CHAT_ID = rawChatId.replace(/^["']|["']$/g, '').trim();
+    const CHAT_IDS = getChatIds();
 
-    if (BOT_TOKENS.length === 0 || !CHAT_ID) {
+    if (BOT_TOKENS.length === 0 || CHAT_IDS.length === 0) {
         return res.status(500).json({ 
             error: 'Server Config Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in Vercel Environment Variables!' 
         });
     }
 
     // --------------------------------------------------------------------------
-    // 🌟 1. GET REQUEST: FETCH & STREAM PHOTO USING ALL AVAILABLE BOTS (CDN CACHED)
+    // 🌟 1. GET REQUEST: FETCH PHOTO WITH EDGE CDN
     // --------------------------------------------------------------------------
     if (req.method === 'GET') {
         const fileId = req.query.file_id || req.query.id;
-        const legacyUrl = req.query.url;
         const preferredBotIdx = parseInt(req.query.b, 10);
 
         if (fileId) {
-            // Build ordered list of tokens: preferred bot first, then all remaining bots
             const tokensToTry = [];
             if (!isNaN(preferredBotIdx) && BOT_TOKENS[preferredBotIdx]) {
                 tokensToTry.push(BOT_TOKENS[preferredBotIdx]);
@@ -62,7 +110,7 @@ export default async function handler(req, res) {
             for (const token of tokensToTry) {
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per bot
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
                     const pathRes = await fetch(
                         `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`,
@@ -80,7 +128,6 @@ export default async function handler(req, res) {
                             const contentType = fileResponse.headers.get('content-type') || 'image/jpeg';
                             const arrayBuffer = await fileResponse.arrayBuffer();
 
-                            // 🌟 Vercel Edge CDN Caching (1 Year immutable cache)
                             res.setHeader('Content-Type', contentType);
                             res.setHeader(
                                 'Cache-Control', 
@@ -93,64 +140,122 @@ export default async function handler(req, res) {
                     }
                 } catch (err) {
                     lastErrorMsg = err.message || 'Network fetch error';
-                    console.warn(`[Bot Fetch Warning]: ${err.message}`);
                 }
             }
 
-            return res.status(404).json({ 
-                error: 'Photo not found on any Telegram Bot',
-                details: lastErrorMsg 
-            });
-        }
-
-        // Legacy URL fallback proxy
-        if (legacyUrl) {
-            try {
-                const imageRes = await fetch(decodeURIComponent(legacyUrl));
-                if (!imageRes.ok) return res.status(imageRes.status).json({ error: 'Image fetch error' });
-                
-                const arrayBuffer = await imageRes.arrayBuffer();
-                res.setHeader('Content-Type', imageRes.headers.get('content-type') || 'image/jpeg');
-                res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
-                return res.status(200).send(Buffer.from(arrayBuffer));
-            } catch (err) {
-                return res.status(500).json({ error: err.message });
-            }
+            return res.status(404).json({ error: 'Photo not found on any Telegram Bot', details: lastErrorMsg });
         }
 
         return res.status(400).json({ error: 'Missing file_id query parameter' });
     }
 
     // --------------------------------------------------------------------------
-    // 🌟 2. POST REQUEST: LOAD-BALANCED PARALLEL UPLOAD WITH AUTOMATIC FAILOVER
+    // 🌟 2. POST REQUEST: MULTI-CHANNEL & SENDMEDIAGROUP BATCH UPLOADS
     // --------------------------------------------------------------------------
     if (req.method === 'POST') {
         try {
+            const contentTypeHeader = req.headers['content-type'] || '';
             const chunks = [];
             for await (const chunk of req) {
                 chunks.push(chunk);
             }
-            const fileBuffer = Buffer.concat(chunks);
+            const rawBodyBuffer = Buffer.concat(chunks);
 
-            if (fileBuffer.length === 0) {
+            if (rawBodyBuffer.length === 0) {
                 return res.status(400).json({ error: 'No image data received in request' });
             }
 
-            // Pick a random starting bot index for even load distribution
-            const startIndex = Math.floor(Math.random() * BOT_TOKENS.length);
+            let uploadedPhotos = [];
+            if (contentTypeHeader.includes('multipart/form-data')) {
+                const boundaryMatch = contentTypeHeader.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+                if (boundaryMatch) {
+                    const boundary = boundaryMatch[1] || boundaryMatch[2];
+                    const parts = parseMultipartBuffer(rawBodyBuffer, boundary);
+                    uploadedPhotos = parts.filter(p => p.data && p.data.length > 0);
+                }
+            }
+
+            const startBotIndex = Math.floor(Math.random() * BOT_TOKENS.length);
+            // 🌟 5 चैनल्स में से रैंडम चैनल चुनना (Even Multi-Channel Load Balancing)
+            const targetChatId = CHAT_IDS[Math.floor(Math.random() * CHAT_IDS.length)];
             let lastError = null;
 
+            // 🚀 BATCH UPLOAD: sendMediaGroup (2 to 10 photos)
+            if (uploadedPhotos.length >= 2) {
+                const photosToBatch = uploadedPhotos.slice(0, 10);
+
+                for (let i = 0; i < BOT_TOKENS.length; i++) {
+                    const currentBotIdx = (startBotIndex + i) % BOT_TOKENS.length;
+                    const token = BOT_TOKENS[currentBotIdx];
+
+                    try {
+                        const mediaArray = photosToBatch.map((_, idx) => ({
+                            type: 'photo',
+                            media: `attach://photo_${idx}`
+                        }));
+
+                        const form = new FormData();
+                        form.append('chat_id', targetChatId);
+                        form.append('media', JSON.stringify(mediaArray));
+
+                        photosToBatch.forEach((photoPart, idx) => {
+                            form.append(
+                                `photo_${idx}`, 
+                                new Blob([photoPart.data], { type: photoPart.contentType || 'image/jpeg' }), 
+                                photoPart.filename || `photo_${idx}.jpg`
+                            );
+                        });
+
+                        const mediaRes = await fetch(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
+                            method: 'POST',
+                            body: form
+                        });
+
+                        const mediaData = await mediaRes.json();
+
+                        if (mediaData.ok && Array.isArray(mediaData.result)) {
+                            const results = mediaData.result.map((msg, idx) => {
+                                const photos = msg.photo || [];
+                                const largest = photos[photos.length - 1];
+                                const fileId = largest ? largest.file_id : (msg.document ? msg.document.file_id : null);
+                                return {
+                                    fileId: fileId,
+                                    imageUrl: `${CLOUDFLARE_CDN_URL}/?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`,
+                                    filename: photosToBatch[idx]?.filename || `photo_${idx}.jpg`,
+                                    index: idx
+                                };
+                            });
+
+                            return res.status(200).json({
+                                ok: true,
+                                batch: true,
+                                botIndex: currentBotIdx,
+                                results: results
+                            });
+                        } else {
+                            lastError = mediaData.description || 'sendMediaGroup rejected';
+                        }
+                    } catch (botErr) {
+                        lastError = botErr.message;
+                    }
+                }
+
+                return res.status(500).json({ error: `Batch upload failed. Last error: ${lastError}` });
+            }
+
+            // 🚀 SINGLE UPLOAD: sendPhoto
+            const singleBuffer = uploadedPhotos.length === 1 ? uploadedPhotos[0].data : rawBodyBuffer;
+
             for (let i = 0; i < BOT_TOKENS.length; i++) {
-                const currentBotIdx = (startIndex + i) % BOT_TOKENS.length;
+                const currentBotIdx = (startBotIndex + i) % BOT_TOKENS.length;
                 const token = BOT_TOKENS[currentBotIdx];
 
                 try {
                     let fileId = null;
 
-                    // STAGE 1: Try sendPhoto (Optimized for standard images)
                     const photoForm = new FormData();
-                    photoForm.append('chat_id', CHAT_ID);
-                    photoForm.append('photo', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
+                    photoForm.append('chat_id', targetChatId);
+                    photoForm.append('photo', new Blob([singleBuffer], { type: 'image/jpeg' }), 'photo.jpg');
 
                     const photoRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
                         method: 'POST',
@@ -163,10 +268,9 @@ export default async function handler(req, res) {
                         const photos = photoData.result.photo;
                         fileId = photos[photos.length - 1].file_id;
                     } else {
-                        // STAGE 2: Fallback to sendDocument (For larger or heavy formats)
                         const docForm = new FormData();
-                        docForm.append('chat_id', CHAT_ID);
-                        docForm.append('document', new Blob([fileBuffer], { type: 'image/jpeg' }), 'photo.jpg');
+                        docForm.append('chat_id', targetChatId);
+                        docForm.append('document', new Blob([singleBuffer], { type: 'image/jpeg' }), 'photo.jpg');
 
                         const docRes = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
                             method: 'POST',
@@ -177,16 +281,17 @@ export default async function handler(req, res) {
                         if (docData.ok && docData.result?.document) {
                             fileId = docData.result.document.file_id;
                         } else {
-                            lastError = docData.description || photoData.description || "Upload rejected by Telegram";
-                            continue; // Switch to next bot
+                            lastError = docData.description || photoData.description || "Upload rejected";
+                            continue;
                         }
                     }
 
                     if (fileId) {
-                        const secureImageUrl = `/api/upload?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`;
+                        const secureImageUrl = `${CLOUDFLARE_CDN_URL}/?file_id=${encodeURIComponent(fileId)}&b=${currentBotIdx}`;
 
                         return res.status(200).json({
                             ok: true,
+                            batch: false,
                             fileId: fileId,
                             imageUrl: secureImageUrl,
                             botIndex: currentBotIdx
@@ -194,13 +299,10 @@ export default async function handler(req, res) {
                     }
                 } catch (botErr) {
                     lastError = botErr.message;
-                    console.warn(`[Bot ${currentBotIdx} Failed, retrying with next bot]:`, botErr.message);
                 }
             }
 
-            return res.status(500).json({ 
-                error: `All ${BOT_TOKENS.length} bots failed to upload. Last error: ${lastError}` 
-            });
+            return res.status(500).json({ error: `Upload failed. Last error: ${lastError}` });
 
         } catch (err) {
             return res.status(500).json({ error: err.message || 'Internal Upload Error' });
