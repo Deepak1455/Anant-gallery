@@ -1,5 +1,5 @@
 // ==========================================================================
-// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (100% ACCURATE & FAST)
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (10-PHOTO SENDMEDIAGROUP BATCH ENGINE)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -8,7 +8,9 @@ import {
     serverTimestamp,
     query,
     where,
-    getDocs
+    getDocs,
+    writeBatch,
+    doc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { addToOfflineQueue } from "./offline-sync.js";
 
@@ -137,7 +139,7 @@ function getTopProgressBar() {
                     <div class="photo-topbar-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
                     <div class="photo-topbar-text">
                         <span class="photo-topbar-title" id="photoUploadTitle">Anant Cloud Backup</span>
-                        <span class="photo-topbar-sub" id="photoUploadStatus">Optimizing HD photo...</span>
+                        <span class="photo-topbar-sub" id="photoUploadStatus">Optimizing HD photos...</span>
                     </div>
                 </div>
                 <div class="photo-topbar-percent" id="photoPercentText">0%</div>
@@ -183,7 +185,7 @@ function hideProgressModal() {
 // --------------------------------------------------------------------------
 async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
     return new Promise((resolve) => {
-        if (file.size < 400 * 1024 && file.type === "image/jpeg") {
+        if (file.size < 350 * 1024 && (file.type === "image/jpeg" || file.type === "image/webp")) {
             resolve(file);
             return;
         }
@@ -227,7 +229,7 @@ async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
 }
 
 // --------------------------------------------------------------------------
-// 4. FAST FILE HASH & SAFE DUPLICATE CHECK
+// 4. FAST FILE HASH & DUPLICATE CHECK
 // --------------------------------------------------------------------------
 export async function calculateFileHash(file) {
     const safeName = (file.name || 'photo').replace(/[^a-zA-Z0-9]/g, '');
@@ -285,7 +287,91 @@ export async function batchFilterDuplicates(files, currentUser) {
 }
 
 // --------------------------------------------------------------------------
-// 5. BATCH UPLOAD ENGINE (ACCURATE STATUS TRACKING)
+// 🌟 5. SENDMEDIAGROUP CHUNK UPLOAD (UP TO 10 PHOTOS PER REQUEST)
+// --------------------------------------------------------------------------
+async function uploadMediaGroupChunk(chunkFiles, currentUser, currentView, onProgress) {
+    const compressionPromises = chunkFiles.map(file => smartCompressImage(file));
+    const compressedBlobs = await Promise.all(compressionPromises);
+
+    const hashPromises = chunkFiles.map(file => calculateFileHash(file));
+    const fileHashes = await Promise.all(hashPromises);
+
+    const formData = new FormData();
+    compressedBlobs.forEach((blob, idx) => {
+        const originalName = chunkFiles[idx].name || `photo_${idx}.jpg`;
+        formData.append('photos', blob, originalName);
+    });
+
+    const response = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                onProgress(percent);
+            }
+        };
+
+        xhr.onload = () => {
+            try {
+                const resJson = JSON.parse(xhr.responseText);
+                if (xhr.status === 200 && resJson.ok) {
+                    resolve(resJson);
+                } else {
+                    reject(new Error(resJson.error || `Upload failed with status ${xhr.status}`));
+                }
+            } catch (err) {
+                reject(new Error("Server returned an invalid response"));
+            }
+        };
+
+        xhr.onerror = () => reject(new Error("Network connection error"));
+        xhr.open("POST", UPLOAD_API_ENDPOINT);
+        xhr.send(formData);
+    });
+
+    if (response.batch && Array.isArray(response.results)) {
+        const batch = writeBatch(db);
+
+        response.results.forEach((item, idx) => {
+            const originalFile = chunkFiles[idx] || {};
+            const docRef = doc(collection(db, "user_photos"));
+
+            batch.set(docRef, {
+                uid: currentUser.uid,
+                image: item.imageUrl,
+                fileId: item.fileId,
+                fileHash: fileHashes[idx],
+                fileSize: originalFile.size || 0,
+                createdAt: serverTimestamp(),
+                isFavorite: currentView === 'favorites',
+                isHidden: currentView === 'hidden',
+                isDeleted: false
+            });
+        });
+
+        await batch.commit();
+        return response.results.length;
+    } else if (response.fileId) {
+        await addDoc(collection(db, "user_photos"), {
+            uid: currentUser.uid,
+            image: response.imageUrl,
+            fileId: response.fileId,
+            fileHash: fileHashes[0],
+            fileSize: chunkFiles[0].size || 0,
+            createdAt: serverTimestamp(),
+            isFavorite: currentView === 'favorites',
+            isHidden: currentView === 'hidden',
+            isDeleted: false
+        });
+        return 1;
+    }
+
+    return 0;
+}
+
+// --------------------------------------------------------------------------
+// 🌟 6. MASTER BATCH CONTROLLER (DIVIDES IN CHUNKS OF 10)
 // --------------------------------------------------------------------------
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
@@ -305,68 +391,78 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         return;
     }
 
-    const totalBatch = uniqueFiles.length;
+    const totalFiles = uniqueFiles.length;
     if (skippedCount > 0 && showToast) {
-        showToast(`Uploading ${totalBatch} new photos (${skippedCount} duplicates skipped)`);
+        showToast(`Uploading ${totalFiles} new photos (${skippedCount} duplicates skipped)`);
     }
 
-    showProgressModal(`Preparing ${totalBatch} photo(s)...`);
+    showProgressModal(`Preparing Album Batch...`);
 
-    let completedCount = 0;
-    let successCount = 0;
-    let lastErrorMsg = null;
-    const CONCURRENCY_LIMIT = 2;
-    let activeWorkers = 0;
-    let fileIndex = 0;
+    const CHUNK_SIZE = 10;
+    const chunks = [];
+    for (let i = 0; i < totalFiles; i += CHUNK_SIZE) {
+        chunks.push(uniqueFiles.slice(i, i + CHUNK_SIZE));
+    }
 
-    return new Promise((resolve) => {
-        const updateBatchUI = () => {
-            const percent = Math.round((completedCount / totalBatch) * 100);
-            updateProgress(percent, `Uploading ${completedCount} / ${totalBatch} photos...`);
-        };
+    let processedCount = 0;
+    let successfulUploads = 0;
 
-        const processNext = async () => {
-            if (fileIndex >= totalBatch && activeWorkers === 0) {
-                hideProgressModal();
-                if (successCount > 0) {
-                    if (showToast) showToast(`Successfully backed up ${successCount} photo(s)!`);
-                } else if (lastErrorMsg && showToast) {
-                    showToast(lastErrorMsg);
-                }
-                resolve(successCount > 0);
-                return;
-            }
+    for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+        const currentChunk = chunks[chunkIdx];
 
-            while (activeWorkers < CONCURRENCY_LIMIT && fileIndex < totalBatch) {
-                const currentFile = uniqueFiles[fileIndex++];
-                activeWorkers++;
-
-                (async (file) => {
-                    try {
-                        const result = await uploadPhotoToTelegram(file, currentUser, currentView, null, {
-                            isQueueSync: true,
-                            skipDuplicateCheck: true
-                        });
-                        if (result) successCount++;
-                    } catch (err) {
-                        lastErrorMsg = err.message || "Upload Failed";
-                    } finally {
-                        activeWorkers--;
-                        completedCount++;
-                        updateBatchUI();
-                        processNext();
+        try {
+            if (currentChunk.length === 1) {
+                const result = await uploadPhotoToTelegram(currentChunk[0], currentUser, currentView, null, {
+                    isQueueSync: true,
+                    skipDuplicateCheck: true
+                });
+                if (result) successfulUploads++;
+                processedCount++;
+            } else {
+                const uploadedCount = await uploadMediaGroupChunk(
+                    currentChunk, 
+                    currentUser, 
+                    currentView, 
+                    (percent) => {
+                        const basePercent = Math.round((processedCount / totalFiles) * 100);
+                        const chunkContribution = Math.round((percent / 100) * (currentChunk.length / totalFiles) * 100);
+                        const totalPercent = Math.min(99, basePercent + chunkContribution);
+                        updateProgress(totalPercent, `Uploading Album (${processedCount + currentChunk.length}/${totalFiles})...`);
                     }
-                })(currentFile);
+                );
+                successfulUploads += uploadedCount;
+                processedCount += currentChunk.length;
             }
-        };
 
-        updateBatchUI();
-        processNext();
-    });
+            const overallPercent = Math.round((processedCount / totalFiles) * 100);
+            updateProgress(overallPercent, `Backed up ${processedCount}/${totalFiles} photos...`);
+
+        } catch (chunkErr) {
+            console.error("[Batch Chunk Error]:", chunkErr);
+            for (const file of currentChunk) {
+                try {
+                    await uploadPhotoToTelegram(file, currentUser, currentView, null, { isQueueSync: true, skipDuplicateCheck: true });
+                    successfulUploads++;
+                } catch {
+                    await addToOfflineQueue(file, currentUser.uid, currentView, null);
+                }
+                processedCount++;
+            }
+        }
+    }
+
+    hideProgressModal();
+
+    if (successfulUploads > 0 && showToast) {
+        if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+        showToast(`Successfully backed up ${successfulUploads} photo(s) in lightning fast album mode! ⚡`);
+    }
+
+    return successfulUploads > 0;
 }
 
 // --------------------------------------------------------------------------
-// 6. SINGLE PHOTO UPLOAD ENGINE (EXACT ERROR THROWING)
+// 7. SINGLE PHOTO UPLOAD ENGINE
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
@@ -390,14 +486,14 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
         }
 
         const compressedFile = await smartCompressImage(file);
-        if (!options.isQueueSync) updateProgress(20, "Securing Anant Cloud Backup...");
+        if (!options.isQueueSync) updateProgress(25, "Securing Anant Cloud Backup...");
 
         return await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
 
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable && !options.isQueueSync) {
-                    const percent = 20 + Math.round((event.loaded / event.total) * 70);
+                    const percent = 25 + Math.round((event.loaded / event.total) * 65);
                     updateProgress(percent, "Uploading to Telegram Cloud...");
                 }
             };
