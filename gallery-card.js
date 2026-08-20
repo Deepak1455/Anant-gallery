@@ -1,14 +1,18 @@
 // ==========================================================================
-// GALLERY CARD COMPONENT (WITH DUAL-ENGINE SMART AUTO-FALLBACK)
+// GALLERY CARD & UNIFIED ALL-PHOTOS BOARD COMPONENT (WITH SMART DUAL-FALLBACK)
 // ==========================================================================
 
 const dateCache = new Map();
 
+// --------------------------------------------------------------------------
+// 1. DYNAMIC STYLES FOR UNIFIED BOARD, PHOTO CARDS & SELECTION
+// --------------------------------------------------------------------------
 const injectCardBoardStyles = () => {
     if (document.getElementById('card-board-styles')) return;
     const style = document.createElement('style');
     style.id = 'card-board-styles';
     style.textContent = `
+        /* 🌟 SINGLE UNIFIED ALL-PHOTOS CARD BOARD */
         .all-photos-board {
             background: var(--bg-card, #ffffff);
             border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
@@ -36,6 +40,7 @@ const injectCardBoardStyles = () => {
             gap: 8px;
         }
 
+        /* 🌟 TIMELINE INLINE DATE DIVIDERS */
         .timeline-date-divider {
             display: flex;
             align-items: center;
@@ -65,6 +70,7 @@ const injectCardBoardStyles = () => {
             background: var(--border, rgba(0, 0, 0, 0.06));
         }
 
+        /* PHOTO GRID */
         .timeline-grid {
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
@@ -79,6 +85,7 @@ const injectCardBoardStyles = () => {
             }
         }
 
+        /* PHOTO CARDS */
         .photo-card {
             position: relative;
             aspect-ratio: 1 / 1;
@@ -100,11 +107,28 @@ const injectCardBoardStyles = () => {
             transform: scale(0.96);
         }
 
+        .photo-card.photo-locked {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+        }
+
+        .photo-card.is-new-photo {
+            animation: newPhotoPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+            will-change: transform, opacity;
+        }
+
+        @keyframes newPhotoPopIn {
+            0% { opacity: 0; transform: scale(0.85); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* 🌟 SILKY SMOOTH IMAGE LOADING */
         .photo-card img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: opacity 0.25s ease;
+            transition: opacity 0.25s ease, transform 0.35s ease;
             pointer-events: none;
             opacity: 0;
         }
@@ -113,6 +137,7 @@ const injectCardBoardStyles = () => {
             opacity: 1 !important;
         }
 
+        /* 🌟 SOFT BROKEN IMAGE FALLBACK */
         .photo-error-box {
             position: absolute;
             inset: 0;
@@ -133,6 +158,7 @@ const injectCardBoardStyles = () => {
             opacity: 0.6;
         }
 
+        /* 🟦 BLUE TICK SELECTION */
         .photo-card.selected::after {
             content: '';
             position: absolute;
@@ -142,6 +168,7 @@ const injectCardBoardStyles = () => {
             pointer-events: none;
             box-shadow: inset 0 0 12px rgba(37, 99, 235, 0.35);
             z-index: 3;
+            transition: opacity 0.2s ease;
         }
 
         .check-circle {
@@ -162,6 +189,7 @@ const injectCardBoardStyles = () => {
             transform: scale(0) rotate(-45deg);
             transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
             z-index: 4;
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
         }
 
         .photo-card.selected .check-circle {
@@ -175,6 +203,7 @@ const injectCardBoardStyles = () => {
             right: 6px;
             color: #ec4899;
             font-size: 12px;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
             display: none;
             z-index: 2;
         }
@@ -186,10 +215,15 @@ const injectCardBoardStyles = () => {
     document.head.appendChild(style);
 };
 
+// --------------------------------------------------------------------------
+// 2. HELPER: FORMAT DATE LABEL
+// --------------------------------------------------------------------------
 export function getDateLabel(timestamp) {
     if (!timestamp) return "Recent Photos";
+    
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const timeMs = date.getTime();
+    
     const dayKey = Math.floor(timeMs / 86400000); 
     if (dateCache.has(dayKey)) return dateCache.get(dayKey);
 
@@ -215,13 +249,21 @@ export function getDateLabel(timestamp) {
     return label;
 }
 
+// --------------------------------------------------------------------------
+// 3. SMART DRAG & AUTO-SCROLL SELECTION ENGINE
+// --------------------------------------------------------------------------
 let isDragSelecting = false;
 let dragMode = 'select';
 let rangeAnchorIndex = null;
 let lastTouchedIndex = null;
+let autoScrollFrame = null;
+let autoScrollSpeed = 0;
+let currentTouchPos = { x: 0, y: 0 };
+let activeCallbacks = null;
 
 function applyRangeAction(targetIndex, callbacks, mode = 'select') {
     if (rangeAnchorIndex === null || targetIndex === null) return;
+
     const start = Math.min(rangeAnchorIndex, targetIndex);
     const end = Math.max(rangeAnchorIndex, targetIndex);
 
@@ -241,12 +283,67 @@ function applyRangeAction(targetIndex, callbacks, mode = 'select') {
     });
 }
 
+function startAutoScroll() {
+    if (autoScrollFrame) return;
+
+    const autoScrollLoop = () => {
+        if (!isDragSelecting) {
+            stopAutoScroll();
+            return;
+        }
+
+        if (autoScrollSpeed !== 0) {
+            const scrollContainer = document.getElementById('scrollContainer') || window;
+            if (scrollContainer.scrollBy) {
+                scrollContainer.scrollBy({ top: autoScrollSpeed, behavior: 'instant' });
+            } else {
+                window.scrollBy({ top: autoScrollSpeed, behavior: 'instant' });
+            }
+
+            if (currentTouchPos.x && currentTouchPos.y && activeCallbacks) {
+                const elementUnderTouch = document.elementFromPoint(currentTouchPos.x, currentTouchPos.y);
+                const targetCard = elementUnderTouch?.closest('.photo-card');
+
+                if (targetCard && targetCard.dataset.index !== undefined) {
+                    const targetIdx = parseInt(targetCard.dataset.index, 10);
+                    if (!isNaN(targetIdx) && targetIdx !== lastTouchedIndex) {
+                        lastTouchedIndex = targetIdx;
+                        applyRangeAction(targetIdx, activeCallbacks, dragMode);
+                        if (navigator.vibrate) navigator.vibrate(10);
+                    }
+                }
+            }
+        }
+        autoScrollFrame = requestAnimationFrame(autoScrollLoop);
+    };
+
+    autoScrollFrame = requestAnimationFrame(autoScrollLoop);
+}
+
+function stopAutoScroll() {
+    if (autoScrollFrame) {
+        cancelAnimationFrame(autoScrollFrame);
+        autoScrollFrame = null;
+    }
+    autoScrollSpeed = 0;
+}
+
 // --------------------------------------------------------------------------
-// 🌟 PHOTO CARD WITH DUAL ENGINE AUTO-FALLBACK
+// 4. CREATE PHOTO CARD (WITH DUAL-ENGINE AUTO-FALLBACK)
 // --------------------------------------------------------------------------
 export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     const div = document.createElement('div');
-    div.className = `photo-card ${data.isFavorite ? 'is-fav' : ''}`;
+    
+    if (isNew) {
+        div.className = `photo-card is-new-photo ${data.isFavorite ? 'is-fav' : ''}`;
+        setTimeout(() => {
+            div.classList.remove('is-new-photo');
+            div.classList.add('photo-locked');
+        }, 250);
+    } else {
+        div.className = `photo-card photo-locked ${data.isFavorite ? 'is-fav' : ''}`;
+    }
+
     div.dataset.id = data.id;
     div.dataset.index = globalIndex;
 
@@ -263,29 +360,33 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     const imgEl = div.querySelector('img');
     const errorBox = div.querySelector('.photo-error-box');
 
+    // 🌟 Smooth Loaded Fade-in
     imgEl.onload = () => {
         imgEl.classList.add('loaded');
         if (errorBox) errorBox.style.display = 'none';
     };
 
-    // 🌟 SMART DUAL FALLBACK: Cloudflare Fail ➔ Direct Vercel /api/upload
+    // 🌟 SMART DUAL AUTO-FALLBACK: Cloudflare ➔ Vercel Direct /api/upload
     let retries = 0;
     imgEl.onerror = () => {
         if (retries === 0) {
             retries++;
-            // Fallback: If Cloudflare failed, switch to Vercel internal API
+            // Fallback: If Cloudflare failed or timed out, switch immediately to Vercel internal API
             if (data.fileId) {
                 imgEl.src = `/api/upload?file_id=${encodeURIComponent(data.fileId)}`;
-            } else if (data.image.includes('workers.dev')) {
+            } else if (data.image && data.image.includes('workers.dev')) {
                 const parts = data.image.split('?');
                 imgEl.src = `/api/upload?${parts[1] || ''}`;
+            } else {
+                const sep = data.image.includes('?') ? '&' : '?';
+                imgEl.src = `${data.image}${sep}r=${Date.now()}`;
             }
         } else if (retries === 1) {
             retries++;
             setTimeout(() => {
                 const sep = imgEl.src.includes('?') ? '&' : '?';
-                imgEl.src = `${imgEl.src}${sep}r=${Date.now()}`;
-            }, 800);
+                imgEl.src = `${imgEl.src}${sep}retry=${Date.now()}`;
+            }, 600);
         } else {
             imgEl.style.display = 'none';
             if (errorBox) errorBox.style.display = 'flex';
@@ -308,33 +409,87 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     });
 
     let pressTimer = null;
+
     const startPress = () => {
         pressTimer = setTimeout(() => {
             const isAlreadySelected = div.classList.contains('selected');
+
             if (!callbacks.getIsSelectionMode()) {
                 callbacks.enterSelectionMode(data.id);
                 dragMode = 'select';
             } else {
                 dragMode = isAlreadySelected ? 'unselect' : 'select';
             }
+
             isDragSelecting = true;
             rangeAnchorIndex = globalIndex;
             lastTouchedIndex = globalIndex;
-            if (dragMode === 'select') callbacks.selectId?.(data.id, div);
-            else callbacks.deselectId?.(data.id, div);
+            activeCallbacks = callbacks;
+
+            if (dragMode === 'select') {
+                if (callbacks.selectId) callbacks.selectId(data.id, div);
+            } else {
+                if (callbacks.deselectId) callbacks.deselectId(data.id, div);
+            }
+
             if (navigator.vibrate) navigator.vibrate(25);
         }, 280);
     };
 
     const cancelPress = () => {
-        if (pressTimer) clearTimeout(pressTimer);
+        if (pressTimer) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+        }
         isDragSelecting = false;
+        stopAutoScroll();
     };
 
     div.addEventListener('touchstart', startPress, { passive: true });
+
+    div.addEventListener('touchmove', (e) => {
+        if (isDragSelecting) {
+            if (e.cancelable) e.preventDefault();
+
+            const touch = e.touches[0];
+            currentTouchPos.x = touch.clientX;
+            currentTouchPos.y = touch.clientY;
+
+            const topBoundary = 120;
+            const bottomBoundary = window.innerHeight - 120;
+
+            if (touch.clientY < topBoundary) {
+                const intensity = Math.min(1, (topBoundary - touch.clientY) / topBoundary);
+                autoScrollSpeed = -Math.round(12 + intensity * 26);
+                startAutoScroll();
+            } else if (touch.clientY > bottomBoundary) {
+                const intensity = Math.min(1, (touch.clientY - bottomBoundary) / 120);
+                autoScrollSpeed = Math.round(12 + intensity * 26);
+                startAutoScroll();
+            } else {
+                autoScrollSpeed = 0;
+            }
+
+            const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+            const targetCard = elementUnderTouch?.closest('.photo-card');
+
+            if (targetCard && targetCard.dataset.index !== undefined) {
+                const targetIdx = parseInt(targetCard.dataset.index, 10);
+                if (!isNaN(targetIdx) && targetIdx !== lastTouchedIndex) {
+                    lastTouchedIndex = targetIdx;
+                    applyRangeAction(targetIdx, callbacks, dragMode);
+                    if (navigator.vibrate) navigator.vibrate(10);
+                }
+            }
+        } else {
+            cancelPress();
+        }
+    }, { passive: false });
+
     div.addEventListener('touchend', cancelPress);
     div.addEventListener('touchcancel', cancelPress);
 
+    // TAP / CLICK HANDLER
     div.addEventListener('click', () => {
         if (callbacks.getIsSelectionMode()) {
             callbacks.toggleSelection(data.id, div);
@@ -345,12 +500,21 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
         }
     });
 
+    div.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (!callbacks.getIsSelectionMode()) callbacks.enterSelectionMode(data.id);
+    });
+
     return div;
 }
 
+// --------------------------------------------------------------------------
+// 5. RENDER UNIFIED ALL-PHOTOS CARD BOARD
+// --------------------------------------------------------------------------
 export function renderGroupedGallery(data, container, callbacks) {
     injectCardBoardStyles();
     container.innerHTML = "";
+
     if (!data || data.length === 0) return;
 
     const board = document.createElement('div');
@@ -366,6 +530,7 @@ export function renderGroupedGallery(data, container, callbacks) {
     `;
 
     const stream = board.querySelector('#unifiedTimelineStream');
+
     const globalIndexMap = new Map();
     data.forEach((item, index) => globalIndexMap.set(item.id, index));
 
