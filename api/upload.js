@@ -81,12 +81,29 @@ export default async function handler(req, res) {
     }
 
     // --------------------------------------------------------------------------
-    // 🌟 1. GET: DIRECT ULTRA-FAST HIGH RESOLUTION STREAMING
+    // 🌟 1. GET: DIRECT ULTRA-FAST HIGH RESOLUTION STREAMING & URL PROXY
     // --------------------------------------------------------------------------
     if (req.method === 'GET') {
         const fileId = req.query.file_id || req.query.id;
         const preferredBotIdx = parseInt(req.query.b, 10);
+        const targetUrl = req.query.url;
 
+        // 🚀 URL Proxy Download Support
+        if (targetUrl) {
+            try {
+                const proxyRes = await fetch(decodeURIComponent(targetUrl));
+                if (proxyRes.ok) {
+                    const contentType = proxyRes.headers.get('content-type') || 'image/jpeg';
+                    const arrayBuffer = await proxyRes.arrayBuffer();
+
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+                    return res.status(200).send(Buffer.from(arrayBuffer));
+                }
+            } catch (err) {}
+        }
+
+        // 🚀 Telegram FileId Direct Stream
         if (fileId) {
             const tokensToTry = [];
             if (!isNaN(preferredBotIdx) && BOT_TOKENS[preferredBotIdx]) {
@@ -128,11 +145,11 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'Photo not found' });
         }
 
-        return res.status(400).json({ error: 'Missing file_id' });
+        return res.status(400).json({ error: 'Missing file_id or url' });
     }
 
     // --------------------------------------------------------------------------
-    // 🌟 2. POST: 4-PHOTO BATCH SENDMEDIAGROUP & DIRECT STREAMING URL
+    // 🌟 2. POST: 10-PHOTO BATCH SENDMEDIAGROUP & DIRECT STREAMING URL
     // --------------------------------------------------------------------------
     if (req.method === 'POST') {
         try {
@@ -159,9 +176,9 @@ export default async function handler(req, res) {
             const targetChatId = CHAT_IDS[Math.floor(Math.random() * CHAT_IDS.length)];
             let lastError = null;
 
-            // 🚀 BATCH UPLOAD: sendMediaGroup
+            // 🚀 BATCH UPLOAD: sendMediaGroup (UP TO 10 PHOTOS PER CHUNK)
             if (uploadedPhotos.length >= 2) {
-                const photosToBatch = uploadedPhotos.slice(0, 5);
+                const photosToBatch = uploadedPhotos.slice(0, 10);
 
                 for (let i = 0; i < BOT_TOKENS.length; i++) {
                     const currentBotIdx = (startBotIndex + i) % BOT_TOKENS.length;
