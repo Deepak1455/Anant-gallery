@@ -5,7 +5,7 @@
 const dateCache = new Map();
 
 // --------------------------------------------------------------------------
-// 1. DYNAMIC STYLES FOR UNIFIED BOARD, PHOTO CARDS, SELECTION & TRASH TIMER
+// 1. DYNAMIC STYLES FOR UNIFIED BOARD, PHOTO CARDS & LIVE CIRCLE TIMER
 // --------------------------------------------------------------------------
 const injectCardBoardStyles = () => {
     if (document.getElementById('card-board-styles')) return;
@@ -212,39 +212,94 @@ const injectCardBoardStyles = () => {
             display: block;
         }
 
-        /* 🌟 TRASH COUNTDOWN TIMER BADGE */
-        .trash-days-badge {
+        /* 🌟 LIVE TRASH COUNTDOWN CIRCLE BADGE (GLASSMORPHIC) */
+        .trash-countdown-pill {
             position: absolute;
             bottom: 6px;
             left: 6px;
-            background: rgba(15, 23, 42, 0.82);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.35);
-            font-size: 0.62rem;
-            font-weight: 700;
-            padding: 2.5px 6.5px;
-            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3px 7px 3px 4px;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 5px;
             z-index: 3;
-            letter-spacing: 0.2px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
             pointer-events: none;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            transition: transform 0.2s ease;
         }
 
-        .trash-days-badge.warning {
-            background: rgba(239, 68, 68, 0.92);
-            color: #ffffff;
-            border-color: #ef4444;
-            animation: pulseTrashWarning 1.6s infinite ease-in-out;
+        .trash-progress-ring {
+            width: 17px;
+            height: 17px;
+            transform: rotate(-90deg);
+            display: block;
+            flex-shrink: 0;
+        }
+
+        .trash-ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.15);
+            stroke-width: 2.8;
+        }
+
+        .trash-ring-bar {
+            fill: none;
+            stroke-width: 2.8;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.35s ease;
+        }
+
+        .trash-days-text {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+        /* 🟢 25-30 DAYS (GREEN STAGE) */
+        .trash-countdown-pill.green {
+            border: 1px solid rgba(34, 197, 94, 0.35);
+            box-shadow: 0 2px 10px rgba(34, 197, 94, 0.2);
+        }
+        .trash-countdown-pill.green .trash-ring-bar {
+            stroke: #22c55e;
+        }
+        .trash-countdown-pill.green .trash-days-text {
+            color: #4ade80;
+        }
+
+        /* 🟡 10-24 DAYS (YELLOW STAGE) */
+        .trash-countdown-pill.yellow {
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            box-shadow: 0 2px 10px rgba(245, 158, 11, 0.2);
+        }
+        .trash-countdown-pill.yellow .trash-ring-bar {
+            stroke: #f59e0b;
+        }
+        .trash-countdown-pill.yellow .trash-days-text {
+            color: #fbbf24;
+        }
+
+        /* 🔴 1-9 DAYS (RED WARNING STAGE WITH SMOOTH PULSE) */
+        .trash-countdown-pill.red {
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            box-shadow: 0 2px 12px rgba(239, 68, 68, 0.35);
+            animation: pulseTrashWarning 1.8s infinite ease-in-out;
+        }
+        .trash-countdown-pill.red .trash-ring-bar {
+            stroke: #ef4444;
+        }
+        .trash-countdown-pill.red .trash-days-text {
+            color: #f87171;
         }
 
         @keyframes pulseTrashWarning {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            0%, 100% { transform: scale(1); box-shadow: 0 2px 10px rgba(239, 68, 68, 0.25); }
+            50% { transform: scale(1.05); box-shadow: 0 2px 16px rgba(239, 68, 68, 0.5); }
         }
     `;
     document.head.appendChild(style);
@@ -374,7 +429,7 @@ function stopAutoScroll() {
 }
 
 // --------------------------------------------------------------------------
-// 4. CREATE PHOTO CARD (WITH SMART TRASH TIMER & DUAL AUTO-FALLBACK)
+// 4. CREATE PHOTO CARD (WITH LIVE COUNTDOWN PROGRESS CIRCLE)
 // --------------------------------------------------------------------------
 export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     const div = document.createElement('div');
@@ -392,15 +447,35 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     div.dataset.id = data.id;
     div.dataset.index = globalIndex;
 
-    // 🌟 TRASH COUNTDOWN TIMER BADGE INJECTION
+    // 🌟 LIVE TRASH COUNTDOWN CIRCLE GENERATOR (3-STAGE DYNAMIC PROGRESS)
     let trashBadgeHTML = '';
     if (data.isDeleted === true) {
         const daysLeft = calculateRemainingTrashDays(data.deletedAt || data.createdAt);
-        const isUrgent = daysLeft <= 3;
+
+        // 3-Stage Color Determination
+        let stageClass = 'green';
+        if (daysLeft < 10) {
+            stageClass = 'red';
+        } else if (daysLeft <= 24) {
+            stageClass = 'yellow';
+        } else {
+            stageClass = 'green';
+        }
+
+        // SVG Circle Perimeter: 2 * Math.PI * 6.5 ≈ 40.84
+        const circumference = 40.84;
+        const progressFraction = Math.max(0, Math.min(1, daysLeft / 30));
+        const strokeOffset = (circumference * (1 - progressFraction)).toFixed(1);
+
         trashBadgeHTML = `
-            <div class="trash-days-badge ${isUrgent ? 'warning' : ''}" title="${daysLeft} days until permanent deletion">
-                <i class="fa-regular fa-clock"></i>
-                <span>${daysLeft === 0 ? 'Expires today' : `${daysLeft}d left`}</span>
+            <div class="trash-countdown-pill ${stageClass}" title="${daysLeft} days remaining before permanent deletion">
+                <svg class="trash-progress-ring" viewBox="0 0 16 16">
+                    <circle class="trash-ring-bg" cx="8" cy="8" r="6.5"/>
+                    <circle class="trash-ring-bar" cx="8" cy="8" r="6.5" 
+                            stroke-dasharray="${circumference}" 
+                            stroke-dashoffset="${strokeOffset}"/>
+                </svg>
+                <span class="trash-days-text">${daysLeft === 0 ? 'Today' : `${daysLeft}d`}</span>
             </div>
         `;
     }
