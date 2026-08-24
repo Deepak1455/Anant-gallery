@@ -129,20 +129,109 @@ async function checkRealOnlineStatus() {
 }
 
 // --------------------------------------------------------------------------
-// 4. ADD PHOTO TO QUEUE (PRESERVES LASTMODIFIED FOR ZERO DUPLICATE ERRORS)
+// 🌟 4. ULTRA-FAST & LIGHTWEIGHT PRE-COMPRESSION (PREVENTS STORAGE OVERFLOW)
+// --------------------------------------------------------------------------
+async function compressForOfflineStorage(file, maxDimension = 2048, quality = 0.85) {
+    // If file is already small (<400KB) and JPEG/WEBP, store directly
+    if (file.size <= 400 * 1024 && (file.type === "image/jpeg" || file.type === "image/webp")) {
+        return file;
+    }
+
+    try {
+        // Fast Method 1: createImageBitmap (Hardware accelerated, zero memory spike)
+        if (typeof createImageBitmap === 'function') {
+            const bitmap = await createImageBitmap(file);
+            let { width, height } = bitmap;
+
+            if (width > maxDimension || height > maxDimension) {
+                if (width > height) {
+                    height = Math.round((height * maxDimension) / width);
+                    width = maxDimension;
+                } else {
+                    width = Math.round((width * maxDimension) / height);
+                    height = maxDimension;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(bitmap, 0, 0, width, height);
+            bitmap.close(); // Clean up GPU memory immediately
+
+            const compressedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+            if (compressedBlob && compressedBlob.size < file.size) {
+                return compressedBlob;
+            }
+        }
+    } catch (e) {
+        // Fallback to Image Object
+    }
+
+    // Method 2: Standard Image Object with ObjectURL
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            let { width, height } = img;
+
+            if (width > maxDimension || height > maxDimension) {
+                if (width > height) {
+                    height = Math.round((height * maxDimension) / width);
+                    width = maxDimension;
+                } else {
+                    width = Math.round((width * maxDimension) / height);
+                    height = maxDimension;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+                if (blob && blob.size < file.size) {
+                    resolve(blob);
+                } else {
+                    resolve(file);
+                }
+            }, 'image/jpeg', quality);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(file);
+        };
+        img.src = url;
+    });
+}
+
+// --------------------------------------------------------------------------
+// 5. ADD PHOTO TO QUEUE (SMART COMPRESSED FOR ULTRA-LOW RAM USAGE)
 // --------------------------------------------------------------------------
 export async function addToOfflineQueue(file, uid, currentView, showToast) {
     try {
         injectBadgeStyles();
+
+        // 🌟 IndexedDB में सेव करने से पहले स्मार्ट कैनवस प्री-कंप्रेशन
+        const readyBlob = await compressForOfflineStorage(file);
+
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
 
         const item = {
-            fileBlob: file,
+            fileBlob: readyBlob,
             fileName: file.name,
-            fileType: file.type || "image/jpeg",
-            fileSize: file.size,
+            fileType: readyBlob.type || "image/jpeg",
+            fileSize: readyBlob.size,
             lastModified: file.lastModified || Date.now(), // 🌟 सुरक्षित Timestamp
             uid: uid,
             currentView: currentView || "photos",
@@ -164,7 +253,7 @@ export async function addToOfflineQueue(file, uid, currentView, showToast) {
 }
 
 // --------------------------------------------------------------------------
-// 5. FAST QUEUE COUNT
+// 6. FAST QUEUE COUNT
 // --------------------------------------------------------------------------
 export async function getQueueCount() {
     try {
@@ -183,7 +272,7 @@ export async function getQueueCount() {
 }
 
 // --------------------------------------------------------------------------
-// 6. STREAMED BATCH FETCHER (FETCHES IN CHUNKS OF 10 FOR HIGH MEMORY SAFETY)
+// 7. STREAMED BATCH FETCHER (FETCHES IN CHUNKS OF 10 FOR HIGH MEMORY SAFETY)
 // --------------------------------------------------------------------------
 async function fetchNextChunk(limit = 10) {
     try {
@@ -224,7 +313,7 @@ async function removeQueueItem(id) {
 }
 
 // --------------------------------------------------------------------------
-// 7. HIGH-PERFORMANCE QUEUE PROCESSOR
+// 8. HIGH-PERFORMANCE QUEUE PROCESSOR
 // --------------------------------------------------------------------------
 export async function processOfflineQueue(currentUser, uploadFn, showToast) {
     if (isSyncing || !currentUser) return;
@@ -321,7 +410,7 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
 }
 
 // --------------------------------------------------------------------------
-// 8. LIVE FLOATING PROGRESS BADGE CONTROLLER
+// 9. LIVE FLOATING PROGRESS BADGE CONTROLLER
 // --------------------------------------------------------------------------
 export async function updateOfflineBadge(syncingStatus = false, currentCount = null, totalBatch = null) {
     injectBadgeStyles();
@@ -366,7 +455,7 @@ export async function updateOfflineBadge(syncingStatus = false, currentCount = n
 }
 
 // --------------------------------------------------------------------------
-// 9. EVENT LISTENERS INITIALIZATION
+// 10. EVENT LISTENERS INITIALIZATION
 // --------------------------------------------------------------------------
 export function initOfflineSync(getCurrentUser, uploadFn, showToast) {
     injectBadgeStyles();
