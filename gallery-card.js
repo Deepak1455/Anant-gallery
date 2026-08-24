@@ -5,7 +5,7 @@
 const dateCache = new Map();
 
 // --------------------------------------------------------------------------
-// 1. DYNAMIC STYLES FOR UNIFIED BOARD, PHOTO CARDS & SELECTION
+// 1. DYNAMIC STYLES FOR UNIFIED BOARD, PHOTO CARDS, SELECTION & TRASH TIMER
 // --------------------------------------------------------------------------
 const injectCardBoardStyles = () => {
     if (document.getElementById('card-board-styles')) return;
@@ -211,12 +211,47 @@ const injectCardBoardStyles = () => {
         .photo-card.is-fav .fav-icon {
             display: block;
         }
+
+        /* 🌟 TRASH COUNTDOWN TIMER BADGE */
+        .trash-days-badge {
+            position: absolute;
+            bottom: 6px;
+            left: 6px;
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            font-size: 0.62rem;
+            font-weight: 700;
+            padding: 2.5px 6.5px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            z-index: 3;
+            letter-spacing: 0.2px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+
+        .trash-days-badge.warning {
+            background: rgba(239, 68, 68, 0.92);
+            color: #ffffff;
+            border-color: #ef4444;
+            animation: pulseTrashWarning 1.6s infinite ease-in-out;
+        }
+
+        @keyframes pulseTrashWarning {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
     `;
     document.head.appendChild(style);
 };
 
 // --------------------------------------------------------------------------
-// 2. HELPER: FORMAT DATE LABEL
+// 2. HELPER: FORMAT DATE LABEL & TRASH DAYS CALCULATOR
 // --------------------------------------------------------------------------
 export function getDateLabel(timestamp) {
     if (!timestamp) return "Recent Photos";
@@ -247,6 +282,16 @@ export function getDateLabel(timestamp) {
     if (dateCache.size > 100) dateCache.clear();
     dateCache.set(dayKey, label);
     return label;
+}
+
+function calculateRemainingTrashDays(timestamp) {
+    if (!timestamp) return 30;
+    const deletedTime = timestamp.seconds ? timestamp.seconds * 1000 : new Date(timestamp).getTime();
+    const now = Date.now();
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const daysPassed = Math.floor((now - deletedTime) / MS_PER_DAY);
+    const remaining = 30 - daysPassed;
+    return remaining > 0 ? remaining : 0;
 }
 
 // --------------------------------------------------------------------------
@@ -329,7 +374,7 @@ function stopAutoScroll() {
 }
 
 // --------------------------------------------------------------------------
-// 4. CREATE PHOTO CARD (WITH DUAL-ENGINE AUTO-FALLBACK)
+// 4. CREATE PHOTO CARD (WITH SMART TRASH TIMER & DUAL AUTO-FALLBACK)
 // --------------------------------------------------------------------------
 export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     const div = document.createElement('div');
@@ -347,6 +392,19 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     div.dataset.id = data.id;
     div.dataset.index = globalIndex;
 
+    // 🌟 TRASH COUNTDOWN TIMER BADGE INJECTION
+    let trashBadgeHTML = '';
+    if (data.isDeleted === true) {
+        const daysLeft = calculateRemainingTrashDays(data.deletedAt || data.createdAt);
+        const isUrgent = daysLeft <= 3;
+        trashBadgeHTML = `
+            <div class="trash-days-badge ${isUrgent ? 'warning' : ''}" title="${daysLeft} days until permanent deletion">
+                <i class="fa-regular fa-clock"></i>
+                <span>${daysLeft === 0 ? 'Expires today' : `${daysLeft}d left`}</span>
+            </div>
+        `;
+    }
+
     div.innerHTML = `
         <img src="${data.image}" loading="lazy" decoding="async" draggable="false" alt="Photo">
         <div class="photo-error-box">
@@ -355,6 +413,7 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
         </div>
         <div class="check-circle"><i class="fa-solid fa-check"></i></div>
         <div class="fav-icon" title="Toggle Favorite"><i class="fa-solid fa-heart"></i></div>
+        ${trashBadgeHTML}
     `;
 
     const imgEl = div.querySelector('img');
@@ -371,7 +430,6 @@ export function createPhotoCard(data, globalIndex, callbacks, isNew = false) {
     imgEl.onerror = () => {
         if (retries === 0) {
             retries++;
-            // Fallback: If Cloudflare failed or timed out, switch immediately to Vercel internal API
             if (data.fileId) {
                 imgEl.src = `/api/upload?file_id=${encodeURIComponent(data.fileId)}`;
             } else if (data.image && data.image.includes('workers.dev')) {
@@ -517,12 +575,17 @@ export function renderGroupedGallery(data, container, callbacks) {
 
     if (!data || data.length === 0) return;
 
+    const isTrashView = data.length > 0 && data[0].isDeleted === true;
+    const boardTitle = isTrashView 
+        ? '<i class="fa-solid fa-trash-can" style="color:var(--danger, #ef4444);"></i> Trash Bin' 
+        : '<i class="fa-regular fa-images" style="color:var(--accent);"></i> All Photos';
+
     const board = document.createElement('div');
     board.className = 'all-photos-board';
     board.innerHTML = `
         <div class="all-photos-board-header">
             <div class="all-photos-board-title">
-                <i class="fa-regular fa-images" style="color:var(--accent);"></i> All Photos
+                ${boardTitle}
             </div>
             <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">${data.length} ${data.length === 1 ? 'photo' : 'photos'}</span>
         </div>
