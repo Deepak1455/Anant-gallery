@@ -141,12 +141,46 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
     };
 }
 
+// --------------------------------------------------------------------------
+// 🌟 SMART MIME-TYPE EXTENSION DETECTOR & FAST DOWNLOAD PROXY ENGINE
+// --------------------------------------------------------------------------
+function getExtensionFromMime(mimeType) {
+    if (!mimeType) return 'jpg';
+    const type = mimeType.toLowerCase();
+    if (type.includes('png')) return 'png';
+    if (type.includes('webp')) return 'webp';
+    if (type.includes('gif')) return 'gif';
+    if (type.includes('heic') || type.includes('heif')) return 'heic';
+    if (type.includes('svg')) return 'svg';
+    if (type.includes('bmp')) return 'bmp';
+    if (type.includes('jpeg') || type.includes('jpg')) return 'jpg';
+    return 'jpg';
+}
+
 async function downloadPhoto(imageUrl, customFilename = null) {
     try {
-        const finalFilename = customFilename || `anant-gallery-${Date.now()}.jpg`;
         const proxyUrl = imageUrl.startsWith('/api/') ? imageUrl : `/api/upload?url=${encodeURIComponent(imageUrl)}`;
-        const response = await fetch(proxyUrl);
-        const blob = response.ok ? await response.blob() : await (await fetch(imageUrl, { mode: 'cors' })).blob();
+        
+        let response;
+        try {
+            response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error("Proxy error");
+        } catch {
+            response = await fetch(imageUrl, { mode: 'cors' });
+        }
+
+        const blob = await response.blob();
+        const ext = getExtensionFromMime(blob.type);
+
+        let finalFilename = customFilename;
+        if (!finalFilename) {
+            finalFilename = `anant-gallery-${Date.now()}.${ext}`;
+        } else if (!/\.[a-zA-Z0-9]+$/.test(finalFilename)) {
+            finalFilename = `${finalFilename}.${ext}`;
+        } else {
+            finalFilename = finalFilename.replace(/\.[a-zA-Z0-9]+$/, `.${ext}`);
+        }
+
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -167,7 +201,7 @@ async function multiDownload() {
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
         const item = galleryData.find(x => x.id === id);
         if (item && item.image) {
-            return downloadPhoto(item.image, `anant-gallery-${Date.now()}-${index + 1}.jpg`);
+            return downloadPhoto(item.image, `anant-gallery-${Date.now()}-${index + 1}`);
         }
         return Promise.resolve();
     });
@@ -184,7 +218,7 @@ initImageViewer({
     getCurrentView: () => currentView,
     onDownload: (imageData) => {
         const url = typeof imageData === 'object' ? imageData.image : imageData;
-        downloadPhoto(url, `anant-gallery-${Date.now()}.jpg`);
+        downloadPhoto(url);
     },
     onAddToAlbum: (docId) => {
         showAddToAlbumModal([docId], currentUser, () => {
@@ -596,7 +630,6 @@ function loadGalleryData(view) {
     unsubscribe = onSnapshot(q, (snapshot) => {
         if (galleryRenderTimer) clearTimeout(galleryRenderTimer);
 
-        // 🌟 120ms Debounce: Prevents UI lag & flickering during multiple parallel uploads
         galleryRenderTimer = setTimeout(() => {
             galleryContent.innerHTML = "";
             galleryData = [];
