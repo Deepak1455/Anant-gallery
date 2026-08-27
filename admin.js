@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - COMMAND CENTER LOGIC (100% REALTIME FIRESTORE ENGINE)
+// ANANT GALLERY - COMMAND CENTER LOGIC (ULTRA-FAST FIRESTORE SYNC)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -7,7 +7,6 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/fi
 import { 
     collection, 
     doc, 
-    getDoc, 
     getDocs, 
     setDoc, 
     updateDoc, 
@@ -18,7 +17,7 @@ import {
     onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 SUPER ADMIN EMAILS (आपका ईमेल यहाँ जोड़ दिया गया है)
+// 🌟 SUPER ADMIN EMAILS
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
     "admin@anant.gallery"
@@ -41,11 +40,11 @@ function formatBytes(bytes) {
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 // --------------------------------------------------------------------------
-// 1. ADMIN AUTHENTICATION GUARD
+// 1. AUTHENTICATION & ACCESS GUARD
 // --------------------------------------------------------------------------
 onAuthStateChanged(auth, (user) => {
     if (user && (SUPER_ADMIN_EMAILS.includes(user.email?.toLowerCase()) || user.email?.endsWith("@admin.com"))) {
@@ -81,7 +80,7 @@ function initAdminDashboard() {
 }
 
 // --------------------------------------------------------------------------
-// 3. REMOTE APP CONTROLS (CONFIG LISTEN & UPDATE)
+// 3. REMOTE APP CONTROLS (REALTIME)
 // --------------------------------------------------------------------------
 function listenToGlobalAppConfig() {
     const configDocRef = doc(db, "app_config", "global_settings");
@@ -115,7 +114,7 @@ function listenToGlobalAppConfig() {
 
     document.getElementById("toggleMaintenance")?.addEventListener("change", async (e) => {
         await updateDoc(configDocRef, { maintenanceMode: e.target.checked });
-        showToast(e.target.checked ? "🚨 Maintenance Mode Enabled Globally!" : "✅ App is Live for all users!");
+        showToast(e.target.checked ? "🚨 Maintenance Enabled!" : "✅ App Live for Users!");
     });
 
     document.getElementById("toggleUploads")?.addEventListener("change", async (e) => {
@@ -129,17 +128,17 @@ function listenToGlobalAppConfig() {
         if (!msg) return showToast("Enter notice message!");
         await updateDoc(configDocRef, { broadcastNotice: msg });
         input.value = "";
-        showToast("📢 Broadcast notice published to all users!");
+        showToast("📢 Notice Published!");
     });
 
     document.getElementById("btnClearNotice")?.addEventListener("click", async () => {
         await updateDoc(configDocRef, { broadcastNotice: "" });
-        showToast("Banner notice cleared!");
+        showToast("Banner Cleared!");
     });
 }
 
 // --------------------------------------------------------------------------
-// 4. REALTIME TELEMETRY STATS
+// 4. TELEMETRY LISTENER (COUNTS & STORAGE)
 // --------------------------------------------------------------------------
 function listenToTelemetry() {
     const photosRef = collection(db, "user_photos");
@@ -178,24 +177,22 @@ function listenToTelemetry() {
 }
 
 // --------------------------------------------------------------------------
-// 5. LIVE RECENT PHOTO STREAM & MODERATION
+// 5. LIVE RECENT PHOTO STREAM
 // --------------------------------------------------------------------------
 async function loadRecentPhotoStream() {
     const streamGrid = document.getElementById("adminPhotoGrid");
     const countBadge = document.getElementById("streamCount");
     if (!streamGrid) return;
-    
-    streamGrid.innerHTML = `<div class="stream-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching stream...</div>`;
 
-    const q = query(collection(db, "user_photos"), orderBy("createdAt", "desc"), limit(36));
+    const q = query(collection(db, "user_photos"), orderBy("createdAt", "desc"), limit(24));
     const snap = await getDocs(q);
 
     if (snap.empty) {
-        streamGrid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:30px; color:var(--text-muted);">No photos uploaded yet.</div>`;
+        streamGrid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-muted); font-size:0.85rem;">No photos in cloud.</div>`;
         return;
     }
 
-    if (countBadge) countBadge.innerText = `Showing ${snap.size} latest`;
+    if (countBadge) countBadge.innerText = `${snap.size} latest`;
     streamGrid.innerHTML = "";
 
     snap.forEach((docSnap) => {
@@ -205,20 +202,20 @@ async function loadRecentPhotoStream() {
         card.innerHTML = `
             <img src="${p.image}" loading="lazy" alt="Cloud Photo" onerror="this.src='loadingphoto.png'">
             <div class="admin-photo-overlay">
-                <button class="btn-mod-delete" title="Delete from Cloud" data-id="${docSnap.id}">
+                <button class="btn-mod-delete" title="Delete Photo" data-id="${docSnap.id}">
                     <i class="fa-solid fa-trash"></i>
                 </button>
                 <div class="photo-meta-info" title="UID: ${p.uid || 'Anonymous'}">
-                    UID: ${p.uid ? p.uid.substring(0, 8) + '...' : 'Unknown'}
+                    ${p.uid ? p.uid.substring(0, 6) + '..' : 'User'}
                 </div>
             </div>
         `;
 
         card.querySelector(".btn-mod-delete").onclick = async () => {
-            if (confirm("Delete this photo permanently from the cloud?")) {
+            if (confirm("Permanently delete this photo from cloud?")) {
                 await deleteDoc(doc(db, "user_photos", docSnap.id));
                 card.remove();
-                showToast("Photo permanently deleted by Admin!");
+                showToast("Photo deleted by Admin!");
             }
         };
 
@@ -229,7 +226,7 @@ async function loadRecentPhotoStream() {
 document.getElementById("btnRefreshStream")?.addEventListener("click", loadRecentPhotoStream);
 
 // --------------------------------------------------------------------------
-// 6. USER EXPLORER DIRECTORY
+// 6. USER DIRECTORY
 // --------------------------------------------------------------------------
 async function loadUserDirectory() {
     const tableBody = document.getElementById("userTableBody");
@@ -256,17 +253,19 @@ async function loadUserDirectory() {
     });
 
     tableBody.innerHTML = "";
+    if (userStats.size === 0) {
+        tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-muted);">No users found.</td></tr>`;
+        return;
+    }
+
     userStats.forEach((stats, uid) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-            <td style="color:var(--accent); font-weight:700;">${uid}</td>
-            <td>${stats.count} photos</td>
+            <td style="color:var(--accent); font-weight:700;">${uid.substring(0, 10)}...</td>
+            <td>${stats.count}</td>
             <td>${formatBytes(stats.bytes)}</td>
             <td>${stats.favs} ❤️</td>
             <td>${stats.trash} 🗑️</td>
-            <td>
-                <button class="btn-inspect-user" data-uid="${uid}">Filter Stream</button>
-            </td>
         `;
         tableBody.appendChild(tr);
     });
