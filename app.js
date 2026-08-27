@@ -1,17 +1,17 @@
 // ==========================================================================
-// ANANT GALLERY - 100% RELIABLE AUTH & ULTRA-FAST APP CONTROLLER
+// ANANT GALLERY - 100% RELIABLE AUTH, CONTROLLER & ADMIN SYNC ENGINE
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
-    signInWithPopup,
-    sendPasswordResetEmail,
-    GoogleAuthProvider,
-    onAuthStateChanged,
-    setPersistence,
-    browserLocalPersistence
+    signInWithPopup, 
+    sendPasswordResetEmail, 
+    GoogleAuthProvider, 
+    onAuthStateChanged, 
+    setPersistence, 
+    browserLocalPersistence 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     collection, 
@@ -50,17 +50,23 @@ import {
 import { 
     renderAlbumsScreen, 
     renderAlbumsMainBoard, 
-    openAlbumDetail,
+    openAlbumDetail, 
     stopAlbumsListener, 
     stopAlbumDetailListener, 
     showAddToAlbumModal, 
-    removePhotosFromAlbum,
-    showCustomDeleteModal
+    removePhotosFromAlbum, 
+    showCustomDeleteModal 
 } from "./albums.js";
 import { uploadPhotoToTelegram, uploadBatchPhotos } from "./telegram-photo.js";
 import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
+
+// 🌟 SUPER ADMIN EMAILS LIST (इन ईमेल को साइडबार में सीधा Admin Panel लिंक मिलेगा)
+const SUPER_ADMIN_EMAILS = [
+    "admin@anant.gallery",
+    "vikash@gmail.com" // <- अपना ईमेल यहाँ रखें
+];
 
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
@@ -81,8 +87,10 @@ let selectedIds = new Set();
 let galleryData = []; 
 let currentView = 'photos'; 
 let unsubscribe = null; 
+let unsubscribeGlobalConfig = null;
 let toastTimer = null;
-let galleryRenderTimer = null; // 🌟 Smooth Render Debounce Timer
+let galleryRenderTimer = null;
+let isUploadAllowedGlobally = true; // Admin remote upload kill-switch
 
 const galleryContent = document.getElementById('galleryContent');
 const selectionHeader = document.getElementById('selectionHeader');
@@ -139,6 +147,77 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
         close();
         if (onConfirm) onConfirm();
     };
+}
+
+// --------------------------------------------------------------------------
+// 🌟 3. REALTIME ADMIN REMOTE CONTROL & MAINTENANCE ENGINE
+// --------------------------------------------------------------------------
+function setupGlobalAdminListener() {
+    if (unsubscribeGlobalConfig) unsubscribeGlobalConfig();
+
+    const configDoc = doc(db, "app_config", "global_settings");
+
+    unsubscribeGlobalConfig = onSnapshot(configDoc, (snap) => {
+        if (!snap.exists()) return;
+        const config = snap.data();
+
+        // 1. Maintenance Mode Takeover
+        let maintOverlay = document.getElementById("appMaintenanceOverlay");
+        if (config.maintenanceMode) {
+            if (!maintOverlay) {
+                maintOverlay = document.createElement("div");
+                maintOverlay.id = "appMaintenanceOverlay";
+                maintOverlay.style.cssText = `
+                    position: fixed; inset: 0; z-index: 999999;
+                    background: linear-gradient(135deg, #090d16 0%, #0f172a 100%);
+                    color: #ffffff; display: flex; flex-direction: column;
+                    align-items: center; justify-content: center; text-align: center;
+                    padding: 24px; font-family: 'Outfit', sans-serif;
+                `;
+                maintOverlay.innerHTML = `
+                    <div style="width:75px; height:75px; border-radius:50%; background:rgba(245, 158, 11, 0.15); color:#f59e0b; display:flex; align-items:center; justify-content:center; font-size:2.2rem; margin-bottom:20px; box-shadow:0 0 25px rgba(245,158,11,0.2);">
+                        <i class="fa-solid fa-wrench"></i>
+                    </div>
+                    <h2 style="font-size:1.6rem; font-weight:800; margin-bottom:8px;">Under Scheduled Maintenance</h2>
+                    <p style="font-size:0.9rem; color:#94a3b8; max-width:320px; line-height:1.5;">
+                        Anant Infinite Cloud servers are currently undergoing maintenance for speed upgrades. We'll be back shortly!
+                    </p>
+                `;
+                document.body.appendChild(maintOverlay);
+            }
+        } else if (maintOverlay) {
+            maintOverlay.remove();
+        }
+
+        // 2. Upload Kill-Switch Check
+        isUploadAllowedGlobally = config.allowUploads !== false;
+
+        // 3. Global Broadcast Banner
+        let banner = document.getElementById("adminBroadcastBanner");
+        if (config.broadcastNotice && config.broadcastNotice.trim()) {
+            if (!banner) {
+                banner = document.createElement("div");
+                banner.id = "adminBroadcastBanner";
+                banner.style.cssText = `
+                    background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+                    color: #ffffff; padding: 9px 16px; text-align: center;
+                    font-size: 0.82rem; font-weight: 700; position: sticky;
+                    top: 70px; z-index: 49; box-shadow: 0 4px 14px rgba(79,70,229,0.3);
+                    display: flex; align-items: center; justify-content: center; gap: 8px;
+                    animation: fadeInUp 0.3s ease-out;
+                `;
+                const scrollCont = document.getElementById("scrollContainer");
+                if (scrollCont) {
+                    scrollCont.parentElement.insertBefore(banner, scrollCont);
+                } else {
+                    document.body.prepend(banner);
+                }
+            }
+            banner.innerHTML = `<i class="fa-solid fa-bullhorn" style="color:#fbbf24;"></i> <span>${config.broadcastNotice}</span>`;
+        } else if (banner) {
+            banner.remove();
+        }
+    });
 }
 
 // --------------------------------------------------------------------------
@@ -212,7 +291,7 @@ async function multiDownload() {
 }
 
 // --------------------------------------------------------------------------
-// 3. INIT IMAGE VIEWER (LIGHTBOX)
+// 4. INIT IMAGE VIEWER (LIGHTBOX)
 // --------------------------------------------------------------------------
 initImageViewer({
     getCurrentView: () => currentView,
@@ -281,7 +360,7 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 4. AUTH CONTROLLER WITH FORGOT PASSWORD & GOOGLE SIGN-IN
+// 5. AUTH CONTROLLER WITH FORGOT PASSWORD & GOOGLE SIGN-IN
 // --------------------------------------------------------------------------
 let isLogin = true;
 const toggleAuthBtn = document.getElementById('toggleAuth');
@@ -417,6 +496,9 @@ onAuthStateChanged(auth, (user) => {
             appScreen.style.display = 'flex';
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
+        
+        setupAdminSidebarLink(user);
+        setupGlobalAdminListener();
         checkAppPinLock();
         switchView('photos');
         processOfflineQueue(user, uploadPhotoToTelegram, showToast);
@@ -433,8 +515,29 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// 🌟 DYNAMICALLY INJECT ADMIN LINK IN SIDEBAR IF USER IS ADMIN
+function setupAdminSidebarLink(user) {
+    const existing = document.getElementById('navAdminPortal');
+    if (existing) existing.remove();
+
+    if (user && user.email && (SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase()) || user.email.endsWith('@admin.com'))) {
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn && logoutBtn.parentElement) {
+            const adminItem = document.createElement('div');
+            adminItem.id = 'navAdminPortal';
+            adminItem.className = 'sb-item';
+            adminItem.style.cssText = 'color: #f59e0b; margin-top: auto; font-weight: 700;';
+            adminItem.innerHTML = `<i class="fa-solid fa-sliders"></i> Admin Center`;
+            adminItem.onclick = () => {
+                window.location.href = 'admin.html';
+            };
+            logoutBtn.parentElement.insertBefore(adminItem, logoutBtn);
+        }
+    }
+}
+
 // --------------------------------------------------------------------------
-// 5. ULTRA-SMOOTH VIEW SWITCHER
+// 6. ULTRA-SMOOTH VIEW SWITCHER
 // --------------------------------------------------------------------------
 function switchView(view, extraParam = null) {
     currentView = view;
@@ -507,6 +610,9 @@ function switchView(view, extraParam = null) {
             <i class="fa-solid fa-cloud-arrow-up" id="forceUploadBtn" style="font-size: 1.3rem; cursor: pointer; color: var(--text-main);" title="Upload Photo"></i>
         `;
         document.getElementById('forceUploadBtn').onclick = () => {
+            if (!isUploadAllowedGlobally) {
+                return showToast("Uploads are temporarily paused by Admin!");
+            }
             document.getElementById('fileInput')?.click();
         };
     }
@@ -570,7 +676,7 @@ function switchView(view, extraParam = null) {
 }
 
 // --------------------------------------------------------------------------
-// 6. SIDEBAR CONTROLLER
+// 7. SIDEBAR CONTROLLER
 // --------------------------------------------------------------------------
 const openSidebar = () => {
     if (sidebar) sidebar.classList.add('open');
@@ -615,7 +721,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
 });
 
 // --------------------------------------------------------------------------
-// 7. GALLERY DATA STREAM (HIGH PERFORMANCE WITH 120ms DEBOUNCE)
+// 8. GALLERY DATA STREAM (HIGH PERFORMANCE WITH 120ms DEBOUNCE)
 // --------------------------------------------------------------------------
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
@@ -697,7 +803,7 @@ function loadGalleryData(view) {
 }
 
 // --------------------------------------------------------------------------
-// 8. SMART SELECTION MODE
+// 9. SMART SELECTION MODE
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -866,14 +972,20 @@ function multiDeletePerm() {
 }
 
 // --------------------------------------------------------------------------
-// 9. FILE UPLOAD ENGINE
+// 10. FILE UPLOAD ENGINE (WITH ADMIN REMOTE PERMISSION CHECK)
 // --------------------------------------------------------------------------
 const fileInputEl = document.getElementById('fileInput');
 if (fileInputEl) {
     fileInputEl.addEventListener('change', async (e) => {
+        if (!isUploadAllowedGlobally) {
+            e.target.value = '';
+            return showToast("⚠️ Cloud uploads are temporarily paused by Admin!");
+        }
+
         if (!e.target.files || e.target.files.length === 0) return;
         const files = Array.from(e.target.files).filter(f => f && (f.type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(f.name)));
         if (!files.length) return showToast("Please select valid photos!");
+        
         await uploadBatchPhotos(files, currentUser, currentView, showToast);
         e.target.value = '';
     });
