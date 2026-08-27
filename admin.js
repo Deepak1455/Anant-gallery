@@ -18,10 +18,10 @@ import {
     onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 SUPER ADMIN EMAILS (यहाँ अपना एडमिन ईमेल लिखें)
+// 🌟 SUPER ADMIN EMAILS (आपका ईमेल यहाँ जोड़ दिया गया है)
 const SUPER_ADMIN_EMAILS = [
-    "admin@anant.gallery",
-    "vikash@gmail.com" // <- अपना ईमेल यहाँ जोड़ें
+    "dt8484970@gmail.com",
+    "admin@anant.gallery"
 ];
 
 let currentUser = null;
@@ -50,10 +50,16 @@ function formatBytes(bytes) {
 onAuthStateChanged(auth, (user) => {
     if (user && (SUPER_ADMIN_EMAILS.includes(user.email?.toLowerCase()) || user.email?.endsWith("@admin.com"))) {
         currentUser = user;
-        document.getElementById("adminEmailDisplay").innerText = user.email;
+        const emailDisplay = document.getElementById("adminEmailDisplay");
+        if (emailDisplay) emailDisplay.innerText = user.email;
+        
+        const deniedScreen = document.getElementById("accessDeniedScreen");
+        if (deniedScreen) deniedScreen.style.display = "none";
+        
         initAdminDashboard();
     } else {
-        document.getElementById("accessDeniedScreen").style.display = "flex";
+        const deniedScreen = document.getElementById("accessDeniedScreen");
+        if (deniedScreen) deniedScreen.style.display = "flex";
     }
 });
 
@@ -100,10 +106,10 @@ function listenToGlobalAppConfig() {
         if (toggleUp) toggleUp.checked = data.allowUploads !== false;
 
         if (data.broadcastNotice && data.broadcastNotice.trim()) {
-            previewBox.style.display = "block";
-            previewText.innerText = data.broadcastNotice;
+            if (previewBox) previewBox.style.display = "block";
+            if (previewText) previewText.innerText = data.broadcastNotice;
         } else {
-            previewBox.style.display = "none";
+            if (previewBox) previewBox.style.display = "none";
         }
     });
 
@@ -157,11 +163,17 @@ function listenToTelemetry() {
             }
         });
 
-        document.getElementById("valTotalPhotos").innerText = total;
-        document.getElementById("valActivePhotos").innerText = `${active} active`;
-        document.getElementById("valTotalUsers").innerText = usersSet.size;
-        document.getElementById("valTotalStorage").innerText = formatBytes(totalBytes);
-        document.getElementById("valTrashCount").innerText = trash;
+        const elTotal = document.getElementById("valTotalPhotos");
+        const elActive = document.getElementById("valActivePhotos");
+        const elUsers = document.getElementById("valTotalUsers");
+        const elStorage = document.getElementById("valTotalStorage");
+        const elTrash = document.getElementById("valTrashCount");
+
+        if (elTotal) elTotal.innerText = total;
+        if (elActive) elActive.innerText = `${active} active`;
+        if (elUsers) elUsers.innerText = usersSet.size;
+        if (elStorage) elStorage.innerText = formatBytes(totalBytes);
+        if (elTrash) elTrash.innerText = trash;
     });
 }
 
@@ -171,6 +183,8 @@ function listenToTelemetry() {
 async function loadRecentPhotoStream() {
     const streamGrid = document.getElementById("adminPhotoGrid");
     const countBadge = document.getElementById("streamCount");
+    if (!streamGrid) return;
+    
     streamGrid.innerHTML = `<div class="stream-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching stream...</div>`;
 
     const q = query(collection(db, "user_photos"), orderBy("createdAt", "desc"), limit(36));
@@ -181,7 +195,7 @@ async function loadRecentPhotoStream() {
         return;
     }
 
-    countBadge.innerText = `Showing ${snap.size} latest`;
+    if (countBadge) countBadge.innerText = `Showing ${snap.size} latest`;
     streamGrid.innerHTML = "";
 
     snap.forEach((docSnap) => {
@@ -219,6 +233,8 @@ document.getElementById("btnRefreshStream")?.addEventListener("click", loadRecen
 // --------------------------------------------------------------------------
 async function loadUserDirectory() {
     const tableBody = document.getElementById("userTableBody");
+    if (!tableBody) return;
+    
     const photosRef = collection(db, "user_photos");
     const snap = await getDocs(photosRef);
 
