@@ -1,32 +1,85 @@
 {
   "id": "/",
   "name": "Anant Gallery",
-  "short_name": "Anant Gallery",
-  "description": "Infinite Cloud Photo Gallery & Backup",
+  "short_name": "Anant",
+  "description": "Infinite Cloud Photo Gallery, Smart Albums & Encrypted Vault Backup",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
+  "categories": [
+    "photo",
+    "productivity",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "loadingphoto.png",
+      "src": "/loadingphoto.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "loadingphoto.png",
+      "src": "/loadingphoto.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "loadingphoto.png",
+      "src": "/loadingphoto.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/loadingphoto.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Photos",
+      "short_name": "Photos",
+      "description": "View all cloud photos",
+      "url": "/",
+      "icons": [{ "src": "/loadingphoto.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Albums",
+      "short_name": "Albums",
+      "description": "Organize photo folders",
+      "url": "/#albums",
+      "icons": [{ "src": "/loadingphoto.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Favorites",
+      "short_name": "Favorites",
+      "description": "View favorite photos",
+      "url": "/#favorites",
+      "icons": [{ "src": "/loadingphoto.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/loadingphoto.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Anant Gallery Mobile Feed"
+    },
+    {
+      "src": "/loadingphoto.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Anant Gallery Desktop View"
     }
   ],
   "share_target": {
