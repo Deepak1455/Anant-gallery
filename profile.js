@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - 100% BUG-FREE & FAST (WITH ACCOUNT DELETION)
+// PROFILE MODULE - 100% BUG-FREE & FAST (WITH LEGAL LINKS & ACCOUNT DELETION)
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
@@ -24,6 +24,7 @@ import {
 
 const CLOUDINARY_CLOUD_NAME = "gvickscl";
 const CLOUDINARY_UPLOAD_PRESET = "my_photo";
+const OFFICIAL_SUPPORT_EMAIL = "anantgalleryogr@gmail.com";
 
 let unsubscribeProfile = null;
 
@@ -265,6 +266,7 @@ const injectProfileStyles = () => {
             width: 100%;
             background: linear-gradient(90deg, #4f46e5, #9333ea);
         }
+
         .info-list {
             margin-top: 15px;
             display: flex;
@@ -280,7 +282,10 @@ const injectProfileStyles = () => {
             border-radius: 14px;
             font-size: 0.88rem;
             border: 1px solid var(--border, rgba(0, 0, 0, 0.05));
+            cursor: pointer;
+            transition: transform 0.15s ease;
         }
+        .info-item:active { transform: scale(0.98); }
 
         .security-card {
             background: var(--bg-card, #ffffff);
@@ -596,11 +601,21 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                         </div>
                         <div class="info-item-val">${formattedDate}</div>
                     </div>
-                    <div class="info-item">
+                    
+                    <!-- 🌟 PRIVACY POLICY IN-APP LINK -->
+                    <div class="info-item" id="btnOpenPrivacyPolicy">
                         <div class="info-item-left">
-                            <i class="fa-solid fa-envelope" style="color:#ca8a04;"></i> Account Email
+                            <i class="fa-solid fa-shield-halved" style="color:#4f46e5;"></i> Privacy Policy & Data Rights
                         </div>
-                        <div class="info-item-val" style="font-size:0.8rem; word-break:break-all;">${email}</div>
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-muted); font-size:0.8rem;"></i>
+                    </div>
+
+                    <!-- 🌟 OFFICIAL SUPPORT EMAIL LINK -->
+                    <div class="info-item" id="btnContactSupport">
+                        <div class="info-item-left">
+                            <i class="fa-solid fa-headset" style="color:#ca8a04;"></i> Official Support Desk
+                        </div>
+                        <div class="info-item-val" style="font-size:0.78rem; font-weight:700; color:var(--accent);">${OFFICIAL_SUPPORT_EMAIL}</div>
                     </div>
                 </div>
 
@@ -669,6 +684,16 @@ export function renderProfileScreen(containerElement, passedUser = null) {
     if (profileContainer) {
         renderSettingsSection(profileContainer);
     }
+
+    // 🌟 Open Privacy Policy
+    document.getElementById('btnOpenPrivacyPolicy')?.addEventListener('click', () => {
+        window.open('/privacy.html', '_blank');
+    });
+
+    // 🌟 Open Support Email
+    document.getElementById('btnContactSupport')?.addEventListener('click', () => {
+        window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=Anant%20Gallery%20Support%20Request`;
+    });
 
     // Biometric Check
     isBiometricAvailable().then((supported) => {
