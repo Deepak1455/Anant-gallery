@@ -1,7 +1,6 @@
 // ==========================================================================
-// ANANT GALLERY - COMMAND CENTER (INTERACTIVE MODAL, REALTIME TABS & SYNC)
+// ANANT GALLERY - COMMAND CENTER (ACTIVE PHOTOS COUNT & ACCURATE STATS)
 // ==========================================================================
-
 
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -27,7 +26,7 @@ let currentSearchTerm = "";
 
 // Active inspected user in modal
 let selectedUserForModal = null;
-let currentModalFilterTab = 'photos'; // 'photos' | 'favs' | 'trash' | 'all'
+let currentModalFilterTab = 'photos'; // 'photos' (Active) | 'favs' | 'trash' | 'all'
 
 function showToast(msg) {
     const t = document.getElementById("adminToast");
@@ -218,7 +217,7 @@ function listenToTelemetryAndPhotos() {
 
         cachedUsersMap = usersMap;
 
-        // 1. UPDATE TELEMETRY CARDS
+        // 1. Update Telemetry Cards
         const elTotal = document.getElementById("valTotalPhotos");
         const elActive = document.getElementById("valActivePhotos");
         const elUsers = document.getElementById("valTotalUsers");
@@ -235,14 +234,14 @@ function listenToTelemetryAndPhotos() {
         // Live Total User Count Badge
         if (userBadge) userBadge.innerText = `${usersMap.size} ${usersMap.size === 1 ? 'Account' : 'Accounts'}`;
 
-        // 2. RENDER GLOBAL PHOTO STREAM
+        // 2. Render Global Photo Stream
         rawPhotos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         renderPhotoStream(rawPhotos.slice(0, 36));
 
-        // 3. RENDER ADVANCED USER DIRECTORY
+        // 3. Render Advanced User Directory
         filterAndRenderUsers();
 
-        // 4. AUTO-REFRESH MODAL IF OPEN
+        // 4. Auto-Refresh Modal If Open
         if (selectedUserForModal && usersMap.has(selectedUserForModal.uid)) {
             selectedUserForModal = usersMap.get(selectedUserForModal.uid);
             updateModalUI();
@@ -356,7 +355,7 @@ function filterAndRenderUsers() {
                     </div>
                 </div>
             </td>
-            <td><strong>${user.count}</strong></td>
+            <td><strong>${user.activeCount}</strong></td>
             <td><span style="font-family:'JetBrains Mono'; font-weight:700; color:var(--accent);">${formatBytes(user.bytes)}</span></td>
             <td>${user.favs} ❤️</td>
             <td>${user.trash} 🗑️</td>
@@ -378,7 +377,7 @@ function filterAndRenderUsers() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 7. VIEW PHOTOS MODAL (100% IDENTICAL TO PROVEN LIVE STREAM GRID)
+// 🌟 7. VIEW PHOTOS MODAL (ACTIVE PHOTOS COUNT SYNCHRONIZED)
 // --------------------------------------------------------------------------
 function setupModalTabs() {
     document.getElementById("tabStatPhotos")?.addEventListener("click", () => switchModalTab('photos'));
@@ -411,8 +410,8 @@ function updateModalUI() {
     document.getElementById("modalUserName").innerText = user.name;
     document.getElementById("modalUserEmail").innerText = `${user.email} (UID: ${user.uid})`;
 
-    // 2. Update Stats
-    document.getElementById("modalTotalPhotos").innerText = user.count;
+    // 🌟 2. Shows ACTIVE Photos count (e.g. 110) instead of total including trash
+    document.getElementById("modalTotalPhotos").innerText = user.activeCount;
     document.getElementById("modalTotalStorage").innerText = formatBytes(user.bytes);
     document.getElementById("modalFavPhotos").innerText = user.favs;
     document.getElementById("modalTrashPhotos").innerText = user.trash;
@@ -459,7 +458,7 @@ function updateModalUI() {
 
     filteredList.forEach(p => {
         const card = document.createElement("div");
-        card.className = "admin-photo-card"; // Same exact class as working live stream
+        card.className = "admin-photo-card";
         card.innerHTML = `
             <img src="${p.image}" loading="lazy" alt="User Photo" onerror="this.src='/loadingphoto.png'">
             <div class="admin-photo-overlay">
