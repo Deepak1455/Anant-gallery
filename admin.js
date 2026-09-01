@@ -377,24 +377,13 @@ function filterAndRenderUsers() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 7. PERFECT SQUARE USER PHOTO INSPECTOR (100% FIXED GRID)
+// 🌟 7. VIEW PHOTOS MODAL (100% IDENTICAL TO PROVEN LIVE STREAM GRID)
 // --------------------------------------------------------------------------
 function setupModalTabs() {
-    document.getElementById("tabStatPhotos")?.addEventListener("click", () => {
-        switchModalTab('photos');
-    });
-
-    document.getElementById("tabStatFavs")?.addEventListener("click", () => {
-        switchModalTab('favs');
-    });
-
-    document.getElementById("tabStatTrash")?.addEventListener("click", () => {
-        switchModalTab('trash');
-    });
-
-    document.getElementById("tabStatStorage")?.addEventListener("click", () => {
-        switchModalTab('all');
-    });
+    document.getElementById("tabStatPhotos")?.addEventListener("click", () => switchModalTab('photos'));
+    document.getElementById("tabStatFavs")?.addEventListener("click", () => switchModalTab('favs'));
+    document.getElementById("tabStatTrash")?.addEventListener("click", () => switchModalTab('trash'));
+    document.getElementById("tabStatStorage")?.addEventListener("click", () => switchModalTab('all'));
 }
 
 function switchModalTab(tabKey) {
@@ -416,12 +405,12 @@ function updateModalUI() {
     if (!selectedUserForModal) return;
     const user = selectedUserForModal;
 
-    // 1. Update Profile Info
+    // 1. Update Profile Header
     document.getElementById("modalUserAvatar").innerText = user.name.charAt(0).toUpperCase();
     document.getElementById("modalUserName").innerText = user.name;
     document.getElementById("modalUserEmail").innerText = `${user.email} (UID: ${user.uid})`;
 
-    // 2. Update Stats Numbers
+    // 2. Update Stats
     document.getElementById("modalTotalPhotos").innerText = user.count;
     document.getElementById("modalTotalStorage").innerText = formatBytes(user.bytes);
     document.getElementById("modalFavPhotos").innerText = user.favs;
@@ -433,7 +422,7 @@ function updateModalUI() {
     document.getElementById("tabStatTrash")?.classList.toggle('active', currentModalFilterTab === 'trash');
     document.getElementById("tabStatStorage")?.classList.toggle('active', currentModalFilterTab === 'all');
 
-    // 4. Filter Photos Based on Active Tab
+    // 4. Filter Photos
     let filteredList = [];
     let headingText = "Active Photos";
 
@@ -454,7 +443,7 @@ function updateModalUI() {
     document.getElementById("modalGalleryHeading").innerText = headingText;
     document.getElementById("modalGalleryCountBadge").innerText = `(${filteredList.length})`;
 
-    // 5. Render Bulletproof 3-Column Square Grid
+    // 5. Render Exact Proven 3-Column Square Grid
     const grid = document.getElementById("modalUserPhotosGrid");
     grid.innerHTML = "";
 
@@ -468,10 +457,10 @@ function updateModalUI() {
     const fragment = document.createDocumentFragment();
 
     filteredList.forEach(p => {
-        const item = document.createElement("div");
-        item.className = "user-photo-item";
-        item.innerHTML = `
-            <img src="${p.image}" loading="lazy" decoding="async" alt="User Photo" onerror="this.src='/loadingphoto.png'">
+        const card = document.createElement("div");
+        card.className = "admin-photo-card"; // Same exact class as working live stream
+        card.innerHTML = `
+            <img src="${p.image}" loading="lazy" alt="User Photo" onerror="this.src='/loadingphoto.png'">
             <div class="admin-photo-overlay">
                 <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}">
                     <i class="fa-solid fa-trash"></i>
@@ -480,12 +469,12 @@ function updateModalUI() {
             </div>
         `;
 
-        item.querySelector(".btn-mod-delete").onclick = async (e) => {
+        card.querySelector(".btn-mod-delete").onclick = async (e) => {
             e.stopPropagation();
             if (confirm("Delete this photo permanently for this user?")) {
                 try {
                     await deleteDoc(doc(db, "user_photos", p.id));
-                    item.remove();
+                    card.remove();
                     showToast("Photo deleted permanently!");
                 } catch (err) {
                     showToast("Delete failed: " + err.message);
@@ -493,7 +482,7 @@ function updateModalUI() {
             }
         };
 
-        fragment.appendChild(item);
+        fragment.appendChild(card);
     });
 
     grid.appendChild(fragment);
