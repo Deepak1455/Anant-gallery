@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ANANT GALLERY - SUPER ADMIN COMMAND CENTER (PERFECT LIVE STREAM GRID)
+   ANANT GALLERY - SUPER ADMIN COMMAND CENTER (PERFECT CLEAN & MODERN UI)
    ========================================================================== */
 
 :root {
@@ -21,7 +21,7 @@
     --text-muted: #64748b;
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.03);
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.05);
-    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.14);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
 }
 
 html, body {
@@ -184,7 +184,6 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
 }
 
 .section-heading-split {
@@ -193,7 +192,7 @@ body {
     justify-content: space-between;
     margin-bottom: 14px;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
 }
 
 /* 1. TELEMETRY GRID */
@@ -267,7 +266,7 @@ body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
-    margin-bottom: 16px;
+    margin: 14px 0 16px 0;
 }
 
 @media (min-width: 600px) {
@@ -323,76 +322,192 @@ body {
 input:checked + .slider { background-color: var(--accent); }
 input:checked + .slider:before { transform: translateX(20px); }
 
-/* BROADCAST */
-.broadcast-box {
-    background: var(--warning-light);
-    border: 1px dashed rgba(245, 158, 11, 0.4);
-    border-radius: 16px;
-    padding: 14px;
+/* ==========================================================================
+   🌟 NEW ULTRA-CLEAN GLOBAL BROADCAST CARD (ZERO OVERFLOW)
+   ========================================================================== */
+.broadcast-card {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(251, 191, 36, 0.04) 100%);
+    border: 1.5px dashed rgba(245, 158, 11, 0.35);
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.broadcast-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .broadcast-title {
-    font-size: 0.85rem;
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #b45309;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-notice-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 0.72rem;
     font-weight: 700;
-    margin-bottom: 8px;
+    padding: 3px 10px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #b45309;
 }
 
-.broadcast-row {
+.live-pulse-green {
+    width: 6px;
+    height: 6px;
+    background: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #10b981;
+    animation: pulse 1.4s infinite;
+}
+
+.broadcast-input-box {
     display: flex;
+    flex-direction: column;
     gap: 8px;
     width: 100%;
 }
 
-.broadcast-row input {
-    flex: 1;
-    background: #ffffff;
-    border: 1px solid var(--border);
-    color: var(--text-main);
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    outline: none;
+@media (min-width: 600px) {
+    .broadcast-input-box {
+        flex-direction: row;
+        align-items: center;
+    }
 }
 
-.broadcast-row input:focus { border-color: var(--warning); }
+.broadcast-input-wrap {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
 
-.btn-broadcast {
-    background: var(--warning);
+.broadcast-icon {
+    position: absolute;
+    left: 14px;
+    color: #f59e0b;
+    font-size: 0.85rem;
+}
+
+.broadcast-input-wrap input {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: var(--text-main);
+    padding: 11px 14px 11px 38px;
+    border-radius: 14px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.broadcast-input-wrap input:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+.broadcast-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.btn-broadcast-send {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     color: #ffffff;
     border: none;
-    padding: 10px 16px;
-    border-radius: 12px;
+    padding: 11px 18px;
+    border-radius: 14px;
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+    transition: transform 0.15s ease;
 }
 
-.btn-clear-notice {
+.btn-broadcast-send:active { transform: scale(0.95); }
+
+.btn-broadcast-clear {
     background: #ffffff;
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    width: 38px;
-    border-radius: 12px;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: transform 0.15s ease, background 0.2s;
 }
 
-.broadcast-preview {
-    margin-top: 8px;
-    font-size: 0.78rem;
+.btn-broadcast-clear:active { transform: scale(0.92); background: #fee2e2; }
+
+.broadcast-preview-chip {
+    background: #ffffff;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 12px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.8rem;
     color: #92400e;
-    background: rgba(245, 158, 11, 0.15);
-    padding: 6px 10px;
-    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
 }
 
-/* 🌟 3. USER DIRECTORY STYLES */
+.preview-icon {
+    color: #10b981;
+    font-size: 0.95rem;
+    margin-top: 2px;
+}
+
+.preview-content {
+    flex: 1;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+/* ==========================================================================
+   🌟 3. USER DIRECTORY & PROFILE MANAGER (FIXED ONE-LINE BADGE)
+   ========================================================================== */
+.dir-title-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.user-count-pill {
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+}
+
 .user-search-wrapper {
     position: relative;
     width: 100%;
@@ -510,8 +625,51 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 /* ==========================================================================
-   🌟 4. PROVEN CLEAN SQUARE GRID (SHARED BY LIVE STREAM & MODAL)
+   🌟 4. REALTIME PHOTO STREAM & NEW ICONIC REFRESH BUTTON
    ========================================================================== */
+.stream-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stream-badge {
+    font-size: 0.72rem;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 5px 11px;
+    border-radius: 12px;
+    font-weight: 700;
+}
+
+.btn-refresh-stream {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: #ffffff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+
+.btn-refresh-stream:active { transform: scale(0.94); }
+
+.btn-refresh-stream i.spin {
+    animation: rotateRefresh 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes rotateRefresh {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 .photo-stream-grid {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
@@ -527,13 +685,12 @@ input:checked + .slider:before { transform: translateX(20px); }
     }
 }
 
-/* Dedicated container for main page live stream */
 #adminPhotoGrid {
     max-height: 420px;
     overflow-y: auto;
+    margin-top: 10px;
 }
 
-/* Dedicated container for modal photo list */
 .user-modal-scroll-area {
     width: 100%;
     max-height: 54vh;
@@ -542,7 +699,6 @@ input:checked + .slider:before { transform: translateX(20px); }
     padding: 4px 16px 20px 16px;
 }
 
-/* 🌟 PERFECT ZERO-COLLAPSE SQUARE PHOTO CARD */
 .admin-photo-card {
     position: relative !important;
     width: 100% !important;
@@ -603,7 +759,9 @@ input:checked + .slider:before { transform: translateX(20px); }
     text-overflow: ellipsis;
 }
 
-/* 🌟 USER INSPECTOR MODAL BASE */
+/* ==========================================================================
+   🌟 5. PROVEN ZERO-COLLAPSE USER INSPECTOR MODAL
+   ========================================================================== */
 .user-modal-overlay {
     position: fixed;
     inset: 0;
@@ -708,7 +866,6 @@ input:checked + .slider:before { transform: translateX(20px); }
     flex-shrink: 0;
 }
 
-/* INTERACTIVE CLICKABLE PILLS */
 .user-modal-stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
