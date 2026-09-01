@@ -2,27 +2,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Privacy Policy - Anant Gallery</title>
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="loadingphoto.png">
-    <link rel="apple-touch-icon" href="loadingphoto.png">
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
+
+    <!-- Status Bar Theme Color (Adaptive for Battery / Clock Visibility) -->
+    <meta name="theme-color" content="#f8fafc" id="statusThemeColor">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
     <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
-            --bg-body: #090d16;
-            --bg-card: rgba(15, 23, 42, 0.85);
-            --bg-glass: rgba(30, 41, 59, 0.7);
-            --accent: #6366f1;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-glass: rgba(255, 255, 255, 0.9);
+            --accent: #4f46e5;
             --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: rgba(0, 0, 0, 0.08);
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+            --status-bar-bg: #f8fafc;
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --bg-glass: rgba(15, 23, 42, 0.92);
+            --accent: #818cf8;
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.12);
+            --border: rgba(255, 255, 255, 0.1);
+            --card-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
+            --status-bar-bg: #0f172a;
         }
 
         * {
@@ -35,71 +57,81 @@
 
         body {
             background: var(--bg-body);
-            background-image: 
-                radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.18) 0%, transparent 65%),
-                radial-gradient(circle at 100% 100%, rgba(147, 51, 234, 0.12) 0%, transparent 50%);
             color: var(--text-main);
             line-height: 1.65;
-            padding: 24px 14px 60px 14px;
+            padding: calc(env(safe-area-inset-top, 20px) + 12px) 14px 60px 14px;
             min-height: 100vh;
             display: flex;
             justify-content: center;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         .container {
             width: 100%;
             max-width: 780px;
-            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(16px); }
+            from { opacity: 0; transform: translateY(14px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 🌟 BRAND HERO CARD WITH BACKGROUND.PNG */
+        /* 🌟 TOP FLOATING BAR (BACK + THEME TOGGLE) */
+        .top-action-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            padding: 0 4px;
+        }
+
+        .btn-circle {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.15s ease, background 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-circle:active {
+            transform: scale(0.92);
+        }
+
+        /* 🌟 BRAND HERO CARD (PURE CLEAN LOOK) */
         .brand-hero {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 26px;
-            padding: 28px 22px;
+            padding: 28px 20px;
             text-align: center;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.35);
-            margin-bottom: 20px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 18px;
             position: relative;
             overflow: hidden;
-        }
-
-        .brand-hero::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
-            pointer-events: none;
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
         .logo-box {
-            width: 90px;
-            height: 90px;
-            margin: 0 auto 16px auto;
+            width: 82px;
+            height: 82px;
+            margin: 0 auto 14px auto;
             border-radius: 24px;
             background: var(--accent-gradient);
             padding: 3px;
-            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.4);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.25);
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: floatLogo 4s ease-in-out infinite;
-        }
-
-        @keyframes floatLogo {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-6px); }
         }
 
         .logo-img {
@@ -107,15 +139,13 @@
             height: 100%;
             border-radius: 21px;
             object-fit: cover;
-            background: #0f172a;
+            background: #ffffff;
         }
 
         .brand-title {
-            font-size: 1.85rem;
+            font-size: 1.75rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--text-main);
             margin-bottom: 4px;
             letter-spacing: -0.4px;
         }
@@ -130,14 +160,19 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(34, 197, 94, 0.15);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            padding: 5px 14px;
+            background: rgba(34, 197, 94, 0.12);
+            color: #16a34a;
+            border: 1px solid rgba(34, 197, 94, 0.25);
+            padding: 6px 16px;
             border-radius: 20px;
-            font-size: 0.76rem;
+            font-size: 0.78rem;
             font-weight: 700;
             margin-top: 14px;
+        }
+
+        [data-theme="dark"] .compliance-badge {
+            color: #4ade80;
+            background: rgba(34, 197, 94, 0.18);
         }
 
         /* 🌟 CONTENT CARD */
@@ -145,16 +180,15 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 26px;
-            padding: 30px 24px;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+            padding: 28px 22px;
+            box-shadow: var(--card-shadow);
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
         h2 {
-            font-size: 1.15rem;
+            font-size: 1.1rem;
             font-weight: 700;
-            color: #818cf8;
+            color: var(--accent);
             margin: 24px 0 10px 0;
             display: flex;
             align-items: center;
@@ -165,24 +199,22 @@
 
         p, li {
             font-size: 0.92rem;
-            color: #cbd5e1;
+            color: var(--text-main);
+            opacity: 0.9;
             margin-bottom: 12px;
-            line-height: 1.6;
+            line-height: 1.65;
         }
 
-        ul { padding-left: 20px; }
+        ul { padding-left: 20px; margin-bottom: 12px; }
 
-        /* 🌟 SPECIAL ALERT BOX FOR DATA DELETION */
         .alert-box {
-            background: rgba(99, 102, 241, 0.08);
-            border: 1px solid rgba(99, 102, 241, 0.25);
+            background: rgba(79, 70, 229, 0.06);
+            border: 1px solid rgba(79, 70, 229, 0.2);
             border-left: 4px solid var(--accent);
-            padding: 18px 16px;
+            padding: 16px;
             border-radius: 16px;
             margin: 20px 0;
         }
-
-        .alert-box strong { color: #ffffff; }
 
         .btn-action {
             display: inline-flex;
@@ -190,13 +222,13 @@
             gap: 8px;
             background: var(--accent-gradient);
             color: #ffffff;
-            padding: 10px 18px;
+            padding: 12px 20px;
             border-radius: 14px;
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
             text-decoration: none;
             margin-top: 8px;
-            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
             transition: transform 0.15s ease;
         }
 
@@ -204,7 +236,7 @@
 
         .footer-credit {
             text-align: center;
-            margin-top: 30px;
+            margin-top: 26px;
             font-size: 0.8rem;
             color: var(--text-muted);
         }
@@ -214,15 +246,25 @@
 
     <div class="container">
         
-        <!-- BRAND HERO HEADER WITH BACKGROUND.PNG -->
+        <!-- TOP NAV BAR -->
+        <div class="top-action-bar">
+            <a href="/" class="btn-circle" title="Back to Gallery">
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+            <button class="btn-circle" id="themeToggleBtn" title="Toggle Light / Dark">
+                <i class="fa-solid fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- BRAND HERO HEADER -->
         <div class="brand-hero">
             <div class="logo-box">
-                <img src="background.png" class="logo-img" alt="Anant Gallery" onerror="this.src='loadingphoto.png'; this.onerror=null;">
+                <img src="/icon-192.png" class="logo-img" alt="Anant Gallery" onerror="this.src='/loadingphoto.png'; this.onerror=null;">
             </div>
             <div class="brand-title">Anant Gallery</div>
             <div class="brand-sub">Infinite Cloud Storage & Photo Protection</div>
             <div class="compliance-badge">
-                <i class="fa-solid fa-circle-check"></i> Google Play Compliant • 5 August 2026
+                <i class="fa-solid fa-circle-check"></i> Google Play Compliant • 2026
             </div>
         </div>
 
@@ -230,39 +272,32 @@
         <div class="content-card">
             
             <p><strong>Last Updated:</strong> 5 August 2026</p>
-            <p><strong>DK indus Studio</strong> ("we", "our", or "us") operates the <strong>Anant Gallery</strong> mobile application. This Privacy Policy details our transparent commitment to your privacy, personal data rights, and encryption standards.</p>
+            <p><strong>DK indus Studio</strong> ("we", "our", or "us") operates the <strong>Anant Gallery</strong> mobile application. This Privacy Policy details our transparent commitment to your personal data privacy, encryption standards, and media rights.</p>
 
             <h2><i class="fa-solid fa-database"></i> 1. Information We Collect</h2>
             <ul>
-                <li><strong>Account Identity:</strong> Your email address and display name obtained via Firebase Authentication for account creation, multi-device backup sync, and secure sessions.</li>
-                <li><strong>Photos & Media Files:</strong> Only user-selected photos uploaded explicitly for unlimited cloud backup, custom album categorization, and your encrypted private vault.</li>
-                <li><strong>Biometric Security:</strong> Biometric fingerprint and PIN authentication operate 100% locally on your device via standard Android WebAuthn platform APIs. We never transmit or store your fingerprint biometric records on our servers.</li>
+                <li><strong>Account Identity:</strong> Your email address and display name via Firebase Authentication for secure multi-device cloud synchronization.</li>
+                <li><strong>Photos & Media Files:</strong> Only user-selected photos uploaded explicitly for infinite cloud backup, smart albums, and your private vault.</li>
+                <li><strong>Biometric Security:</strong> Biometric fingerprint and PIN authentication operate 100% locally on your device via standard Android WebAuthn platform APIs. We never store or transmit your biometric records.</li>
             </ul>
 
             <h2><i class="fa-solid fa-lock"></i> 2. Data Security & Encryption</h2>
-            <p>Your photos, database records, and sync queues are encrypted end-to-end in transit using modern HTTPS/TLS 1.3 cryptographic protocols to prevent unauthorized access.</p>
+            <p>Your photos, metadata, and background sync queues are encrypted end-to-end in transit using modern TLS 1.3 cryptographic protocols.</p>
 
             <h2 id="deletion"><i class="fa-solid fa-user-xmark"></i> 3. Account & Data Deletion (User Rights)</h2>
             <div class="alert-box">
                 <p><strong>Complete Control Over Your Memories:</strong> You have the absolute right to delete your data at any time.</p>
                 <p><strong>In-App Instant Deletion:</strong> Open the app ➔ Go to <strong>My Profile ➔ Danger Zone ➔ Delete My Account & Data</strong> to permanently wipe all your photos, albums, and user credentials immediately.</p>
-                <p><strong>Manual Request:</strong> You can also email us directly to request complete manual account deletion:</p>
                 <a href="mailto:anantgalleryogr@gmail.com?subject=Account%20Deletion%20Request" class="btn-action">
                     <i class="fa-solid fa-trash-can"></i> Request Account Deletion via Email
                 </a>
             </div>
 
             <h2><i class="fa-solid fa-headset"></i> 4. Contact & Support Desk</h2>
-            <p>If you have any questions, inquiries, or privacy concerns regarding this policy, feel free to reach out directly to our official support team:</p>
-            <a href="mailto:anantgalleryogr@gmail.com" class="btn-action" style="background: rgba(255,255,255,0.1); border: 1px solid var(--border); box-shadow:none;">
-                <i class="fa-solid fa-envelope"></i> anantgalleryogr@gmail.com
+            <p>If you have any questions or concerns regarding this policy, feel free to reach out directly to our official support team:</p>
+            <a href="mailto:anantgalleryogr@gmail.com" class="btn-action" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); box-shadow: none;">
+                <i class="fa-solid fa-envelope" style="color: var(--accent);"></i> anantgalleryogr@gmail.com
             </a>
-
-            <div style="margin-top: 26px; text-align: center;">
-                <a href="/" class="btn-action">
-                    <i class="fa-solid fa-arrow-left"></i> Open Anant Gallery App
-                </a>
-            </div>
 
         </div>
 
@@ -272,5 +307,29 @@
 
     </div>
 
+    <!-- THEME SYNC SCRIPT -->
+    <script>
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeIcon = document.getElementById('themeIcon');
+        const statusMeta = document.getElementById('statusThemeColor');
+
+        function applyCurrentTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const isDark = theme === 'dark';
+            themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            if (statusMeta) {
+                statusMeta.setAttribute('content', isDark ? '#0f172a' : '#f8fafc');
+            }
+            localStorage.setItem('app_theme', theme);
+        }
+
+        const savedTheme = localStorage.getItem('app_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        applyCurrentTheme(savedTheme);
+
+        themeToggleBtn.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            applyCurrentTheme(current === 'dark' ? 'light' : 'dark');
+        });
+    </script>
 </body>
 </html>
