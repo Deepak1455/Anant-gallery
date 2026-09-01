@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - COMMAND CENTER LOGIC (100% LIVE, DETAILED USERS & SYNC)
+// ANANT GALLERY - COMMAND CENTER (INTERACTIVE MODAL, REALTIME TABS & SYNC)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -23,6 +23,10 @@ let currentUser = null;
 let toastTimer = null;
 let cachedUsersMap = new Map();
 let currentSearchTerm = "";
+
+// State for active inspected user
+let selectedUserForModal = null;
+let currentModalFilterTab = 'photos'; // 'photos' | 'favs' | 'trash' | 'all'
 
 function showToast(msg) {
     const t = document.getElementById("adminToast");
@@ -74,6 +78,7 @@ function initAdminDashboard() {
     listenToGlobalAppConfig();
     listenToTelemetryAndPhotos();
     setupUserSearch();
+    setupModalTabs();
 }
 
 // --------------------------------------------------------------------------
@@ -173,9 +178,9 @@ function listenToTelemetryAndPhotos() {
 
             const uid = d.uid || "Anonymous";
             
-            // Extract Profile Info from photo data or fallback
+            // Extract profile metadata
             const userName = d.userName || d.userEmail?.split('@')[0] || (uid.length > 8 ? uid.substring(0, 8) : uid);
-            const userEmail = d.userEmail || `${uid.substring(0, 10)}...@cloud`;
+            const userEmail = d.userEmail || `${uid.substring(0, 8)}@cloud`;
 
             if (!usersMap.has(uid)) {
                 usersMap.set(uid, { 
@@ -183,6 +188,7 @@ function listenToTelemetryAndPhotos() {
                     name: userName,
                     email: userEmail,
                     count: 0, 
+                    activeCount: 0,
                     bytes: 0, 
                     favs: 0, 
                     trash: 0,
@@ -191,7 +197,6 @@ function listenToTelemetryAndPhotos() {
             }
 
             const uData = usersMap.get(uid);
-            // Update better name/email if discovered
             if (d.userName && uData.name.startsWith(uid.substring(0, 4))) uData.name = d.userName;
             if (d.userEmail && uData.email.includes('@cloud')) uData.email = d.userEmail;
 
@@ -206,6 +211,7 @@ function listenToTelemetryAndPhotos() {
                 uData.trash++;
             } else {
                 active++;
+                uData.activeCount++;
                 if (d.isFavorite === true) uData.favs++;
             }
         });
@@ -218,12 +224,16 @@ function listenToTelemetryAndPhotos() {
         const elUsers = document.getElementById("valTotalUsers");
         const elStorage = document.getElementById("valTotalStorage");
         const elTrash = document.getElementById("valTrashCount");
+        const userBadge = document.getElementById("valTotalUsersBadge");
 
         if (elTotal) elTotal.innerText = total;
         if (elActive) elActive.innerText = `${active} active`;
         if (elUsers) elUsers.innerText = usersMap.size;
         if (elStorage) elStorage.innerText = formatBytes(totalBytes);
         if (elTrash) elTrash.innerText = trash;
+        
+        // 🌟 LIVE TOTAL USER COUNT BADGE
+        if (userBadge) userBadge.innerText = `${usersMap.size} ${usersMap.size === 1 ? 'Account' : 'Accounts'}`;
 
         // 2. RENDER PHOTO STREAM
         rawPhotos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -231,6 +241,12 @@ function listenToTelemetryAndPhotos() {
 
         // 3. RENDER ADVANCED USER DIRECTORY
         filterAndRenderUsers();
+
+        // 4. AUTO-REFRESH MODAL IF OPEN
+        if (selectedUserForModal && usersMap.has(selectedUserForModal.uid)) {
+            selectedUserForModal = usersMap.get(selectedUserForModal.uid);
+            updateModalUI();
+        }
 
     }, (err) => {
         console.error("Firestore Read Error:", err);
@@ -291,7 +307,7 @@ function renderPhotoStream(photos) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 6. ADVANCED USER DIRECTORY & SEARCH ENGINE
+// 6. ADVANCED USER DIRECTORY & SEARCH ENGINE
 // --------------------------------------------------------------------------
 function setupUserSearch() {
     const searchInput = document.getElementById("userSearchInput");
@@ -352,6 +368,8 @@ function filterAndRenderUsers() {
         `;
 
         tr.querySelector(".btn-inspect-user").onclick = () => {
+            selectedUserForModal = user;
+            currentModalFilterTab = 'photos'; // default to active photos
             openUserInspectModal(user);
         };
 
@@ -360,68 +378,140 @@ function filterAndRenderUsers() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 7. USER PHOTO INSPECTION MODAL (FULL PHOTO DETAILS)
+// 🌟 7. INTERACTIVE USER PHOTO INSPECTOR (SMART TABS FOR PHOTOS, FAVS & TRASH)
 // --------------------------------------------------------------------------
+function setupModalTabs() {
+    document.getElementById("tabStatPhotos")?.addEventListener("click", () => {
+        switchModalTab('photos');
+    });
+
+    document.getElementById("tabStatFavs")?.addEventListener("click", () => {
+        switchModalTab('favs');
+    });
+
+    document.getElementById("tabStatTrash")?.addEventListener("click", () => {
+        switchModalTab('trash');
+    });
+
+    document.getElementById("tabStatStorage")?.addEventListener("click", () => {
+        switchModalTab('all');
+    });
+}
+
+function switchModalTab(tabKey) {
+    currentModalFilterTab = tabKey;
+    if (navigator.vibrate) navigator.vibrate(15);
+    updateModalUI();
+}
+
 function openUserInspectModal(user) {
     const modal = document.getElementById("userInspectModal");
     if (!modal) return;
 
+    selectedUserForModal = user;
+    updateModalUI();
+    modal.style.display = "flex";
+}
+
+function updateModalUI() {
+    if (!selectedUserForModal) return;
+    const user = selectedUserForModal;
+
+    // 1. Update Profile Info
     document.getElementById("modalUserAvatar").innerText = user.name.charAt(0).toUpperCase();
     document.getElementById("modalUserName").innerText = user.name;
-    document.getElementById("modalUserEmail").innerText = user.email + ` (UID: ${user.uid})`;
+    document.getElementById("modalUserEmail").innerText = `${user.email} (UID: ${user.uid})`;
 
+    // 2. Update Stats Numbers
     document.getElementById("modalTotalPhotos").innerText = user.count;
     document.getElementById("modalTotalStorage").innerText = formatBytes(user.bytes);
     document.getElementById("modalFavPhotos").innerText = user.favs;
     document.getElementById("modalTrashPhotos").innerText = user.trash;
-    document.getElementById("modalGalleryCount").innerText = user.photos.length;
 
+    // 3. Highlight Active Tab
+    document.getElementById("tabStatPhotos")?.classList.toggle('active', currentModalFilterTab === 'photos');
+    document.getElementById("tabStatFavs")?.classList.toggle('active', currentModalFilterTab === 'favs');
+    document.getElementById("tabStatTrash")?.classList.toggle('active', currentModalFilterTab === 'trash');
+    document.getElementById("tabStatStorage")?.classList.toggle('active', currentModalFilterTab === 'all');
+
+    // 4. Filter Photos Based on Active Tab
+    let filteredList = [];
+    let headingText = "Active Photos";
+
+    if (currentModalFilterTab === 'photos') {
+        filteredList = user.photos.filter(p => !p.isDeleted);
+        headingText = "Active Photos";
+    } else if (currentModalFilterTab === 'favs') {
+        filteredList = user.photos.filter(p => p.isFavorite && !p.isDeleted);
+        headingText = "Favorite Photos ❤️";
+    } else if (currentModalFilterTab === 'trash') {
+        filteredList = user.photos.filter(p => p.isDeleted);
+        headingText = "Trash Bin Photos 🗑️";
+    } else {
+        filteredList = [...user.photos];
+        headingText = "All Uploaded Photos";
+    }
+
+    document.getElementById("modalGalleryHeading").innerText = headingText;
+    document.getElementById("modalGalleryCountBadge").innerText = `(${filteredList.length})`;
+
+    // 5. Render Clean 3-Column Square Grid
     const grid = document.getElementById("modalUserPhotosGrid");
     grid.innerHTML = "";
 
-    if (user.photos.length === 0) {
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:30px; color:var(--text-muted);">This user has not uploaded any photos yet.</div>`;
-    } else {
-        user.photos.forEach(p => {
-            const card = document.createElement("div");
-            card.className = "admin-photo-card";
-            card.innerHTML = `
-                <img src="${p.image}" loading="lazy" alt="User Photo" onerror="this.src='/loadingphoto.png'">
-                <div class="admin-photo-overlay">
-                    <button class="btn-mod-delete" title="Delete User Photo" data-id="${p.id}">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                    <div class="photo-meta-info">${p.isFavorite ? '❤️ Fav' : (p.isDeleted ? '🗑️ Trash' : 'Photo')}</div>
-                </div>
-            `;
-
-            card.querySelector(".btn-mod-delete").onclick = async () => {
-                if (confirm("Delete this photo permanently for this user?")) {
-                    try {
-                        await deleteDoc(doc(db, "user_photos", p.id));
-                        card.remove();
-                        showToast("Photo deleted!");
-                    } catch (err) {
-                        showToast("Delete failed: " + err.message);
-                    }
-                }
-            };
-
-            grid.appendChild(card);
-        });
+    if (filteredList.length === 0) {
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:45px 15px; color:var(--text-muted); font-size:0.85rem;">No ${headingText.toLowerCase()} found for this account.</div>`;
+        return;
     }
 
-    modal.style.display = "flex";
+    // Sort by latest first
+    filteredList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+    // High performance DocumentFragment
+    const fragment = document.createDocumentFragment();
+
+    filteredList.forEach(p => {
+        const card = document.createElement("div");
+        card.className = "admin-photo-card";
+        card.innerHTML = `
+            <img src="${p.image}" loading="lazy" decoding="async" alt="User Photo" onerror="this.src='/loadingphoto.png'">
+            <div class="admin-photo-overlay">
+                <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                <div class="photo-meta-info">${p.isFavorite ? '❤️ Fav' : (p.isDeleted ? '🗑️ Trash' : 'Photo')}</div>
+            </div>
+        `;
+
+        card.querySelector(".btn-mod-delete").onclick = async (e) => {
+            e.stopPropagation();
+            if (confirm("Delete this photo permanently for this user?")) {
+                try {
+                    await deleteDoc(doc(db, "user_photos", p.id));
+                    card.remove();
+                    showToast("Photo deleted permanently!");
+                } catch (err) {
+                    showToast("Delete failed: " + err.message);
+                }
+            }
+        };
+
+        fragment.appendChild(card);
+    });
+
+    grid.appendChild(fragment);
 }
 
 document.getElementById("closeInspectModal")?.addEventListener("click", () => {
     const modal = document.getElementById("userInspectModal");
     if (modal) modal.style.display = "none";
+    selectedUserForModal = null;
 });
 
 document.getElementById("userInspectModal")?.addEventListener("click", (e) => {
     if (e.target.id === "userInspectModal") {
         e.target.style.display = "none";
+        selectedUserForModal = null;
     }
 });
 
