@@ -139,7 +139,7 @@
             </div>
         </section>
 
-        <!-- 🌟 3. ADVANCED USER DIRECTORY & PROFILE MANAGER -->
+        <!-- 🌟 3. USER DIRECTORY & PROFILE MANAGER -->
         <section class="users-board">
             <div class="section-heading-split">
                 <div>
@@ -174,7 +174,7 @@
             </div>
         </section>
 
-        <!-- 4. REALTIME GLOBAL PHOTO STREAM -->
+        <!-- 🌟 4. REALTIME GLOBAL PHOTO STREAM -->
         <section class="moderation-board">
             <div class="section-heading-split">
                 <div class="section-heading"><i class="fa-solid fa-photo-film" style="color: var(--accent);"></i> Live Photo Stream</div>
@@ -193,9 +193,11 @@
 
     </main>
 
-    <!-- 🌟 5. INTERACTIVE USER PHOTO INSPECTOR MODAL -->
+    <!-- 🌟 5. PROVEN ZERO-COLLAPSE USER INSPECTOR MODAL -->
     <div id="userInspectModal" class="user-modal-overlay" style="display: none;">
         <div class="user-modal-card">
+            
+            <!-- Modal Header -->
             <div class="user-modal-header">
                 <div class="user-modal-profile">
                     <div class="user-avatar-modal" id="modalUserAvatar">U</div>
@@ -207,34 +209,39 @@
                 <button class="user-modal-close" id="closeInspectModal"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
-            <!-- 🌟 CLICKABLE STATS TABS (PHOTOS, FAVS, TRASH) -->
+            <!-- Clickable Interactive Tabs -->
             <div class="user-modal-stats">
-                <div class="user-m-stat active" id="tabStatPhotos" title="View Active Photos">
+                <div class="user-m-stat active" id="tabStatPhotos">
                     <span class="val" id="modalTotalPhotos">0</span>
                     <span class="lbl">Photos</span>
                 </div>
-                <div class="user-m-stat" id="tabStatStorage" title="Total Storage Used">
+                <div class="user-m-stat" id="tabStatStorage">
                     <span class="val" id="modalTotalStorage">0 MB</span>
                     <span class="lbl">Storage</span>
                 </div>
-                <div class="user-m-stat" id="tabStatFavs" title="Click to View Favorites">
+                <div class="user-m-stat" id="tabStatFavs">
                     <span class="val" id="modalFavPhotos">0</span>
                     <span class="lbl">Favs ❤️</span>
                 </div>
-                <div class="user-m-stat" id="tabStatTrash" title="Click to View Trash">
+                <div class="user-m-stat" id="tabStatTrash">
                     <span class="val" id="modalTrashPhotos">0</span>
                     <span class="lbl">Trash 🗑️</span>
                 </div>
             </div>
 
+            <!-- Tab Heading -->
             <div class="user-modal-gallery-title">
                 <span id="modalGalleryHeading">Active Photos</span> 
-                <span style="color:var(--text-muted); font-size:0.75rem; font-weight:600;" id="modalGalleryCountBadge">(0)</span>
+                <span style="color:var(--text-muted); font-size:0.75rem; font-weight:700;" id="modalGalleryCountBadge">(0)</span>
             </div>
 
-            <div class="user-modal-gallery-grid" id="modalUserPhotosGrid">
-                <!-- User Photos dynamically injected here -->
+            <!-- 🌟 GUARANTEED IDENTICAL TO LIVE STREAM GRID -->
+            <div class="user-modal-scroll-area">
+                <div class="photo-stream-grid" id="modalUserPhotosGrid">
+                    <!-- Photos rendered here -->
+                </div>
             </div>
+
         </div>
     </div>
 
