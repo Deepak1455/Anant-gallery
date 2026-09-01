@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Anant Gallery - Admin Center</title>
     
-    <link rel="icon" type="image/png" href="loadingphoto.png">
+    <link rel="icon" type="image/png" href="/icon-192.png">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -27,19 +27,19 @@
     <header class="admin-header">
         <div class="header-brand">
             <div class="brand-logo-box">
-                <img src="loadingphoto.png" alt="Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <img src="/icon-192.png" alt="Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <i class="fa-solid fa-infinity" style="display:none;"></i>
             </div>
             <div>
                 <div class="brand-title">Admin Center</div>
-                <div class="brand-sub"><span class="live-pulse"></span> Anant Cloud</div>
+                <div class="brand-sub"><span class="live-pulse"></span> Anant Cloud Master</div>
             </div>
         </div>
 
         <div class="header-right">
             <div class="admin-user-pill">
                 <i class="fa-solid fa-shield-halved"></i>
-                <span id="adminEmailDisplay">dt8484970@gmail.com</span>
+                <span id="adminEmailDisplay">Admin</span>
             </div>
             <button class="btn-exit-admin" id="btnExitAdmin" title="Exit to App"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
         </div>
@@ -105,7 +105,7 @@
                 <div class="control-card">
                     <div>
                         <div class="control-title"><i class="fa-solid fa-wrench" style="color: #f59e0b;"></i> Maintenance Mode</div>
-                        <div class="control-desc">Lock app with maintenance notice</div>
+                        <div class="control-desc">Lock app with scheduled maintenance screen</div>
                     </div>
                     <label class="switch">
                         <input type="checkbox" id="toggleMaintenance">
@@ -116,7 +116,7 @@
                 <div class="control-card">
                     <div>
                         <div class="control-title"><i class="fa-solid fa-cloud-arrow-up" style="color: #4f46e5;"></i> Cloud Uploads</div>
-                        <div class="control-desc">Allow/Pause global photo backup</div>
+                        <div class="control-desc">Allow/Pause global photo backup for users</div>
                     </div>
                     <label class="switch">
                         <input type="checkbox" id="toggleUploads" checked>
@@ -129,20 +129,54 @@
             <div class="broadcast-box">
                 <div class="broadcast-title"><i class="fa-solid fa-bullhorn"></i> Global In-App Announcement Banner</div>
                 <div class="broadcast-row">
-                    <input type="text" id="broadcastInput" placeholder="Enter notice for all users..." maxlength="120">
-                    <button class="btn-broadcast" id="btnPublishNotice"><i class="fa-solid fa-paper-plane"></i> Send</button>
+                    <input type="text" id="broadcastInput" placeholder="Enter banner notice for all users..." maxlength="120">
+                    <button class="btn-broadcast" id="btnPublishNotice"><i class="fa-solid fa-paper-plane"></i> Publish</button>
                     <button class="btn-clear-notice" id="btnClearNotice" title="Clear Banner"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="broadcast-preview" id="noticePreviewBox" style="display: none;">
-                    <strong>Live Banner:</strong> <span id="noticePreviewText"></span>
+                    <strong>Live In-App:</strong> <span id="noticePreviewText"></span>
                 </div>
             </div>
         </section>
 
-        <!-- 3. REALTIME PHOTO STREAM -->
+        <!-- 🌟 3. ADVANCED USER DIRECTORY (SMART & DETAILED) -->
+        <section class="users-board">
+            <div class="section-heading-split">
+                <div>
+                    <div class="section-heading" style="margin-bottom:2px;">
+                        <i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory & Profile Manager
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">Manage accounts, view user photos and inspect storage</div>
+                </div>
+                <div class="user-search-wrapper">
+                    <i class="fa-solid fa-magnifying-glass user-search-icon"></i>
+                    <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search by Name, Email or UID...">
+                </div>
+            </div>
+
+            <div class="user-table-wrapper">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>User Profile</th>
+                            <th>Photos</th>
+                            <th>Storage</th>
+                            <th>Favorites</th>
+                            <th>Trash</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        <tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-muted);"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching active user accounts...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 4. REALTIME GLOBAL PHOTO STREAM -->
         <section class="moderation-board">
             <div class="section-heading-split">
-                <div class="section-heading"><i class="fa-solid fa-shield-halved" style="color: var(--accent);"></i> Live Photo Stream</div>
+                <div class="section-heading"><i class="fa-solid fa-photo-film" style="color: var(--accent);"></i> Live Photo Stream</div>
                 <div class="stream-actions">
                     <span class="stream-badge" id="streamCount">0 recent</span>
                     <button class="btn-refresh-stream" id="btnRefreshStream"><i class="fa-solid fa-rotate"></i> Refresh</button>
@@ -156,32 +190,38 @@
             </div>
         </section>
 
-        <!-- 4. REGISTERED USER DIRECTORY -->
-        <section class="users-board">
-            <div class="section-heading-split">
-                <div class="section-heading"><i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory</div>
-                <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search by UID...">
-            </div>
-
-            <div class="user-table-wrapper">
-                <table class="user-table">
-                    <thead>
-                        <tr>
-                            <th>User ID (UID)</th>
-                            <th>Photos</th>
-                            <th>Storage</th>
-                            <th>Favorites</th>
-                            <th>Trash</th>
-                        </tr>
-                    </thead>
-                    <tbody id="userTableBody">
-                        <tr><td colspan="5" style="text-align:center; padding: 16px; color: var(--text-muted);">Fetching accounts...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
     </main>
+
+    <!-- 🌟 5. USER DETAIL & PHOTO INSPECTOR MODAL -->
+    <div id="userInspectModal" class="user-modal-overlay" style="display: none;">
+        <div class="user-modal-card">
+            <div class="user-modal-header">
+                <div class="user-modal-profile">
+                    <div class="user-avatar-modal" id="modalUserAvatar">U</div>
+                    <div>
+                        <div class="user-modal-name" id="modalUserName">User Name</div>
+                        <div class="user-modal-email" id="modalUserEmail">user@email.com</div>
+                    </div>
+                </div>
+                <button class="user-modal-close" id="closeInspectModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="user-modal-stats">
+                <div class="user-m-stat"><span class="val" id="modalTotalPhotos">0</span><span class="lbl">Photos</span></div>
+                <div class="user-m-stat"><span class="val" id="modalTotalStorage">0 MB</span><span class="lbl">Storage</span></div>
+                <div class="user-m-stat"><span class="val" id="modalFavPhotos">0</span><span class="lbl">Favs ❤️</span></div>
+                <div class="user-m-stat"><span class="val" id="modalTrashPhotos">0</span><span class="lbl">Trash 🗑️</span></div>
+            </div>
+
+            <div class="user-modal-gallery-title">
+                <span>User Photos (<span id="modalGalleryCount">0</span>)</span>
+            </div>
+
+            <div class="user-modal-gallery-grid" id="modalUserPhotosGrid">
+                <!-- User Photos dynamically injected here -->
+            </div>
+        </div>
+    </div>
 
     <!-- TOAST -->
     <div id="adminToast">System Message</div>
