@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anant Gallery - Admin Center</title>
+    
+    <link rel="icon" type="image/png" href="loadingphoto.png">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+    <!-- 🔒 ACCESS DENIED OVERLAY -->
+    <div id="accessDeniedScreen" class="denied-overlay" style="display: none;">
+        <div class="denied-card">
+            <div class="denied-icon"><i class="fa-solid fa-user-lock"></i></div>
+            <h3 style="color:#0f172a; margin-bottom: 6px;">Access Restricted</h3>
+            <p style="color:#64748b; font-size:0.82rem; line-height: 1.4;">Only verified Super Admins can access this Command Center.</p>
+            <button class="btn-back-app" id="btnBackToApp"><i class="fa-solid fa-arrow-left"></i> Return to Gallery</button>
+        </div>
+    </div>
+
+    <!-- 🌟 TOP COMMAND HEADER -->
+    <header class="admin-header">
+        <div class="header-brand">
+            <div class="brand-logo-box">
+                <img src="loadingphoto.png" alt="Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <i class="fa-solid fa-infinity" style="display:none;"></i>
+            </div>
+            <div>
+                <div class="brand-title">Admin Center</div>
+                <div class="brand-sub"><span class="live-pulse"></span> Anant Cloud</div>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="admin-user-pill">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span id="adminEmailDisplay">dt8484970@gmail.com</span>
+            </div>
+            <button class="btn-exit-admin" id="btnExitAdmin" title="Exit to App"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+        </div>
+    </header>
+
+    <!-- 🌟 MAIN ADMIN CONTAINER -->
+    <main class="admin-container">
+
+        <!-- 1. LIVE TELEMETRY CARDS -->
+        <section class="telemetry-grid">
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(79, 70, 229, 0.1); color: #4f46e5;">
+                    <i class="fa-regular fa-images"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Cloud Photos</div>
+                    <div class="telemetry-value" id="valTotalPhotos">0</div>
+                    <div class="telemetry-sub" id="valActivePhotos">0 active</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Cloud Users</div>
+                    <div class="telemetry-value" id="valTotalUsers">0</div>
+                    <div class="telemetry-sub">Registered accounts</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Storage Saved</div>
+                    <div class="telemetry-value" id="valTotalStorage">0 MB</div>
+                    <div class="telemetry-sub">Infinite Telegram CDN</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                    <i class="fa-solid fa-trash-can"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Trash Bin</div>
+                    <div class="telemetry-value" id="valTrashCount">0</div>
+                    <div class="telemetry-sub">30-Day auto purge</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. GLOBAL APP REMOTE CONTROLS -->
+        <section class="control-board">
+            <div class="section-heading">
+                <i class="fa-solid fa-sliders" style="color: var(--accent);"></i> App Remote Controls
+            </div>
+            
+            <div class="controls-grid">
+                <div class="control-card">
+                    <div>
+                        <div class="control-title"><i class="fa-solid fa-wrench" style="color: #f59e0b;"></i> Maintenance Mode</div>
+                        <div class="control-desc">Lock app with maintenance notice</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleMaintenance">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="control-card">
+                    <div>
+                        <div class="control-title"><i class="fa-solid fa-cloud-arrow-up" style="color: #4f46e5;"></i> Cloud Uploads</div>
+                        <div class="control-desc">Allow/Pause global photo backup</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleUploads" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Global Announcement Box -->
+            <div class="broadcast-box">
+                <div class="broadcast-title"><i class="fa-solid fa-bullhorn"></i> Global In-App Announcement Banner</div>
+                <div class="broadcast-row">
+                    <input type="text" id="broadcastInput" placeholder="Enter notice for all users..." maxlength="120">
+                    <button class="btn-broadcast" id="btnPublishNotice"><i class="fa-solid fa-paper-plane"></i> Send</button>
+                    <button class="btn-clear-notice" id="btnClearNotice" title="Clear Banner"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="broadcast-preview" id="noticePreviewBox" style="display: none;">
+                    <strong>Live Banner:</strong> <span id="noticePreviewText"></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. REALTIME PHOTO STREAM -->
+        <section class="moderation-board">
+            <div class="section-heading-split">
+                <div class="section-heading"><i class="fa-solid fa-shield-halved" style="color: var(--accent);"></i> Live Photo Stream</div>
+                <div class="stream-actions">
+                    <span class="stream-badge" id="streamCount">0 recent</span>
+                    <button class="btn-refresh-stream" id="btnRefreshStream"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                </div>
+            </div>
+
+            <div class="photo-stream-grid" id="adminPhotoGrid">
+                <div style="grid-column: 1/-1; text-align:center; padding: 25px; color: var(--text-muted); font-size: 0.85rem;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="color:var(--accent);"></i> Loading Cloud Photos...
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. REGISTERED USER DIRECTORY -->
+        <section class="users-board">
+            <div class="section-heading-split">
+                <div class="section-heading"><i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory</div>
+                <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search by UID...">
+            </div>
+
+            <div class="user-table-wrapper">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>User ID (UID)</th>
+                            <th>Photos</th>
+                            <th>Storage</th>
+                            <th>Favorites</th>
+                            <th>Trash</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        <tr><td colspan="5" style="text-align:center; padding: 16px; color: var(--text-muted);">Fetching accounts...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- TOAST -->
+    <div id="adminToast">System Message</div>
+
+    <script type="module" src="admin.js"></script>
+</body>
+</html>
