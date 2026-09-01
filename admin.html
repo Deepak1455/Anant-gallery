@@ -95,7 +95,7 @@
             </div>
         </section>
 
-        <!-- 2. GLOBAL APP REMOTE CONTROLS -->
+        <!-- 🌟 2. GLOBAL APP REMOTE CONTROLS & NEW ANNOUNCEMENT BANNER -->
         <section class="control-board">
             <div class="section-heading">
                 <i class="fa-solid fa-sliders" style="color: var(--accent);"></i> App Remote Controls
@@ -125,29 +125,49 @@
                 </div>
             </div>
 
-            <!-- Global Announcement Box -->
-            <div class="broadcast-box">
-                <div class="broadcast-title"><i class="fa-solid fa-bullhorn"></i> Global In-App Announcement Banner</div>
-                <div class="broadcast-row">
-                    <input type="text" id="broadcastInput" placeholder="Enter banner notice for all users..." maxlength="120">
-                    <button class="btn-broadcast" id="btnPublishNotice"><i class="fa-solid fa-paper-plane"></i> Publish</button>
-                    <button class="btn-clear-notice" id="btnClearNotice" title="Clear Banner"><i class="fa-solid fa-xmark"></i></button>
+            <!-- 🌟 REDESIGNED BROADCAST BOX (NO CUTOFF / 100% RESPONSIVE) -->
+            <div class="broadcast-card">
+                <div class="broadcast-header">
+                    <div class="broadcast-title">
+                        <i class="fa-solid fa-bullhorn"></i> Global In-App Announcement
+                    </div>
+                    <span class="live-notice-badge" id="liveNoticeBadge" style="display: none;">
+                        <span class="live-pulse-green"></span> Live Now
+                    </span>
                 </div>
-                <div class="broadcast-preview" id="noticePreviewBox" style="display: none;">
-                    <strong>Live In-App:</strong> <span id="noticePreviewText"></span>
+
+                <div class="broadcast-input-box">
+                    <div class="broadcast-input-wrap">
+                        <i class="fa-solid fa-message broadcast-icon"></i>
+                        <input type="text" id="broadcastInput" placeholder="Enter broadcast notice for all users..." maxlength="120">
+                    </div>
+                    <div class="broadcast-actions">
+                        <button class="btn-broadcast-send" id="btnPublishNotice">
+                            <i class="fa-solid fa-paper-plane"></i> <span>Publish</span>
+                        </button>
+                        <button class="btn-broadcast-clear" id="btnClearNotice" title="Clear Live Announcement">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="broadcast-preview-chip" id="noticePreviewBox" style="display: none;">
+                    <i class="fa-solid fa-circle-check preview-icon"></i>
+                    <div class="preview-content">
+                        <strong>Active on User Screens:</strong> <span id="noticePreviewText"></span>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- 🌟 3. USER DIRECTORY & PROFILE MANAGER -->
+        <!-- 🌟 3. USER DIRECTORY & PROFILE MANAGER (FIXED HEADER & TOTAL BADGE) -->
         <section class="users-board">
             <div class="section-heading-split">
-                <div>
-                    <div class="section-heading" style="margin-bottom:2px;">
+                <div class="dir-title-box">
+                    <div class="section-heading" style="margin-bottom:0;">
                         <i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory & Profile Manager
-                        <span class="stream-badge" id="valTotalUsersBadge" style="margin-left: 6px;">0 Accounts</span>
                     </div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">Manage accounts, view user photos and inspect storage</div>
+                    <span class="user-count-pill" id="valTotalUsersBadge">0 Accounts</span>
                 </div>
                 <div class="user-search-wrapper">
                     <i class="fa-solid fa-magnifying-glass user-search-icon"></i>
@@ -174,13 +194,18 @@
             </div>
         </section>
 
-        <!-- 🌟 4. REALTIME GLOBAL PHOTO STREAM -->
+        <!-- 🌟 4. REALTIME GLOBAL PHOTO STREAM (NEW HIGH-DEF REFRESH BUTTON) -->
         <section class="moderation-board">
             <div class="section-heading-split">
-                <div class="section-heading"><i class="fa-solid fa-photo-film" style="color: var(--accent);"></i> Live Photo Stream</div>
+                <div class="section-heading" style="margin-bottom: 0;">
+                    <i class="fa-solid fa-photo-film" style="color: var(--accent);"></i> Live Photo Stream
+                </div>
                 <div class="stream-actions">
                     <span class="stream-badge" id="streamCount">0 recent</span>
-                    <button class="btn-refresh-stream" id="btnRefreshStream"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                    <button class="btn-refresh-stream" id="btnRefreshStream" title="Refresh Live Photos">
+                        <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+                        <span>Refresh</span>
+                    </button>
                 </div>
             </div>
 
@@ -209,9 +234,9 @@
                 <button class="user-modal-close" id="closeInspectModal"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
-            <!-- 🌟 CLICKABLE STATS TABS (ACTIVE PHOTOS COUNT SHOWN FIRST) -->
+            <!-- Clickable Interactive Tabs -->
             <div class="user-modal-stats">
-                <div class="user-m-stat active" id="tabStatPhotos" title="Active Photos (Exclude Trash)">
+                <div class="user-m-stat active" id="tabStatPhotos" title="Active Photos">
                     <span class="val" id="modalTotalPhotos">0</span>
                     <span class="lbl">Active</span>
                 </div>
