@@ -42,7 +42,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// 2. SMART TIME-AWARE + SYSTEM THEME APPLIER (WITH PERMANENT DARK STATUS BAR)
+// 2. SMART TIME-AWARE + SYSTEM THEME APPLIER
 // --------------------------------------------------------------------------
 export function isNightTime() {
     const currentHour = new Date().getHours();
@@ -60,7 +60,6 @@ export function applyTheme(themeMode) {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
     document.body.setAttribute('data-theme', effectiveTheme);
 
-    // 🌟 ALWAYS KEEP STATUS BAR DARK SO PHONE ICONS (TIME/BATTERY/5G) REMAIN CRISP WHITE
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
         metaThemeColor.setAttribute('content', '#000000');
@@ -93,7 +92,7 @@ if (!autoThemeCheckInterval) {
 }
 
 // --------------------------------------------------------------------------
-// 3. DYNAMIC STYLES (RECENT APPS PRIVACY SHIELD & THEMES)
+// 🌟 3. DYNAMIC STYLES (ABSOLUTE HIGHEST Z-INDEX PRIVACY SHIELD)
 // --------------------------------------------------------------------------
 const injectSettingsStyles = () => {
     let existingStyle = document.getElementById('settings-styles');
@@ -102,24 +101,23 @@ const injectSettingsStyles = () => {
     const style = document.createElement('style');
     style.id = 'settings-styles';
     style.textContent = `
-        /* 🌟 ULTRA-SMOOTH ANTI-SNOOP RECENT APPS PRIVACY SHIELD */
+        /* 🌟 100% UNCONDITIONAL RECENT APPS PRIVACY SHIELD */
         #privacyShield {
-            position: fixed;
-            inset: 0;
-            z-index: 999999;
-            background: #090d16;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            flex-direction: column;
-            gap: 10px;
-            user-select: none;
-            pointer-events: none;
-            transform: translateZ(0);
-            text-align: center;
-            padding: 20px;
-            transition: opacity 0.2s ease;
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 2147483647 !important; /* Maximum browser z-index */
+            background: #090d16 !important;
+            display: none !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: #ffffff !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+            user-select: none !important;
+            pointer-events: none !important;
+            transform: translateZ(0) !important;
+            text-align: center !important;
+            padding: 20px !important;
         }
 
         #privacyShield.active { 
@@ -476,7 +474,6 @@ export async function showPinLockOverlay(correctHash) {
             }
         };
 
-        // Auto-trigger biometric on locked overlay open
         setTimeout(() => {
             if (!isUnlocked && document.getElementById('pinLockOverlay')) {
                 bioBtn.click();
@@ -528,7 +525,7 @@ export async function showPinLockOverlay(correctHash) {
 }
 
 // --------------------------------------------------------------------------
-// 5. SMART ANTI-SNOOP RECENT APPS PRIVACY SHIELD
+// 🌟 5. 100% UNCONDITIONAL ANTI-SNOOP RECENT APPS PRIVACY SHIELD
 // --------------------------------------------------------------------------
 function setupPrivacyShield() {
     let shield = document.getElementById('privacyShield');
@@ -545,17 +542,9 @@ function setupPrivacyShield() {
         document.body.appendChild(shield);
     }
 
+    // 🌟 Trigger on ALL screens (Login, PIN Keypad, Gallery, Settings)
     const showShield = () => {
         if (isBiometricAuthInProgress) return;
-
-        const appScreen = document.getElementById('appScreen');
-        if (!appScreen || appScreen.style.display === 'none') return;
-        
-        const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-            return;
-        }
-
         shield.classList.add('active');
     };
 
