@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -9,42 +9,52 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
 
-    <!-- Status Bar Theme Color (Adaptive for Battery / Clock Visibility) -->
-    <meta name="theme-color" content="#f8fafc" id="statusThemeColor">
+    <!-- 🌟 Android Status Bar Theme Settings -->
+    <meta name="theme-color" content="#ffffff" id="metaThemeColor">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
 
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        /* ==========================================================================
+           1. DYNAMIC THEME ENGINE (LIGHT WHITE & ULTRA DARK)
+           ========================================================================== */
         :root {
-            --bg-body: #f8fafc;
-            --bg-card: #ffffff;
-            --bg-glass: rgba(255, 255, 255, 0.9);
+            --bg-body: #ffffff;
+            --bg-card: #f8fafc;
+            --bg-glass: rgba(255, 255, 255, 0.92);
             --accent: #4f46e5;
             --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
             --text-main: #0f172a;
             --text-muted: #64748b;
             --border: rgba(0, 0, 0, 0.08);
-            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-            --status-bar-bg: #f8fafc;
+            --shadow-card: 0 4px 25px rgba(0, 0, 0, 0.04);
+            --badge-bg: rgba(34, 197, 94, 0.12);
+            --badge-text: #16a34a;
+            --alert-bg: rgba(79, 70, 229, 0.06);
+            --alert-border: rgba(79, 70, 229, 0.2);
         }
 
         [data-theme="dark"] {
-            --bg-body: #0f172a;
-            --bg-card: #1e293b;
-            --bg-glass: rgba(15, 23, 42, 0.92);
+            --bg-body: #090d16;
+            --bg-card: #131b2e;
+            --bg-glass: rgba(15, 23, 42, 0.94);
             --accent: #818cf8;
             --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --border: rgba(255, 255, 255, 0.1);
-            --card-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
-            --status-bar-bg: #0f172a;
+            --shadow-card: 0 15px 40px rgba(0, 0, 0, 0.4);
+            --badge-bg: rgba(34, 197, 94, 0.18);
+            --badge-text: #4ade80;
+            --alert-bg: rgba(99, 102, 241, 0.1);
+            --alert-border: rgba(99, 102, 241, 0.25);
         }
 
         * {
@@ -59,16 +69,17 @@
             background: var(--bg-body);
             color: var(--text-main);
             line-height: 1.65;
-            padding: calc(env(safe-area-inset-top, 20px) + 12px) 14px 60px 14px;
+            padding: calc(env(safe-area-inset-top, 16px) + 12px) 14px 60px 14px;
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            transition: background 0.3s ease, color 0.3s ease;
+            transition: background-color 0.28s cubic-bezier(0.4, 0, 0.2, 1), color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
         }
 
         .container {
             width: 100%;
-            max-width: 780px;
+            max-width: 760px;
             animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
@@ -77,18 +88,18 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 🌟 TOP FLOATING BAR (BACK + THEME TOGGLE) */
+        /* 🌟 TOP FLOATING NAVIGATION BAR */
         .top-action-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 14px;
+            margin-bottom: 16px;
             padding: 0 4px;
         }
 
         .btn-circle {
-            width: 42px;
-            height: 42px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -96,10 +107,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             cursor: pointer;
-            box-shadow: var(--card-shadow);
-            transition: transform 0.15s ease, background 0.2s ease;
+            box-shadow: var(--shadow-card);
+            transition: transform 0.15s ease, background-color 0.2s ease;
             text-decoration: none;
         }
 
@@ -107,31 +118,37 @@
             transform: scale(0.92);
         }
 
-        /* 🌟 BRAND HERO CARD (PURE CLEAN LOOK) */
+        /* 🌟 BRAND HERO CARD (CLEAN & MODERN) */
         .brand-hero {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 26px;
             padding: 28px 20px;
             text-align: center;
-            box-shadow: var(--card-shadow);
+            box-shadow: var(--shadow-card);
             margin-bottom: 18px;
             position: relative;
             overflow: hidden;
-            transition: background 0.3s ease, border-color 0.3s ease;
+            transition: background-color 0.28s ease, border-color 0.28s ease;
         }
 
         .logo-box {
-            width: 82px;
-            height: 82px;
-            margin: 0 auto 14px auto;
+            width: 84px;
+            height: 84px;
+            margin: 0 auto 16px auto;
             border-radius: 24px;
             background: var(--accent-gradient);
             padding: 3px;
-            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.25);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
+            animation: floatLogo 4s ease-in-out infinite;
+        }
+
+        @keyframes floatLogo {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
         }
 
         .logo-img {
@@ -143,7 +160,7 @@
         }
 
         .brand-title {
-            font-size: 1.75rem;
+            font-size: 1.85rem;
             font-weight: 800;
             color: var(--text-main);
             margin-bottom: 4px;
@@ -160,8 +177,8 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(34, 197, 94, 0.12);
-            color: #16a34a;
+            background: var(--badge-bg);
+            color: var(--badge-text);
             border: 1px solid rgba(34, 197, 94, 0.25);
             padding: 6px 16px;
             border-radius: 20px;
@@ -170,26 +187,21 @@
             margin-top: 14px;
         }
 
-        [data-theme="dark"] .compliance-badge {
-            color: #4ade80;
-            background: rgba(34, 197, 94, 0.18);
-        }
-
         /* 🌟 CONTENT CARD */
         .content-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 26px;
-            padding: 28px 22px;
-            box-shadow: var(--card-shadow);
-            transition: background 0.3s ease, border-color 0.3s ease;
+            padding: 30px 22px;
+            box-shadow: var(--shadow-card);
+            transition: background-color 0.28s ease, border-color 0.28s ease;
         }
 
         h2 {
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             font-weight: 700;
             color: var(--accent);
-            margin: 24px 0 10px 0;
+            margin: 26px 0 10px 0;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -200,21 +212,24 @@
         p, li {
             font-size: 0.92rem;
             color: var(--text-main);
-            opacity: 0.9;
+            opacity: 0.92;
             margin-bottom: 12px;
             line-height: 1.65;
         }
 
-        ul { padding-left: 20px; margin-bottom: 12px; }
+        ul { padding-left: 22px; margin-bottom: 12px; }
 
+        /* 🌟 ALERT BOX FOR DATA RIGHTS */
         .alert-box {
-            background: rgba(79, 70, 229, 0.06);
-            border: 1px solid rgba(79, 70, 229, 0.2);
+            background: var(--alert-bg);
+            border: 1px solid var(--alert-border);
             border-left: 4px solid var(--accent);
-            padding: 16px;
+            padding: 16px 18px;
             border-radius: 16px;
             margin: 20px 0;
         }
+
+        .alert-box strong { color: var(--text-main); }
 
         .btn-action {
             display: inline-flex;
@@ -236,9 +251,10 @@
 
         .footer-credit {
             text-align: center;
-            margin-top: 26px;
-            font-size: 0.8rem;
+            margin-top: 28px;
+            font-size: 0.82rem;
             color: var(--text-muted);
+            font-weight: 500;
         }
     </style>
 </head>
@@ -246,17 +262,17 @@
 
     <div class="container">
         
-        <!-- TOP NAV BAR -->
+        <!-- 🌟 TOP NAVIGATION BAR -->
         <div class="top-action-bar">
             <a href="/" class="btn-circle" title="Back to Gallery">
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
-            <button class="btn-circle" id="themeToggleBtn" title="Toggle Light / Dark">
+            <button class="btn-circle" id="themeToggleBtn" title="Toggle Light / Dark Theme">
                 <i class="fa-solid fa-moon" id="themeIcon"></i>
             </button>
         </div>
 
-        <!-- BRAND HERO HEADER -->
+        <!-- 🌟 BRAND HERO HEADER -->
         <div class="brand-hero">
             <div class="logo-box">
                 <img src="/icon-192.png" class="logo-img" alt="Anant Gallery" onerror="this.src='/loadingphoto.png'; this.onerror=null;">
@@ -268,36 +284,43 @@
             </div>
         </div>
 
-        <!-- MAIN PRIVACY CONTENT -->
+        <!-- 🌟 MAIN PRIVACY CONTENT -->
         <div class="content-card">
             
             <p><strong>Last Updated:</strong> 5 August 2026</p>
-            <p><strong>DK indus Studio</strong> ("we", "our", or "us") operates the <strong>Anant Gallery</strong> mobile application. This Privacy Policy details our transparent commitment to your personal data privacy, encryption standards, and media rights.</p>
+            <p><strong>DK indus Studio</strong> ("we", "our", or "us") operates the <strong>Anant Gallery</strong> mobile application. This Privacy Policy details our transparent commitment to your privacy, personal data rights, and encryption standards.</p>
 
             <h2><i class="fa-solid fa-database"></i> 1. Information We Collect</h2>
             <ul>
-                <li><strong>Account Identity:</strong> Your email address and display name via Firebase Authentication for secure multi-device cloud synchronization.</li>
-                <li><strong>Photos & Media Files:</strong> Only user-selected photos uploaded explicitly for infinite cloud backup, smart albums, and your private vault.</li>
-                <li><strong>Biometric Security:</strong> Biometric fingerprint and PIN authentication operate 100% locally on your device via standard Android WebAuthn platform APIs. We never store or transmit your biometric records.</li>
+                <li><strong>Account Identity:</strong> Your email address and display name obtained via Firebase Authentication for account creation, multi-device backup sync, and secure sessions.</li>
+                <li><strong>Photos & Media Files:</strong> Only user-selected photos uploaded explicitly for unlimited cloud backup, custom album categorization, and your encrypted private vault.</li>
+                <li><strong>Biometric Security:</strong> Biometric fingerprint and PIN authentication operate 100% locally on your device via standard Android WebAuthn platform APIs. We never transmit or store your fingerprint biometric records on our servers.</li>
             </ul>
 
             <h2><i class="fa-solid fa-lock"></i> 2. Data Security & Encryption</h2>
-            <p>Your photos, metadata, and background sync queues are encrypted end-to-end in transit using modern TLS 1.3 cryptographic protocols.</p>
+            <p>Your photos, database records, and sync queues are encrypted end-to-end in transit using modern HTTPS/TLS 1.3 cryptographic protocols to prevent unauthorized access.</p>
 
             <h2 id="deletion"><i class="fa-solid fa-user-xmark"></i> 3. Account & Data Deletion (User Rights)</h2>
             <div class="alert-box">
                 <p><strong>Complete Control Over Your Memories:</strong> You have the absolute right to delete your data at any time.</p>
                 <p><strong>In-App Instant Deletion:</strong> Open the app ➔ Go to <strong>My Profile ➔ Danger Zone ➔ Delete My Account & Data</strong> to permanently wipe all your photos, albums, and user credentials immediately.</p>
+                <p><strong>Manual Request:</strong> You can also email us directly to request complete manual account deletion:</p>
                 <a href="mailto:anantgalleryogr@gmail.com?subject=Account%20Deletion%20Request" class="btn-action">
                     <i class="fa-solid fa-trash-can"></i> Request Account Deletion via Email
                 </a>
             </div>
 
             <h2><i class="fa-solid fa-headset"></i> 4. Contact & Support Desk</h2>
-            <p>If you have any questions or concerns regarding this policy, feel free to reach out directly to our official support team:</p>
-            <a href="mailto:anantgalleryogr@gmail.com" class="btn-action" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); box-shadow: none;">
+            <p>If you have any questions, inquiries, or privacy concerns regarding this policy, feel free to reach out directly to our official support team:</p>
+            <a href="mailto:anantgalleryogr@gmail.com" class="btn-action" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); box-shadow:none;">
                 <i class="fa-solid fa-envelope" style="color: var(--accent);"></i> anantgalleryogr@gmail.com
             </a>
+
+            <div style="margin-top: 26px; text-align: center;">
+                <a href="/" class="btn-action">
+                    <i class="fa-solid fa-arrow-left"></i> Open Anant Gallery App
+                </a>
+            </div>
 
         </div>
 
@@ -307,28 +330,43 @@
 
     </div>
 
-    <!-- THEME SYNC SCRIPT -->
+    <!-- 🌟 HIGH-PERFORMANCE THEME SYNCHRONIZATION ENGINE -->
     <script>
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         const themeIcon = document.getElementById('themeIcon');
-        const statusMeta = document.getElementById('statusThemeColor');
+        const metaThemeColor = document.getElementById('metaThemeColor');
 
-        function applyCurrentTheme(theme) {
+        function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             const isDark = theme === 'dark';
+
+            // Update Icon
             themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-            if (statusMeta) {
-                statusMeta.setAttribute('content', isDark ? '#0f172a' : '#f8fafc');
+
+            // Sync Android Status Bar Background & Icons
+            if (metaThemeColor) {
+                metaThemeColor.setAttribute('content', isDark ? '#090d16' : '#ffffff');
             }
+
             localStorage.setItem('app_theme', theme);
         }
 
+        // 1. Initial Load: Priority to User Preference, then System
         const savedTheme = localStorage.getItem('app_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        applyCurrentTheme(savedTheme);
+        applyTheme(savedTheme);
 
+        // 2. Toggle Click Handler
         themeToggleBtn.addEventListener('click', () => {
             const current = document.documentElement.getAttribute('data-theme');
-            applyCurrentTheme(current === 'dark' ? 'light' : 'dark');
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+
+        // 3. Listen to System Theme Changes in Realtime
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('app_theme_manual')) {
+                applyTheme(e.matches ? 'dark' : 'light');
+            }
         });
     </script>
 </body>
