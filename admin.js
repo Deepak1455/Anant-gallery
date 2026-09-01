@@ -24,7 +24,7 @@ let toastTimer = null;
 let cachedUsersMap = new Map();
 let currentSearchTerm = "";
 
-// State for active inspected user
+// Active inspected user in modal
 let selectedUserForModal = null;
 let currentModalFilterTab = 'photos'; // 'photos' | 'favs' | 'trash' | 'all'
 
@@ -178,7 +178,6 @@ function listenToTelemetryAndPhotos() {
 
             const uid = d.uid || "Anonymous";
             
-            // Extract profile metadata
             const userName = d.userName || d.userEmail?.split('@')[0] || (uid.length > 8 ? uid.substring(0, 8) : uid);
             const userEmail = d.userEmail || `${uid.substring(0, 8)}@cloud`;
 
@@ -232,10 +231,10 @@ function listenToTelemetryAndPhotos() {
         if (elStorage) elStorage.innerText = formatBytes(totalBytes);
         if (elTrash) elTrash.innerText = trash;
         
-        // 🌟 LIVE TOTAL USER COUNT BADGE
+        // Live Total User Count Badge
         if (userBadge) userBadge.innerText = `${usersMap.size} ${usersMap.size === 1 ? 'Account' : 'Accounts'}`;
 
-        // 2. RENDER PHOTO STREAM
+        // 2. RENDER GLOBAL PHOTO STREAM
         rawPhotos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         renderPhotoStream(rawPhotos.slice(0, 36));
 
@@ -307,7 +306,7 @@ function renderPhotoStream(photos) {
 }
 
 // --------------------------------------------------------------------------
-// 6. ADVANCED USER DIRECTORY & SEARCH ENGINE
+// 6. USER SEARCH ENGINE
 // --------------------------------------------------------------------------
 function setupUserSearch() {
     const searchInput = document.getElementById("userSearchInput");
@@ -369,7 +368,7 @@ function filterAndRenderUsers() {
 
         tr.querySelector(".btn-inspect-user").onclick = () => {
             selectedUserForModal = user;
-            currentModalFilterTab = 'photos'; // default to active photos
+            currentModalFilterTab = 'photos';
             openUserInspectModal(user);
         };
 
@@ -378,7 +377,7 @@ function filterAndRenderUsers() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 7. INTERACTIVE USER PHOTO INSPECTOR (SMART TABS FOR PHOTOS, FAVS & TRASH)
+// 🌟 7. PERFECT SQUARE USER PHOTO INSPECTOR (100% FIXED GRID)
 // --------------------------------------------------------------------------
 function setupModalTabs() {
     document.getElementById("tabStatPhotos")?.addEventListener("click", () => {
@@ -455,7 +454,7 @@ function updateModalUI() {
     document.getElementById("modalGalleryHeading").innerText = headingText;
     document.getElementById("modalGalleryCountBadge").innerText = `(${filteredList.length})`;
 
-    // 5. Render Clean 3-Column Square Grid
+    // 5. Render Bulletproof 3-Column Square Grid
     const grid = document.getElementById("modalUserPhotosGrid");
     grid.innerHTML = "";
 
@@ -464,31 +463,29 @@ function updateModalUI() {
         return;
     }
 
-    // Sort by latest first
     filteredList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-    // High performance DocumentFragment
     const fragment = document.createDocumentFragment();
 
     filteredList.forEach(p => {
-        const card = document.createElement("div");
-        card.className = "admin-photo-card";
-        card.innerHTML = `
+        const item = document.createElement("div");
+        item.className = "user-photo-item";
+        item.innerHTML = `
             <img src="${p.image}" loading="lazy" decoding="async" alt="User Photo" onerror="this.src='/loadingphoto.png'">
             <div class="admin-photo-overlay">
                 <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}">
                     <i class="fa-solid fa-trash"></i>
                 </button>
-                <div class="photo-meta-info">${p.isFavorite ? '❤️ Fav' : (p.isDeleted ? '🗑️ Trash' : 'Photo')}</div>
+                <div class="photo-meta-info">${p.isFavorite ? '❤️ Fav' : (p.isDeleted ? '🗑️ Trash' : 'Active')}</div>
             </div>
         `;
 
-        card.querySelector(".btn-mod-delete").onclick = async (e) => {
+        item.querySelector(".btn-mod-delete").onclick = async (e) => {
             e.stopPropagation();
             if (confirm("Delete this photo permanently for this user?")) {
                 try {
                     await deleteDoc(doc(db, "user_photos", p.id));
-                    card.remove();
+                    item.remove();
                     showToast("Photo deleted permanently!");
                 } catch (err) {
                     showToast("Delete failed: " + err.message);
@@ -496,7 +493,7 @@ function updateModalUI() {
             }
         };
 
-        fragment.appendChild(card);
+        fragment.appendChild(item);
     });
 
     grid.appendChild(fragment);
