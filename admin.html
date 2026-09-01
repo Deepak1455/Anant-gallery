@@ -14,7 +14,6 @@
 <body>
 
     <!-- 🔒 ACCESS DENIED OVERLAY -->
-    
     <div id="accessDeniedScreen" class="denied-overlay" style="display: none;">
         <div class="denied-card">
             <div class="denied-icon"><i class="fa-solid fa-user-lock"></i></div>
@@ -161,7 +160,7 @@
                     <thead>
                         <tr>
                             <th>User Profile</th>
-                            <th>Photos</th>
+                            <th>Active Photos</th>
                             <th>Storage</th>
                             <th>Favorites</th>
                             <th>Trash</th>
@@ -210,21 +209,21 @@
                 <button class="user-modal-close" id="closeInspectModal"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
-            <!-- Clickable Interactive Tabs -->
+            <!-- 🌟 CLICKABLE STATS TABS (ACTIVE PHOTOS COUNT SHOWN FIRST) -->
             <div class="user-modal-stats">
-                <div class="user-m-stat active" id="tabStatPhotos">
+                <div class="user-m-stat active" id="tabStatPhotos" title="Active Photos (Exclude Trash)">
                     <span class="val" id="modalTotalPhotos">0</span>
-                    <span class="lbl">Photos</span>
+                    <span class="lbl">Active</span>
                 </div>
-                <div class="user-m-stat" id="tabStatStorage">
+                <div class="user-m-stat" id="tabStatStorage" title="Total Storage Used">
                     <span class="val" id="modalTotalStorage">0 MB</span>
                     <span class="lbl">Storage</span>
                 </div>
-                <div class="user-m-stat" id="tabStatFavs">
+                <div class="user-m-stat" id="tabStatFavs" title="Favorite Photos">
                     <span class="val" id="modalFavPhotos">0</span>
                     <span class="lbl">Favs ❤️</span>
                 </div>
-                <div class="user-m-stat" id="tabStatTrash">
+                <div class="user-m-stat" id="tabStatTrash" title="Trash Bin Photos">
                     <span class="val" id="modalTrashPhotos">0</span>
                     <span class="lbl">Trash 🗑️</span>
                 </div>
@@ -236,7 +235,7 @@
                 <span style="color:var(--text-muted); font-size:0.75rem; font-weight:700;" id="modalGalleryCountBadge">(0)</span>
             </div>
 
-            <!-- 🌟 GUARANTEED IDENTICAL TO LIVE STREAM GRID -->
+            <!-- Scrollable 3-Column Square Grid -->
             <div class="user-modal-scroll-area">
                 <div class="photo-stream-grid" id="modalUserPhotosGrid">
                     <!-- Photos rendered here -->
