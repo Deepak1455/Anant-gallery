@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Anant Gallery",
   "short_name": "Anant",
-  "description": "Infinite Cloud Photo Gallery & Backup",
+  "description": "Infinite Cloud Photo Gallery, Smart Albums & Encrypted Vault Backup",
   "lang": "en",
   "dir": "ltr",
   "start_url": "/",
@@ -19,15 +19,27 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "loadingphoto.png",
-      "sizes": "192x192 256x256 384x384 512x512",
-      "type": "image/png",
+      "src": "/loadingphoto.png",
+      "sizes": "192x192",
+      "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "loadingphoto.png",
-      "sizes": "192x192 256x256 384x384 512x512",
-      "type": "image/png",
+      "src": "/loadingphoto.png",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "/loadingphoto.png",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/loadingphoto.png",
+      "sizes": "512x512",
+      "type": "image/webp",
       "purpose": "maskable"
     }
   ],
