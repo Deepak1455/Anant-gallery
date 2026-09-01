@@ -8,6 +8,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
@@ -49,37 +50,63 @@
       "short_name": "Photos",
       "description": "View all cloud photos",
       "url": "/",
-      "icons": [{ "src": "/loadingphoto.png", "sizes": "192x192" }]
+      "icons": [
+        { 
+          "src": "/loadingphoto.png", 
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Albums",
       "short_name": "Albums",
       "description": "Organize photo folders",
       "url": "/#albums",
-      "icons": [{ "src": "/loadingphoto.png", "sizes": "192x192" }]
+      "icons": [
+        { 
+          "src": "/loadingphoto.png", 
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Favorites",
       "short_name": "Favorites",
       "description": "View favorite photos",
       "url": "/#favorites",
-      "icons": [{ "src": "/loadingphoto.png", "sizes": "192x192" }]
+      "icons": [
+        { 
+          "src": "/loadingphoto.png", 
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic"]
+      }
     }
   ],
   "screenshots": [
     {
       "src": "/loadingphoto.png",
-      "sizes": "512x512",
+      "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Anant Gallery Mobile Feed"
     },
     {
       "src": "/loadingphoto.png",
-      "sizes": "512x512",
+      "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Anant Gallery Desktop View"
+      "label": "Anant Gallery Desktop Feed"
     }
   ],
   "share_target": {
