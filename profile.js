@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - 100% BUG-FREE & FAST (WITH LEGAL LINKS & ACCOUNT DELETION)
+// PROFILE MODULE - 100% BUG-FREE, ULTRA-FAST WITH SMART STORAGE OPTIMIZER
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
@@ -21,6 +21,7 @@ import {
     registerBiometric, 
     removeBiometric 
 } from "./biometric-auth.js";
+import { openStorageOptimizerModal } from "./storage-optimizer.js";
 
 const CLOUDINARY_CLOUD_NAME = "gvickscl";
 const CLOUDINARY_UPLOAD_PRESET = "my_photo";
@@ -189,13 +190,16 @@ const injectProfileStyles = () => {
             margin-top: 4px;
             font-weight: 500;
         }
+        
+        /* 🌟 STORAGE ANALYTICS CARD & DEEP SCANNER ACTION BUTTON */
         .storage-analytics-card {
             background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
             border: 1px solid rgba(79, 70, 229, 0.2);
-            border-radius: 20px;
+            border-radius: 22px;
             padding: 20px;
             margin-top: 18px;
             text-align: left;
+            position: relative;
         }
         .storage-card-header {
             display: flex;
@@ -209,15 +213,16 @@ const injectProfileStyles = () => {
             gap: 10px;
         }
         .storage-icon-wrapper {
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
             color: #ffffff;
-            border-radius: 12px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 1.25rem;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
         }
         .storage-main-title {
             font-size: 0.95rem;
@@ -241,18 +246,20 @@ const injectProfileStyles = () => {
             gap: 4px;
         }
         .storage-big-value {
-            font-size: 1.8rem;
+            font-size: 1.85rem;
             font-weight: 800;
             color: #4f46e5;
             margin: 10px 0 6px 0;
             display: flex;
             align-items: baseline;
             gap: 6px;
+            font-family: 'JetBrains Mono', monospace;
         }
         .storage-big-value span {
             font-size: 0.85rem;
             font-weight: 600;
             color: var(--text-muted, #64748b);
+            font-family: 'Outfit', sans-serif;
         }
         .storage-progress-bg {
             width: 100%;
@@ -260,11 +267,34 @@ const injectProfileStyles = () => {
             background: rgba(0, 0, 0, 0.06);
             border-radius: 10px;
             overflow: hidden;
+            margin-bottom: 14px;
         }
         .storage-progress-fill {
             height: 100%;
             width: 100%;
             background: linear-gradient(90deg, #4f46e5, #9333ea);
+        }
+
+        .btn-launch-optimizer {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 0.88rem;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.35);
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+        .btn-launch-optimizer:active {
+            transform: scale(0.96);
         }
 
         .info-list {
@@ -569,6 +599,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                     </div>
                 </div>
 
+                <!-- 🌟 STORAGE ANALYTICS & SMART OPTIMIZER ACTION -->
                 <div class="storage-analytics-card">
                     <div class="storage-card-header">
                         <div class="storage-title-box">
@@ -592,6 +623,12 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                     <div class="storage-progress-bg">
                         <div class="storage-progress-fill"></div>
                     </div>
+
+                    <!-- 🌟 1-TAP DEEP SMART SCAN & OPTIMIZE BUTTON -->
+                    <button class="btn-launch-optimizer" id="btnLaunchOptimizer">
+                        <i class="fa-solid fa-bolt" style="color: #fbbf24;"></i>
+                        <span>Deep Scan & Free Up Phone Storage</span>
+                    </button>
                 </div>
 
                 <div class="info-list">
@@ -684,6 +721,14 @@ export function renderProfileScreen(containerElement, passedUser = null) {
     if (profileContainer) {
         renderSettingsSection(profileContainer);
     }
+
+    // 🌟 Open Deep Smart Storage Optimizer Modal
+    document.getElementById('btnLaunchOptimizer')?.addEventListener('click', () => {
+        if (navigator.vibrate) navigator.vibrate(20);
+        openStorageOptimizerModal(user, showToast, () => {
+            showToast("Storage Optimized Successfully! ⚡");
+        });
+    });
 
     // 🌟 Open Privacy Policy
     document.getElementById('btnOpenPrivacyPolicy')?.addEventListener('click', () => {
@@ -832,7 +877,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         });
     }
 
-    // Realtime Stats
+    // Realtime Stats & Storage Calculator
     const photosRef = collection(db, "user_photos");
     const qUserPhotos = query(photosRef, where("uid", "==", user.uid));
 
@@ -841,11 +886,11 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         let trashPhotos = 0;
         let favPhotos = 0;
         let totalBytesSaved = 0;
-        const DEFAULT_PHOTO_SIZE = 3.5 * 1024 * 1024;
+        const DEFAULT_PHOTO_SIZE = 3.8 * 1024 * 1024;
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            const photoBytes = data.fileSize || DEFAULT_PHOTO_SIZE;
+            const photoBytes = Number(data.fileSize) || DEFAULT_PHOTO_SIZE;
             totalBytesSaved += photoBytes;
 
             if (data.isDeleted === true) {
