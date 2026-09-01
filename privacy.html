@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
 
-    <!-- 🌟 PERMANENT DARK STATUS BAR (Phone Time, SIM, Battery Icons ALWAYS WHITE) -->
+    <!-- 🌟 PERMANENT DARK STATUS BAR (Clock & Battery Always White) -->
     <meta name="theme-color" content="#000000" id="metaThemeColor">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,11 +23,11 @@
     
     <style>
         /* ==========================================================================
-           1. THEME VARIABLES (PURE WHITE DEFAULT & ULTRA DARK)
+           1. THEME VARIABLES (AUTO-SYNCED LIGHT & ULTRA-DARK THEME)
            ========================================================================== */
-        :root {
-            --bg-body: #ffffff;
-            --bg-card: #f8fafc;
+        :root, [data-theme="light"] {
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
             --bg-glass: rgba(255, 255, 255, 0.94);
             --accent: #4f46e5;
             --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
@@ -67,7 +67,7 @@
         }
 
         html {
-            background-color: #000000; /* Ensures Phone Status Bar is always dark background */
+            background-color: #000000;
         }
 
         body {
@@ -78,7 +78,7 @@
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            transition: background-color 0.28s cubic-bezier(0.4, 0, 0.2, 1), color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background-color 0.3s ease, color 0.3s ease;
             overflow-x: hidden;
         }
 
@@ -93,11 +93,11 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 🌟 TOP FLOATING NAVIGATION BAR */
+        /* 🌟 TOP NAVIGATION BAR (ONLY BACK BUTTON) */
         .top-action-bar {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             margin-bottom: 16px;
             padding: 0 4px;
         }
@@ -119,11 +119,9 @@
             text-decoration: none;
         }
 
-        .btn-circle:active {
-            transform: scale(0.92);
-        }
+        .btn-circle:active { transform: scale(0.92); }
 
-        /* 🌟 BRAND HERO CARD (PURE CLEAN LOOK) */
+        /* 🌟 BRAND HERO CARD */
         .brand-hero {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -134,7 +132,7 @@
             margin-bottom: 18px;
             position: relative;
             overflow: hidden;
-            transition: background-color 0.28s ease, border-color 0.28s ease;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .logo-box {
@@ -148,12 +146,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: floatLogo 4s ease-in-out infinite;
-        }
-
-        @keyframes floatLogo {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-5px); }
         }
 
         .logo-img {
@@ -192,14 +184,14 @@
             margin-top: 14px;
         }
 
-        /* 🌟 CONTENT CARD */
+        /* 🌟 MAIN CONTENT CARD */
         .content-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 26px;
             padding: 30px 22px;
             box-shadow: var(--shadow-card);
-            transition: background-color 0.28s ease, border-color 0.28s ease;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         h2 {
@@ -224,7 +216,6 @@
 
         ul { padding-left: 22px; margin-bottom: 12px; }
 
-        /* 🌟 ALERT BOX FOR DATA RIGHTS */
         .alert-box {
             background: var(--alert-bg);
             border: 1px solid var(--alert-border);
@@ -261,20 +252,80 @@
             color: var(--text-muted);
             font-weight: 500;
         }
+
+        /* ==========================================================================
+           🌟 2. ANTI-SNOOP RECENT APPS PRIVACY SHIELD
+           ========================================================================== */
+        #privacyShield {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: #090d16;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            flex-direction: column;
+            gap: 10px;
+            user-select: none;
+            pointer-events: none;
+            transform: translateZ(0);
+            text-align: center;
+            padding: 20px;
+            transition: opacity 0.2s ease;
+        }
+
+        #privacyShield.active { 
+            display: flex !important; 
+        }
+
+        .privacy-shield-icon-box {
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.3), rgba(147, 51, 234, 0.3));
+            border: 2px solid rgba(79, 70, 229, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.3rem;
+            color: #818cf8;
+            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.35);
+            margin-bottom: 8px;
+        }
+
+        .privacy-shield-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.3px;
+        }
+
+        .privacy-shield-sub {
+            font-size: 0.84rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
 
+    <!-- 🌟 ANTI-SNOOP RECENT APPS PRIVACY SHIELD -->
+    <div id="privacyShield">
+        <div class="privacy-shield-icon-box">
+            <i class="fa-solid fa-user-shield"></i>
+        </div>
+        <div class="privacy-shield-title">Anant Gallery Protected</div>
+        <div class="privacy-shield-sub">Sensitive memories hidden for privacy</div>
+    </div>
+
     <div class="container">
         
-        <!-- 🌟 TOP NAVIGATION BAR -->
+        <!-- 🌟 TOP NAVIGATION BAR (ONLY BACK BUTTON) -->
         <div class="top-action-bar">
             <a href="/" class="btn-circle" title="Back to Gallery">
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
-            <button class="btn-circle" id="themeToggleBtn" title="Toggle Light / Dark Theme">
-                <i class="fa-solid fa-moon" id="themeIcon"></i>
-            </button>
         </div>
 
         <!-- 🌟 BRAND HERO HEADER -->
@@ -335,44 +386,73 @@
 
     </div>
 
-    <!-- 🌟 HIGH-PERFORMANCE THEME SYNCHRONIZATION ENGINE -->
+    <!-- 🌟 HIGH-PERFORMANCE AUTO THEME SYNC & PRIVACY SHIELD ENGINE -->
     <script>
-        const themeToggleBtn = document.getElementById('themeToggleBtn');
-        const themeIcon = document.getElementById('themeIcon');
-        const metaThemeColor = document.getElementById('metaThemeColor');
-
-        function applyTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            const isDark = theme === 'dark';
-
-            // Update Icon
-            themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-
-            // 🌟 ALWAYS KEEP STATUS BAR DARK SO PHONE ICONS REMAIN CRISP WHITE
-            if (metaThemeColor) {
-                metaThemeColor.setAttribute('content', '#000000');
-            }
-
-            localStorage.setItem('app_theme', theme);
+        // ------------------------------------------------------------------
+        // 1. AUTO TIME & THEME SYNCHRONIZER
+        // ------------------------------------------------------------------
+        function isNightTime() {
+            const h = new Date().getHours();
+            return h >= 19 || h < 6; // 7 PM to 6 AM Night Mode
         }
 
-        // 1. Initial Load: Priority to User Preference, then System
-        const savedTheme = localStorage.getItem('app_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        applyTheme(savedTheme);
+        function applySyncedTheme() {
+            const savedTheme = localStorage.getItem('app_theme') || 'auto';
+            let effectiveTheme = savedTheme;
 
-        // 2. Toggle Click Handler
-        themeToggleBtn.addEventListener('click', () => {
-            const current = document.documentElement.getAttribute('data-theme');
-            applyTheme(current === 'dark' ? 'light' : 'dark');
-            if (navigator.vibrate) navigator.vibrate(15);
-        });
+            if (savedTheme === 'auto') {
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                effectiveTheme = (systemDark || isNightTime()) ? 'dark' : 'light';
+            }
 
-        // 3. Listen to System Theme Changes in Realtime
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-            if (!localStorage.getItem('app_theme_manual')) {
-                applyTheme(e.matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', effectiveTheme);
+            document.body.setAttribute('data-theme', effectiveTheme);
+
+            const meta = document.getElementById('metaThemeColor');
+            if (meta) meta.setAttribute('content', '#000000');
+        }
+
+        // Apply theme immediately
+        applySyncedTheme();
+
+        // Listen for Realtime Theme changes from Profile/Settings
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'app_theme') {
+                applySyncedTheme();
             }
         });
+
+        // Listen for Phone System Dark Mode change
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            applySyncedTheme();
+        });
+
+        // ------------------------------------------------------------------
+        // 2. ANTI-SNOOP RECENT APPS PRIVACY SHIELD CONTROLLER
+        // ------------------------------------------------------------------
+        const shield = document.getElementById('privacyShield');
+
+        const showShield = () => {
+            if (shield) shield.classList.add('active');
+        };
+
+        const hideShield = () => {
+            if (shield) shield.classList.remove('active');
+        };
+
+        window.addEventListener('blur', showShield);
+        window.addEventListener('pagehide', showShield);
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                showShield();
+            } else {
+                hideShield();
+            }
+        });
+
+        window.addEventListener('focus', hideShield);
+        window.addEventListener('pageshow', hideShield);
     </script>
 </body>
 </html>
