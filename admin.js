@@ -102,15 +102,18 @@ function listenToGlobalAppConfig() {
         const toggleUp = document.getElementById("toggleUploads");
         const previewBox = document.getElementById("noticePreviewBox");
         const previewText = document.getElementById("noticePreviewText");
+        const liveBadge = document.getElementById("liveNoticeBadge");
 
         if (toggleMaint) toggleMaint.checked = !!data.maintenanceMode;
         if (toggleUp) toggleUp.checked = data.allowUploads !== false;
 
         if (data.broadcastNotice && data.broadcastNotice.trim()) {
-            if (previewBox) previewBox.style.display = "block";
+            if (previewBox) previewBox.style.display = "flex";
             if (previewText) previewText.innerText = data.broadcastNotice;
+            if (liveBadge) liveBadge.style.display = "flex";
         } else {
             if (previewBox) previewBox.style.display = "none";
+            if (liveBadge) liveBadge.style.display = "none";
         }
     }, (err) => {
         console.warn("Config listener error:", err);
@@ -231,7 +234,7 @@ function listenToTelemetryAndPhotos() {
         if (elStorage) elStorage.innerText = formatBytes(totalBytes);
         if (elTrash) elTrash.innerText = trash;
         
-        // Live Total User Count Badge
+        // 🌟 Fix: Live Total User Count Pill (e.g. "5 Accounts")
         if (userBadge) userBadge.innerText = `${usersMap.size} ${usersMap.size === 1 ? 'Account' : 'Accounts'}`;
 
         // 2. Render Global Photo Stream
@@ -377,7 +380,7 @@ function filterAndRenderUsers() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 7. VIEW PHOTOS MODAL (ACTIVE PHOTOS COUNT SYNCHRONIZED)
+// 7. VIEW PHOTOS MODAL (ACTIVE PHOTOS COUNT SYNCHRONIZED)
 // --------------------------------------------------------------------------
 function setupModalTabs() {
     document.getElementById("tabStatPhotos")?.addEventListener("click", () => switchModalTab('photos'));
@@ -410,7 +413,7 @@ function updateModalUI() {
     document.getElementById("modalUserName").innerText = user.name;
     document.getElementById("modalUserEmail").innerText = `${user.email} (UID: ${user.uid})`;
 
-    // 🌟 2. Shows ACTIVE Photos count (e.g. 110) instead of total including trash
+    // 2. Shows ACTIVE Photos count (e.g. 110)
     document.getElementById("modalTotalPhotos").innerText = user.activeCount;
     document.getElementById("modalTotalStorage").innerText = formatBytes(user.bytes);
     document.getElementById("modalFavPhotos").innerText = user.favs;
@@ -443,7 +446,7 @@ function updateModalUI() {
     document.getElementById("modalGalleryHeading").innerText = headingText;
     document.getElementById("modalGalleryCountBadge").innerText = `(${filteredList.length})`;
 
-    // 5. Render Exact Proven 3-Column Square Grid
+    // 5. Render Exact 3-Column Square Grid
     const grid = document.getElementById("modalUserPhotosGrid");
     grid.innerHTML = "";
 
@@ -501,7 +504,14 @@ document.getElementById("userInspectModal")?.addEventListener("click", (e) => {
     }
 });
 
+// 🌟 8. SMART REFRESH BUTTON WITH ROTATE ANIMATION
 document.getElementById("btnRefreshStream")?.addEventListener("click", () => {
+    const icon = document.getElementById("refreshIcon");
+    if (icon) {
+        icon.classList.remove("spin");
+        void icon.offsetWidth; // trigger reflow
+        icon.classList.add("spin");
+    }
     listenToTelemetryAndPhotos();
     showToast("Telemetry & Photos Refreshed!");
 });
