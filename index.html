@@ -33,10 +33,10 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
 
-    <!-- Fonts & Icons -->
+    <!-- Fonts & Icons Preconnect (Ultra-Fast 60fps Rendering) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
@@ -47,7 +47,10 @@
     <!-- SIDEBAR & OVERLAY -->
     <div id="sidebarOverlay"></div>
     <nav id="sidebar">
-        <div class="sb-header">Anant Gallery</div>
+        <div class="sb-header">
+            <i class="fa-solid fa-infinity" style="color: var(--accent);"></i> Anant Gallery
+        </div>
+        
         <div class="sb-item active" id="navPhotos">
             <i class="fa-regular fa-images"></i> Photos
         </div>
@@ -60,8 +63,14 @@
         <div class="sb-item" id="navHidden">
             <i class="fa-solid fa-user-shield" style="color: #6366f1;"></i> Private Photos
         </div>
+
+        <!-- 🌟 SMART DEEP STORAGE OPTIMIZER SIDEBAR BUTTON -->
+        <div class="sb-item" id="navOptimizer" style="color: #f59e0b; font-weight: 700;">
+            <i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Storage Optimizer
+        </div>
+
         <div class="sb-item" id="navTrash">
-            <i class="fa-solid fa-trash"></i> Trash Bin
+            <i class="fa-solid fa-trash" style="color: #ef4444;"></i> Trash Bin
         </div>
         <div class="sb-item" id="navProfile">
             <i class="fa-solid fa-user"></i> My Profile
@@ -69,8 +78,10 @@
         <div class="sb-item" onclick="window.open('/privacy.html', '_blank')">
             <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> Privacy Policy
         </div>
+
         <div style="flex:1"></div>
-        <div class="sb-item" id="logoutBtn" style="color: var(--danger)">
+        
+        <div class="sb-item" id="logoutBtn" style="color: var(--danger);">
             <i class="fa-solid fa-right-from-bracket"></i> Log Out
         </div>
     </nav>
@@ -100,8 +111,15 @@
                 <span>OR WITH EMAIL</span>
             </div>
 
-            <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="email" placeholder="Email" autocomplete="email"></div>
-            <div class="input-group" id="passGroup"><i class="fa-solid fa-lock"></i><input type="password" id="pass" placeholder="Password" autocomplete="current-password"></div>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="email" placeholder="Email" autocomplete="email">
+            </div>
+            
+            <div class="input-group" id="passGroup">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="pass" placeholder="Password" autocomplete="current-password">
+            </div>
             
             <button class="btn" id="authBtn">Enter Gallery</button>
             
