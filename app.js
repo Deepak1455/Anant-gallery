@@ -61,6 +61,7 @@ import { uploadPhotoToTelegram, uploadBatchPhotos } from "./telegram-photo.js";
 import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
+import { openStorageOptimizerModal } from "./storage-optimizer.js";
 
 // 🌟 SUPER ADMIN EMAILS LIST (इन ईमेल को साइडबार में सीधा Admin Panel लिंक मिलेगा)
 const SUPER_ADMIN_EMAILS = [
@@ -676,7 +677,7 @@ function switchView(view, extraParam = null) {
 }
 
 // --------------------------------------------------------------------------
-// 7. SIDEBAR CONTROLLER
+// 7. SIDEBAR CONTROLLER & STORAGE OPTIMIZER INTEGRATION
 // --------------------------------------------------------------------------
 const openSidebar = () => {
     if (sidebar) sidebar.classList.add('open');
@@ -703,6 +704,16 @@ document.getElementById('navFavorites')?.addEventListener('click', () => { switc
 document.getElementById('navHidden')?.addEventListener('click', () => { switchView('hidden'); closeSidebar(); });
 document.getElementById('navTrash')?.addEventListener('click', () => { switchView('trash'); closeSidebar(); });
 document.getElementById('navProfile')?.addEventListener('click', () => { switchView('profile'); closeSidebar(); });
+
+// 🌟 1-TAP SIDEBAR STORAGE OPTIMIZER TRIGGER
+document.getElementById('navOptimizer')?.addEventListener('click', () => {
+    closeSidebar();
+    if (navigator.vibrate) navigator.vibrate(20);
+    openStorageOptimizerModal(currentUser, showToast, () => {
+        if (currentView === 'photos') loadGalleryData('photos');
+        showToast("Storage Optimized Successfully! ⚡");
+    });
+});
 
 const exitManager = new SmartExitManager({
     isLightboxOpen: () => isImageViewerOpen(),
