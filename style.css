@@ -26,7 +26,19 @@
     --text-muted: #94a3b8 !important;
     --border: rgba(255, 255, 255, 0.12) !important;
 }
+/* 🌟 NATIVE STATUS BAR PADDING (Ensures Top Bar Battery & Time Never Overlap) */
+body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
 
+#mainHeader, #selectionHeader {
+    top: env(safe-area-inset-top, 0px) !important;
+}
+
+.scroll-container {
+    padding-top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+}
 /* --- 2. GLOBAL RESET & BASE STYLES --- */
 * { 
     margin: 0; 
