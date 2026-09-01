@@ -42,7 +42,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// 2. SMART TIME-AWARE + SYSTEM THEME APPLIER
+// 2. SMART TIME-AWARE + SYSTEM THEME APPLIER (WITH PERMANENT DARK STATUS BAR)
 // --------------------------------------------------------------------------
 export function isNightTime() {
     const currentHour = new Date().getHours();
@@ -60,9 +60,10 @@ export function applyTheme(themeMode) {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
     document.body.setAttribute('data-theme', effectiveTheme);
 
+    // 🌟 ALWAYS KEEP STATUS BAR DARK SO PHONE ICONS (TIME/BATTERY/5G) REMAIN CRISP WHITE
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', effectiveTheme === 'dark' ? '#0f172a' : '#f8fafc');
+        metaThemeColor.setAttribute('content', '#000000');
     }
 }
 
@@ -426,7 +427,7 @@ export async function showPinLockOverlay(correctHash) {
     overlay.innerHTML = `
         <div class="app-lock-card">
             <div class="app-lock-logo-box">
-                <img src="loadingphoto.png" class="app-lock-logo-img" alt="Anant Gallery" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <img src="/icon-192.png" class="app-lock-logo-img" alt="Anant Gallery" onerror="this.src='/loadingphoto.png'; this.onerror=null;">
                 <i class="fa-solid fa-lock" style="display:none;"></i>
             </div>
             <div class="pin-title">Anant Gallery Locked</div>
@@ -545,7 +546,6 @@ function setupPrivacyShield() {
     }
 
     const showShield = () => {
-        // 🌟 Do not show shield if fingerprint prompt is scanning
         if (isBiometricAuthInProgress) return;
 
         const appScreen = document.getElementById('appScreen');
