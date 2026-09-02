@@ -1,5 +1,5 @@
 // ==========================================================================
-// ALBUMS & COLLECTIONS MODULE - SMART TAP-TO-MOVE, AUTO-REMOVE & FULLSCREEN
+// ALBUMS & COLLECTIONS MODULE - PRO UNLIMITED & FREE 5-ALBUMS LIMIT GUARD
 // ==========================================================================
 
 import { db } from "./firebase-config.js";
@@ -17,9 +17,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderGroupedGallery } from "./gallery-card.js";
 import { openImageViewer } from "./image-viewer.js";
+import { isProUser, guardProFeature } from "./pro-manager.js";
 
 let unsubscribeAlbums = null;
 let unsubscribeAlbumDetail = null;
+
+// 🌟 FREE TIER ALBUM LIMIT
+const FREE_ALBUM_LIMIT = 5;
 
 // --------------------------------------------------------------------------
 // 1. DYNAMIC STYLES FOR ALBUMS, TOP CAROUSEL, ANIMATIONS & GLASS MODALS
@@ -452,7 +456,6 @@ export function renderAlbumsMainBoard(containerElement, currentUser, callbacks) 
         snapshot.forEach(docSnap => albums.push({ id: docSnap.id, ...docSnap.data() }));
 
         const photosRef = collection(db, "user_photos");
-        // 🌟 Count only active photos (not deleted, not hidden, not favorites)
         const qPhotos = query(photosRef, where("uid", "==", currentUser.uid), where("isDeleted", "==", false));
         const photoSnap = await getDocs(qPhotos);
 
@@ -668,7 +671,7 @@ export function renderAlbumsScreen(containerElement, currentUser, callbacks) {
 }
 
 // --------------------------------------------------------------------------
-// 6. RENDER DEDICATED FULLSCREEN ALBUM DETAIL SCREEN (AUTO-REMOVE FAV & PRIVATE)
+// 6. RENDER DEDICATED FULLSCREEN ALBUM DETAIL SCREEN
 // --------------------------------------------------------------------------
 export function openAlbumDetail(album, containerElement, currentUser, callbacks) {
     stopAlbumDetailListener();
@@ -695,7 +698,6 @@ export function openAlbumDetail(album, containerElement, currentUser, callbacks)
         const rawData = [];
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            // 🌟 EXCLUDE BOTH PRIVATE (HIDDEN) AND FAVORITE PHOTOS FROM ALBUM VIEW
             if (data.isHidden !== true && data.isFavorite !== true) {
                 rawData.push({ id: docSnap.id, ...data });
             }
@@ -718,15 +720,12 @@ export function openAlbumDetail(album, containerElement, currentUser, callbacks)
 
         rawData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-        // Smooth Card Exit on Snapshot Update
         const newIds = new Set(rawData.map(item => item.id));
         const existingCards = content.querySelectorAll('.photo-card');
         if (existingCards.length > 0) {
-            let removedCount = 0;
             existingCards.forEach(card => {
                 const cardId = card.dataset.id;
                 if (!newIds.has(cardId)) {
-                    removedCount++;
                     card.classList.add('card-leaving');
                     setTimeout(() => {
                         card.remove();
@@ -741,7 +740,6 @@ export function openAlbumDetail(album, containerElement, currentUser, callbacks)
             toggleSelection: callbacks.toggleSelection,
             selectId: callbacks.selectId,
             deselectId: callbacks.deselectId,
-            // 🌟 FAVORITE TOGGLE: Updates Firestore and removes from album view
             onToggleFav: async (docId, newFavStatus) => {
                 try {
                     await updateDoc(doc(db, "user_photos", docId), { isFavorite: newFavStatus });
@@ -758,7 +756,7 @@ export function openAlbumDetail(album, containerElement, currentUser, callbacks)
 }
 
 // --------------------------------------------------------------------------
-// 7. SMART "ADD TO ALBUM" PICKER MODAL
+// 7. SMART "ADD TO ALBUM" PICKER MODAL (WITH PRO LIMIT GUARD)
 // --------------------------------------------------------------------------
 export async function showAddToAlbumModal(photoIds, currentUser, onSuccess, showToast) {
     if (!photoIds || photoIds.length === 0) return;
@@ -814,6 +812,17 @@ export async function showAddToAlbumModal(photoIds, currentUser, onSuccess, show
         const name = input.value.trim();
         if (!name) return;
 
+        // 🔒 FREE LIMIT CHECK (MAX 5 ALBUMS)
+        if (!isProUser()) {
+            const qCount = query(collection(db, "user_albums"), where("uid", "==", currentUser.uid));
+            const countSnap = await getDocs(qCount);
+            if (countSnap.size >= FREE_ALBUM_LIMIT) {
+                close();
+                guardProFeature("Create Unlimited Custom Albums with Anant Pro");
+                return;
+            }
+        }
+
         const isDuplicate = await isAlbumNameDuplicate(currentUser.uid, name);
         if (isDuplicate) {
             if (showToast) showToast(`Album "${name}" already exists! Choose another name.`);
@@ -859,9 +868,26 @@ export async function showAddToAlbumModal(photoIds, currentUser, onSuccess, show
 }
 
 // --------------------------------------------------------------------------
-// 8. CUSTOM GLASS MODALS (CREATE, RENAME & DELETE)
+// 8. CUSTOM CREATE ALBUM MODAL (FREE MAX 5 & PRO UNLIMITED GUARD)
 // --------------------------------------------------------------------------
-export function showCustomCreateAlbumModal(currentUser, showToast, onSuccess) {
+export async function showCustomCreateAlbumModal(currentUser, showToast, onSuccess) {
+    // 🔒 1. FREE USER ALBUM LIMIT CHECK (MAX 5 ALBUMS)
+    if (!isProUser()) {
+        try {
+            const qCount = query(collection(db, "user_albums"), where("uid", "==", currentUser.uid));
+            const countSnap = await getDocs(qCount);
+
+            if (countSnap.size >= FREE_ALBUM_LIMIT) {
+                guardProFeature("Create Unlimited Custom Collections with Anant Pro", () => {
+                    showCustomCreateAlbumModal(currentUser, showToast, onSuccess);
+                });
+                return;
+            }
+        } catch (e) {
+            console.warn("Album check error:", e);
+        }
+    }
+
     let overlay = document.createElement('div');
     overlay.className = 'album-modal-overlay';
     overlay.innerHTML = `
