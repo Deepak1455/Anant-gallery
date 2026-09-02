@@ -13,7 +13,6 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 SUPER ADMIN EMAILS (इन ईमेल को एडमिन पैनल का फुल एक्सेस मिलेगा)
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
     "admin@anant.gallery",
@@ -26,7 +25,6 @@ let cachedUsersMap = new Map();
 let usersProDataMap = new Map();
 let currentSearchTerm = "";
 
-// Active inspected user in modal
 let selectedUserForModal = null;
 let currentModalFilterTab = 'photos';
 
@@ -51,9 +49,7 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// --------------------------------------------------------------------------
-// 1. AUTHENTICATION & ACCESS GUARD
-// --------------------------------------------------------------------------
+// 1. AUTH GUARD
 onAuthStateChanged(auth, (user) => {
     if (user && (SUPER_ADMIN_EMAILS.includes(user.email?.toLowerCase()) || user.email?.endsWith("@admin.com"))) {
         currentUser = user;
@@ -73,9 +69,6 @@ onAuthStateChanged(auth, (user) => {
 document.getElementById("btnBackToApp")?.addEventListener("click", () => { window.location.href = "/"; });
 document.getElementById("btnExitAdmin")?.addEventListener("click", () => { window.location.href = "/"; });
 
-// --------------------------------------------------------------------------
-// 2. DASHBOARD INITIALIZATION
-// --------------------------------------------------------------------------
 function initAdminDashboard() {
     listenToGlobalAppConfig();
     listenToTelemetryAndPhotos();
@@ -84,19 +77,13 @@ function initAdminDashboard() {
     setupProGrantActions();
 }
 
-// --------------------------------------------------------------------------
-// 3. REMOTE APP CONTROLS
-// --------------------------------------------------------------------------
+// 2. REMOTE APP CONTROLS
 function listenToGlobalAppConfig() {
     const configDocRef = doc(db, "app_config", "global_settings");
 
     onSnapshot(configDocRef, (snap) => {
         if (!snap.exists()) {
-            setDoc(configDocRef, {
-                maintenanceMode: false,
-                allowUploads: true,
-                broadcastNotice: ""
-            }, { merge: true });
+            setDoc(configDocRef, { maintenanceMode: false, allowUploads: true, broadcastNotice: "" }, { merge: true });
             return;
         }
 
@@ -118,59 +105,38 @@ function listenToGlobalAppConfig() {
             if (previewBox) previewBox.style.display = "none";
             if (liveBadge) liveBadge.style.display = "none";
         }
-    }, (err) => {
-        console.warn("Config listener error:", err);
     });
 
     document.getElementById("toggleMaintenance")?.addEventListener("change", async (e) => {
-        try {
-            await setDoc(configDocRef, { maintenanceMode: e.target.checked }, { merge: true });
-            showToast(e.target.checked ? "🚨 Maintenance Enabled!" : "✅ App Live for Users!");
-        } catch (err) {
-            showToast("Failed to update: " + err.message);
-        }
+        await setDoc(configDocRef, { maintenanceMode: e.target.checked }, { merge: true });
+        showToast(e.target.checked ? "🚨 Maintenance Enabled!" : "✅ App Live for Users!");
     });
 
     document.getElementById("toggleUploads")?.addEventListener("change", async (e) => {
-        try {
-            await setDoc(configDocRef, { allowUploads: e.target.checked }, { merge: true });
-            showToast(e.target.checked ? "✅ Uploads Enabled" : "⚠️ Uploads Paused Globally!");
-        } catch (err) {
-            showToast("Failed to update: " + err.message);
-        }
+        await setDoc(configDocRef, { allowUploads: e.target.checked }, { merge: true });
+        showToast(e.target.checked ? "✅ Uploads Enabled" : "⚠️ Uploads Paused Globally!");
     });
 
     document.getElementById("btnPublishNotice")?.addEventListener("click", async () => {
         const input = document.getElementById("broadcastInput");
         const msg = input.value.trim();
         if (!msg) return showToast("Enter notice message!");
-        try {
-            await setDoc(configDocRef, { broadcastNotice: msg }, { merge: true });
-            input.value = "";
-            showToast("📢 Notice Published to all users!");
-        } catch (err) {
-            showToast("Publish error: " + err.message);
-        }
+        await setDoc(configDocRef, { broadcastNotice: msg }, { merge: true });
+        input.value = "";
+        showToast("📢 Notice Published!");
     });
 
     document.getElementById("btnClearNotice")?.addEventListener("click", async () => {
-        try {
-            await setDoc(configDocRef, { broadcastNotice: "" }, { merge: true });
-            showToast("Banner Cleared!");
-        } catch (err) {
-            showToast("Clear error: " + err.message);
-        }
+        await setDoc(configDocRef, { broadcastNotice: "" }, { merge: true });
+        showToast("Banner Cleared!");
     });
 }
 
-// --------------------------------------------------------------------------
-// 4. REALTIME TELEMETRY, INDEPENDENT FALLBACK & LIVE DATA LOADER
-// --------------------------------------------------------------------------
+// 3. REALTIME TELEMETRY & DATA STREAM
 function listenToTelemetryAndPhotos() {
     const photosRef = collection(db, "user_photos");
     const usersRef = collection(db, "users");
 
-    // 1. Users Collection Snapshot (Safe & Non-blocking)
     try {
         onSnapshot(usersRef, (usersSnap) => {
             usersProDataMap.clear();
@@ -202,16 +168,9 @@ function listenToTelemetryAndPhotos() {
             });
 
             filterAndRenderUsers();
-            if (selectedUserForModal && cachedUsersMap.has(selectedUserForModal.uid)) {
-                selectedUserForModal = cachedUsersMap.get(selectedUserForModal.uid);
-                updateModalUI();
-            }
-        }, (err) => {
-            console.warn("Users collection warning (fallback active):", err);
         });
     } catch (e) {}
 
-    // 2. Photos Collection Snapshot (Primary Data Source)
     onSnapshot(photosRef, (snapshot) => {
         let total = snapshot.size;
         let active = 0;
@@ -231,7 +190,6 @@ function listenToTelemetryAndPhotos() {
 
             if (!usersMap.has(uid)) {
                 const proData = usersProDataMap.get(uid) || { isPro: false, proPlan: null };
-
                 usersMap.set(uid, { 
                     uid: uid,
                     name: userName,
@@ -269,7 +227,7 @@ function listenToTelemetryAndPhotos() {
 
         cachedUsersMap = usersMap;
 
-        // Update Live Telemetry
+        // Telemetry Update
         const elTotal = document.getElementById("valTotalPhotos");
         const elActive = document.getElementById("valActivePhotos");
         const elUsers = document.getElementById("valTotalUsers");
@@ -290,23 +248,12 @@ function listenToTelemetryAndPhotos() {
             selectedUserForModal = usersMap.get(selectedUserForModal.uid);
             updateModalUI();
         }
-
-    }, (err) => {
-        console.error("Firestore Read Error:", err);
-        const tableBody = document.getElementById("userTableBody");
-        if (tableBody) {
-            tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:18px; color:var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Firestore Permission Error! Check Security Rules.</td></tr>`;
-        }
-        showToast("Firestore Permission Error! Check Rules.");
     });
 }
 
-// --------------------------------------------------------------------------
-// 5. RENDER USER DIRECTORY TABLE
-// --------------------------------------------------------------------------
+// 4. USER DIRECTORY RENDERER (CLEAN COLUMNS & NO OVERLAP)
 function setupUserSearch() {
-    const searchInput = document.getElementById("userSearchInput");
-    searchInput?.addEventListener("input", (e) => {
+    document.getElementById("userSearchInput")?.addEventListener("input", (e) => {
         currentSearchTerm = e.target.value.toLowerCase().trim();
         filterAndRenderUsers();
     });
@@ -319,7 +266,7 @@ function filterAndRenderUsers() {
     tableBody.innerHTML = "";
 
     if (cachedUsersMap.size === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:22px 14px; color:var(--text-muted);"><i class="fa-solid fa-users" style="font-size:1.4rem; margin-bottom:6px; display:block; opacity:0.5;"></i>No registered accounts found yet.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No accounts found.</td></tr>`;
         return;
     }
 
@@ -342,7 +289,7 @@ function filterAndRenderUsers() {
         const initial = user.name.charAt(0).toUpperCase();
 
         const planBadge = user.isPro 
-            ? `<span class="admin-pro-badge"><i class="fa-solid fa-crown"></i> PRO (${(user.proPlan || 'lifetime').toUpperCase()})</span>`
+            ? `<span class="admin-pro-badge"><i class="fa-solid fa-crown"></i> PRO</span>`
             : `<span class="admin-free-badge">FREE</span>`;
 
         tr.innerHTML = `
@@ -361,7 +308,7 @@ function filterAndRenderUsers() {
             <td>${user.favs} ❤️</td>
             <td>
                 <button class="btn-inspect-user" data-uid="${user.uid}">
-                    <i class="fa-solid fa-sliders"></i> Manage User
+                    <i class="fa-solid fa-sliders"></i> Manage
                 </button>
             </td>
         `;
@@ -376,9 +323,7 @@ function filterAndRenderUsers() {
     });
 }
 
-// --------------------------------------------------------------------------
-// 🌟 6. PRO SUBSCRIPTION GRANT/REVOKE CONTROLLER (ADMIN DIRECT ACTION)
-// --------------------------------------------------------------------------
+// 5. PRO SUBSCRIPTION GRANT/REVOKE CONTROLLER
 function setupProGrantActions() {
     document.getElementById("btnGrantProLifetime")?.addEventListener("click", () => updateSelectedUserPlan("lifetime"));
     document.getElementById("btnGrantPro1Year")?.addEventListener("click", () => updateSelectedUserPlan("annual"));
@@ -413,16 +358,13 @@ async function updateSelectedUserPlan(planType) {
 
         updateModalUI();
         filterAndRenderUsers();
-
-        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro to user!` : `Removed Pro! User set to Free Plan.`);
+        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro!` : `User set to Free Plan.`);
     } catch (err) {
-        showToast("Subscription update failed: " + err.message);
+        showToast("Update failed: " + err.message);
     }
 }
 
-// --------------------------------------------------------------------------
-// 7. USER INSPECTOR MODAL WITH PRO CONTROLS
-// --------------------------------------------------------------------------
+// 6. USER INSPECTOR MODAL
 function setupModalTabs() {
     document.getElementById("tabStatPhotos")?.addEventListener("click", () => switchModalTab('photos'));
     document.getElementById("tabStatFavs")?.addEventListener("click", () => switchModalTab('favs'));
@@ -432,14 +374,12 @@ function setupModalTabs() {
 
 function switchModalTab(tabKey) {
     currentModalFilterTab = tabKey;
-    if (navigator.vibrate) navigator.vibrate(15);
     updateModalUI();
 }
 
 function openUserInspectModal(user) {
     const modal = document.getElementById("userInspectModal");
     if (!modal) return;
-
     selectedUserForModal = user;
     updateModalUI();
     modal.style.display = "flex";
@@ -449,12 +389,10 @@ function updateModalUI() {
     if (!selectedUserForModal) return;
     const user = selectedUserForModal;
 
-    // Header & Profile
     document.getElementById("modalUserAvatar").innerText = user.name.charAt(0).toUpperCase();
     document.getElementById("modalUserName").innerText = user.name;
     document.getElementById("modalUserEmail").innerText = `${user.email} (UID: ${user.uid})`;
 
-    // Pro Badges & Status Text
     const proBadge = document.getElementById("modalProBadge");
     const statusText = document.getElementById("modalSubscriptionStatusText");
 
@@ -464,7 +402,7 @@ function updateModalUI() {
             proBadge.innerHTML = `<i class="fa-solid fa-crown"></i> PRO (${(user.proPlan || 'lifetime').toUpperCase()})`;
         }
         if (statusText) {
-            statusText.innerText = `Active Plan: ${(user.proPlan || 'Lifetime').toUpperCase()}`;
+            statusText.innerText = `Active: ${(user.proPlan || 'Lifetime').toUpperCase()}`;
             statusText.style.color = "#d97706";
         }
     } else {
@@ -473,24 +411,21 @@ function updateModalUI() {
             proBadge.innerText = "FREE";
         }
         if (statusText) {
-            statusText.innerText = "Current Plan: Free Tier";
+            statusText.innerText = "Plan: Free Tier";
             statusText.style.color = "#64748b";
         }
     }
 
-    // Stats
     document.getElementById("modalTotalPhotos").innerText = user.activeCount;
     document.getElementById("modalTotalStorage").innerText = formatBytes(user.bytes);
     document.getElementById("modalFavPhotos").innerText = user.favs;
     document.getElementById("modalTrashPhotos").innerText = user.trash;
 
-    // Tab Highlight
     document.getElementById("tabStatPhotos")?.classList.toggle('active', currentModalFilterTab === 'photos');
     document.getElementById("tabStatFavs")?.classList.toggle('active', currentModalFilterTab === 'favs');
     document.getElementById("tabStatTrash")?.classList.toggle('active', currentModalFilterTab === 'trash');
     document.getElementById("tabStatStorage")?.classList.toggle('active', currentModalFilterTab === 'all');
 
-    // Filtered Photos Grid
     let filteredList = [];
     let headingText = "Active Photos";
 
@@ -515,7 +450,7 @@ function updateModalUI() {
     grid.innerHTML = "";
 
     if (filteredList.length === 0) {
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px 15px; color:var(--text-muted); font-size:0.85rem;">No ${headingText.toLowerCase()} found.</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:35px 15px; color:var(--text-muted); font-size:0.85rem;">No ${headingText.toLowerCase()} found.</div>`;
         return;
     }
 
@@ -535,13 +470,9 @@ function updateModalUI() {
         card.querySelector(".btn-mod-delete").onclick = async (e) => {
             e.stopPropagation();
             if (confirm("Delete this photo permanently?")) {
-                try {
-                    await deleteDoc(doc(db, "user_photos", p.id));
-                    card.remove();
-                    showToast("Photo deleted permanently!");
-                } catch (err) {
-                    showToast("Delete failed: " + err.message);
-                }
+                await deleteDoc(doc(db, "user_photos", p.id));
+                card.remove();
+                showToast("Photo deleted!");
             }
         };
 
@@ -554,9 +485,7 @@ document.getElementById("closeInspectModal")?.addEventListener("click", () => {
     selectedUserForModal = null;
 });
 
-// --------------------------------------------------------------------------
-// 8. RENDER GLOBAL PHOTO STREAM
-// --------------------------------------------------------------------------
+// 7. RENDER GLOBAL PHOTO STREAM (LOCKED 3-COLUMNS)
 function renderPhotoStream(photos) {
     const streamGrid = document.getElementById("adminPhotoGrid");
     const countBadge = document.getElementById("streamCount");
@@ -586,14 +515,10 @@ function renderPhotoStream(photos) {
 
         card.querySelector(".btn-mod-delete").onclick = async (e) => {
             e.stopPropagation();
-            if (confirm("Permanently delete this photo from cloud?")) {
-                try {
-                    await deleteDoc(doc(db, "user_photos", p.id));
-                    card.remove();
-                    showToast("Photo deleted permanently by Admin!");
-                } catch (err) {
-                    showToast("Delete failed: " + err.message);
-                }
+            if (confirm("Delete this photo from cloud?")) {
+                await deleteDoc(doc(db, "user_photos", p.id));
+                card.remove();
+                showToast("Photo deleted permanently!");
             }
         };
 
