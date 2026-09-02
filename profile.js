@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - 100% BUG-FREE & FAST (WITH PRO CROWN & SUBSCRIPTION HUB)
+// PROFILE MODULE - PRO PLAN TYPE (1 MO / 1 YR / LIFETIME) & EXPIRY TRACKER
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
@@ -156,7 +156,7 @@ const injectProfileStyles = () => {
             margin-bottom: 14px;
         }
 
-        /* 🌟 PRO CROWN BADGE & ACTIVE/UPGRADE CARDS */
+        /* 🌟 PRO CROWN BADGE */
         .pro-crown-badge {
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
             color: #d97706;
@@ -177,18 +177,90 @@ const injectProfileStyles = () => {
             50% { transform: scale(1.05); }
         }
 
+        /* 👑 PRO MEMBERSHIP ACTIVE CARD WITH EXPIRY & PLAN DISPLAY */
         .pro-active-card {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.06) 100%);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.05) 100%);
             border: 1.5px solid rgba(245, 158, 11, 0.35);
-            padding: 14px 16px;
-            border-radius: 20px;
+            padding: 16px;
+            border-radius: 22px;
             margin: 14px 0 18px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            text-align: left;
+            box-shadow: 0 4px 18px rgba(245, 158, 11, 0.08);
+        }
+
+        .pro-active-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            text-align: left;
+            gap: 10px;
         }
 
+        .pro-active-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pro-icon-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+            flex-shrink: 0;
+        }
+
+        .pro-plan-title {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #b45309;
+            line-height: 1.2;
+        }
+
+        .pro-expiry-sub {
+            font-size: 0.74rem;
+            color: #d97706;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        .pro-validity-pill {
+            background: rgba(16, 185, 129, 0.15);
+            color: #059669;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+
+        .pro-perks-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 8px;
+            border-top: 1px dashed rgba(245, 158, 11, 0.25);
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #92400e;
+        }
+
+        .pro-perks-strip span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* FREE UPGRADE BANNER */
         .pro-upgrade-banner {
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.08) 100%);
             border: 1.5px dashed rgba(245, 158, 11, 0.45);
@@ -460,59 +532,19 @@ const injectProfileStyles = () => {
         }
         @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes modalPopUp { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
-        .pin-modal-box h4 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--text-main, #0f172a);
-            margin-bottom: 4px;
-        }
-        .pin-modal-box p {
-            font-size: 0.82rem;
-            color: var(--text-muted, #64748b);
-            margin-bottom: 18px;
-        }
+        .pin-modal-box h4 { font-size: 1.2rem; font-weight: 700; color: var(--text-main, #0f172a); margin-bottom: 4px; }
+        .pin-modal-box p { font-size: 0.82rem; color: var(--text-muted, #64748b); margin-bottom: 18px; }
         .pin-input-field {
-            width: 100%;
-            padding: 12px;
-            border: 1.5px solid var(--border, #cbd5e1);
-            background: var(--bg-body, #f8fafc);
-            color: var(--text-main, #0f172a);
-            border-radius: 14px;
-            font-size: 1.15rem;
-            text-align: center;
-            letter-spacing: 8px;
-            margin-bottom: 12px;
-            outline: none;
+            width: 100%; padding: 12px; border: 1.5px solid var(--border, #cbd5e1);
+            background: var(--bg-body, #f8fafc); color: var(--text-main, #0f172a);
+            border-radius: 14px; font-size: 1.15rem; text-align: center; letter-spacing: 8px; margin-bottom: 12px; outline: none;
         }
-        .pin-input-field:focus {
-            border-color: var(--accent, #4f46e5);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
-        }
-        .pin-modal-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 12px;
-        }
+        .pin-modal-actions { display: flex; gap: 10px; margin-top: 12px; }
         .pin-modal-btn {
-            flex: 1;
-            padding: 13px;
-            border-radius: 14px;
-            border: none;
-            font-weight: 600;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: transform 0.15s;
+            flex: 1; padding: 13px; border-radius: 14px; border: none; font-weight: 600; font-size: 0.9rem; cursor: pointer;
         }
-        .pin-modal-btn:active { transform: scale(0.96); }
-        .pin-modal-btn.save {
-            background: var(--accent, #4f46e5);
-            color: #ffffff;
-            box-shadow: 0 8px 18px rgba(79, 70, 229, 0.35);
-        }
-        .pin-modal-btn.cancel {
-            background: rgba(100, 116, 139, 0.12);
-            color: var(--text-muted, #64748b);
-        }
+        .pin-modal-btn.save { background: var(--accent, #4f46e5); color: #ffffff; }
+        .pin-modal-btn.cancel { background: rgba(100, 116, 139, 0.12); color: var(--text-muted, #64748b); }
     `;
     document.head.appendChild(style);
 };
@@ -523,6 +555,41 @@ function formatStorageSize(bytes) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// 🌟 SMART PRO PLAN & EXPIRY FORMATTER
+function formatProSubscription(proDetails) {
+    if (!proDetails || !proDetails.isPro) return null;
+
+    const plan = (proDetails.plan || 'lifetime').toLowerCase();
+    let planLabel = "Lifetime VIP Access";
+    let expiryText = "Never Expires • Permanent Cloud VIP";
+    let statusBadge = "Lifetime Active";
+
+    if (plan === 'monthly') {
+        planLabel = "1 Month Pro Plan";
+    } else if (plan === 'annual' || plan === '1year' || plan === '1 year') {
+        planLabel = "1 Year Pro Plan";
+    } else {
+        planLabel = "Lifetime VIP Access";
+    }
+
+    if (proDetails.expiry && plan !== 'lifetime') {
+        const expDate = new Date(proDetails.expiry);
+        const dateFormatted = expDate.toLocaleDateString('en-US', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+
+        const msLeft = proDetails.expiry - Date.now();
+        const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+        expiryText = `Valid till ${dateFormatted}`;
+        statusBadge = daysLeft === 0 ? 'Expires Today' : `${daysLeft} days left`;
+    }
+
+    return { planLabel, expiryText, statusBadge, isLifetime: plan === 'lifetime' };
 }
 
 const showToast = (msg) => {
@@ -560,7 +627,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 
     const isPro = isProUser();
     const proDetails = getProDetails();
-    const planName = proDetails.plan ? (proDetails.plan === 'lifetime' ? 'Lifetime Access' : `${proDetails.plan.toUpperCase()} Plan`) : 'Active Plan';
+    const subInfo = formatProSubscription(proDetails);
 
     const avatarContent = user.photoURL 
         ? `<img src="${user.photoURL}" id="avatarImg" class="profile-avatar" alt="Avatar">`
@@ -592,19 +659,26 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 
                 <div class="profile-email">${email}</div>
 
-                <!-- 🌟 LIVE SUBSCRIPTION HUB: UNLOCKED FOR PRO, UPGRADE CTA FOR FREE -->
-                ${isPro ? `
+                <!-- 🌟 LIVE SUBSCRIPTION HUB: EXACT PLAN & EXPIRY DISPLAY FOR PRO, CTA FOR FREE -->
+                ${isPro && subInfo ? `
                     <div class="pro-active-card">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <div style="width:40px; height:40px; border-radius:14px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.25rem; box-shadow:0 4px 12px rgba(245, 158, 11, 0.35);">
-                                <i class="fa-solid fa-crown"></i>
+                        <div class="pro-active-top">
+                            <div class="pro-active-info">
+                                <div class="pro-icon-box">
+                                    <i class="fa-solid fa-crown"></i>
+                                </div>
+                                <div>
+                                    <div class="pro-plan-title">${subInfo.planLabel}</div>
+                                    <div class="pro-expiry-sub">${subInfo.expiryText}</div>
+                                </div>
                             </div>
-                            <div>
-                                <div style="font-weight:800; font-size:0.92rem; color:#b45309;">Anant Pro Active</div>
-                                <div style="font-size:0.75rem; color:#d97706; font-weight:600;">${planName} • All Perks Unlocked ⚡</div>
-                            </div>
+                            <span class="pro-validity-pill">${subInfo.statusBadge}</span>
                         </div>
-                        <i class="fa-solid fa-circle-check" style="color:#059669; font-size:1.2rem;"></i>
+                        <div class="pro-perks-strip">
+                            <span><i class="fa-solid fa-bolt" style="color:#f59e0b;"></i> 4K Original Quality</span>
+                            <span><i class="fa-solid fa-infinity" style="color:#10b981;"></i> 500+ Batch</span>
+                            <span><i class="fa-solid fa-fingerprint" style="color:#6366f1;"></i> Biometrics</span>
+                        </div>
                     </div>
                 ` : `
                     <div class="pro-upgrade-banner" id="btnProfileUpgradePro">
@@ -755,7 +829,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         showProPaywallModal("Unlock Unlimited Cloud Features");
     });
 
-    // 🌟 LIVE PRO STATUS LISTENER (Re-renders if Pro is granted while on profile screen)
+    // 🌟 LIVE PRO STATUS LISTENER (Re-renders immediately when Pro is updated)
     const handleProEvent = () => {
         renderProfileScreen(containerElement, user);
     };
