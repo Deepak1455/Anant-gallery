@@ -3,13 +3,13 @@
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Pro State Cache
-let currentProState = {
-    isPro: false,
-    plan: null,
-    expiry: null
+// Fast Memory & LocalStorage Cache (Zero Network Lag on Startup)
+let cachedProState = {
+    isPro: localStorage.getItem("anant_is_pro") === "true",
+    plan: localStorage.getItem("anant_pro_plan") || null,
+    expiry: localStorage.getItem("anant_pro_expiry") ? Number(localStorage.getItem("anant_pro_expiry")) : null
 };
 
 let unsubscribeProListener = null;
@@ -307,17 +307,21 @@ function injectProStyles() {
 }
 
 // --------------------------------------------------------------------------
-// 2. REALTIME PRO STATUS LISTENER & FIRESTORE SYNC
+// 2. FAST REALTIME PRO LISTENER & LIVE EVENT DISPATCHER
 // --------------------------------------------------------------------------
 export function initProManager(currentUser) {
     injectProStyles();
 
     if (!currentUser) {
-        currentProState = { isPro: false, plan: null, expiry: null };
+        cachedProState = { isPro: false, plan: null, expiry: null };
+        localStorage.removeItem("anant_is_pro");
+        localStorage.removeItem("anant_pro_plan");
+        localStorage.removeItem("anant_pro_expiry");
         if (unsubscribeProListener) {
             unsubscribeProListener();
             unsubscribeProListener = null;
         }
+        window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
         return;
     }
 
@@ -328,29 +332,40 @@ export function initProManager(currentUser) {
             const data = snap.data();
             const isPro = data.isPro === true;
             const expiry = data.proExpiry ? (data.proExpiry.toMillis ? data.proExpiry.toMillis() : data.proExpiry) : null;
-
             const isStillValid = isPro && (!expiry || Date.now() < expiry);
 
-            currentProState = {
+            cachedProState = {
                 isPro: isStillValid,
                 plan: data.proPlan || 'lifetime',
                 expiry: expiry
             };
+
+            // Instant LocalStorage Sync
+            localStorage.setItem("anant_is_pro", isStillValid ? "true" : "false");
+            if (data.proPlan) localStorage.setItem("anant_pro_plan", data.proPlan);
+            if (expiry) localStorage.setItem("anant_pro_expiry", String(expiry));
         } else {
-            currentProState = { isPro: false, plan: null, expiry: null };
+            cachedProState = { isPro: false, plan: null, expiry: null };
+            localStorage.setItem("anant_is_pro", "false");
         }
+
+        // 🌟 पूरे ऐप को तुरंत लाइव सिग्नल भेजें (Zero Reload Required)
+        window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
     }, (err) => {
-        console.warn("[ProManager] Listener error:", err);
+        console.warn("[ProManager] Listener warning:", err);
     });
 }
 
+// 🌟 Synchronous Zero-Lag Check (0.001s)
 export function isProUser() {
-    return currentProState.isPro === true;
+    return cachedProState.isPro === true;
 }
 
-// --------------------------------------------------------------------------
-// 3. SMART PRO FEATURE GUARD
-// --------------------------------------------------------------------------
+export function getProDetails() {
+    return cachedProState;
+}
+
+// 🌟 Smart Pro Feature Guard
 export function guardProFeature(featureName, onAllowed) {
     if (isProUser()) {
         if (onAllowed) onAllowed();
@@ -363,7 +378,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 4. SHOW PRO PAYWALL MODAL (WITH FREE VS PRO COMPARISON MATRIX)
+// 3. SHOW PRO PAYWALL MODAL
 // --------------------------------------------------------------------------
 export function showProPaywallModal(highlightReason = "Unlock All Features") {
     injectProStyles();
@@ -418,7 +433,13 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 <div class="comparison-row">
                     <div class="feat-name"><i class="fa-solid fa-fingerprint"></i> Vault Lock</div>
                     <div class="free-val">PIN Only</div>
-                    <div class="pro-val">Biometric & Decoy</div>
+                    <div class="pro-val">Biometrics & Decoy</div>
+                </div>
+
+                <div class="comparison-row">
+                    <div class="feat-name"><i class="fa-solid fa-download"></i> Bulk Download</div>
+                    <div class="free-val">5 Photos</div>
+                    <div class="pro-val">Unlimited ZIP</div>
                 </div>
             </div>
 
@@ -502,12 +523,14 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
-            currentProState = {
+            cachedProState = {
                 isPro: true,
                 plan: selectedPlan,
                 expiry: expiryDate
             };
 
+            localStorage.setItem("anant_is_pro", "true");
+            window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
             close();
 
             const toast = document.getElementById("toast");
