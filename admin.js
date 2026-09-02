@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - COMMAND CENTER (ACTIVE PHOTOS COUNT & ACCURATE STATS)
+// ANANT GALLERY - COMMAND CENTER & PRO SUBSCRIPTION CONTROLLER (ADMIN.JS)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -9,7 +9,8 @@ import {
     doc, 
     setDoc, 
     deleteDoc, 
-    onSnapshot 
+    onSnapshot,
+    serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // 🌟 SUPER ADMIN EMAILS
@@ -26,7 +27,7 @@ let currentSearchTerm = "";
 
 // Active inspected user in modal
 let selectedUserForModal = null;
-let currentModalFilterTab = 'photos'; // 'photos' (Active) | 'favs' | 'trash' | 'all'
+let currentModalFilterTab = 'photos';
 
 function showToast(msg) {
     const t = document.getElementById("adminToast");
@@ -64,12 +65,8 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-document.getElementById("btnBackToApp")?.addEventListener("click", () => {
-    window.location.href = "/";
-});
-document.getElementById("btnExitAdmin")?.addEventListener("click", () => {
-    window.location.href = "/";
-});
+document.getElementById("btnBackToApp")?.addEventListener("click", () => { window.location.href = "/"; });
+document.getElementById("btnExitAdmin")?.addEventListener("click", () => { window.location.href = "/"; });
 
 // --------------------------------------------------------------------------
 // 2. DASHBOARD INITIALIZATION
@@ -79,10 +76,11 @@ function initAdminDashboard() {
     listenToTelemetryAndPhotos();
     setupUserSearch();
     setupModalTabs();
+    setupProGrantActions();
 }
 
 // --------------------------------------------------------------------------
-// 3. REMOTE APP CONTROLS (REALTIME)
+// 3. REMOTE APP CONTROLS
 // --------------------------------------------------------------------------
 function listenToGlobalAppConfig() {
     const configDocRef = doc(db, "app_config", "global_settings");
@@ -115,8 +113,6 @@ function listenToGlobalAppConfig() {
             if (previewBox) previewBox.style.display = "none";
             if (liveBadge) liveBadge.style.display = "none";
         }
-    }, (err) => {
-        console.warn("Config listener error:", err);
     });
 
     document.getElementById("toggleMaintenance")?.addEventListener("change", async (e) => {
@@ -161,11 +157,56 @@ function listenToGlobalAppConfig() {
 }
 
 // --------------------------------------------------------------------------
-// 4. REALTIME TELEMETRY, LIVE PHOTO STREAM & USER DIRECTORY
+// 4. REALTIME TELEMETRY, PRO SUBSCRIBERS & LIVE USERS
 // --------------------------------------------------------------------------
 function listenToTelemetryAndPhotos() {
     const photosRef = collection(db, "user_photos");
+    const usersRef = collection(db, "users");
 
+    // Realtime Users Snapshot (for Pro status sync)
+    let usersProDataMap = new Map();
+
+    onSnapshot(usersRef, (usersSnap) => {
+        usersProDataMap.clear();
+        let proCount = 0;
+
+        usersSnap.forEach((uDoc) => {
+            const u = uDoc.data();
+            const isProValid = u.isPro === true && (!u.proExpiry || Date.now() < (u.proExpiry.toMillis ? u.proExpiry.toMillis() : u.proExpiry));
+            if (isProValid) proCount++;
+
+            usersProDataMap.set(uDoc.id, {
+                isPro: isProValid,
+                proPlan: u.proPlan || 'lifetime',
+                proExpiry: u.proExpiry
+            });
+        });
+
+        const proCountVal = document.getElementById("valProUsersCount");
+        const proSub = document.getElementById("valProSubscribers");
+        if (proCountVal) proCountVal.innerText = proCount;
+        if (proSub) proSub.innerText = `${proCount} Pro Active`;
+
+        // Update existing cached map with fresh pro data
+        cachedUsersMap.forEach((val, key) => {
+            const proData = usersProDataMap.get(key);
+            if (proData) {
+                val.isPro = proData.isPro;
+                val.proPlan = proData.proPlan;
+            } else {
+                val.isPro = false;
+                val.proPlan = null;
+            }
+        });
+
+        filterAndRenderUsers();
+        if (selectedUserForModal && cachedUsersMap.has(selectedUserForModal.uid)) {
+            selectedUserForModal = cachedUsersMap.get(selectedUserForModal.uid);
+            updateModalUI();
+        }
+    });
+
+    // Realtime Photos Snapshot
     onSnapshot(photosRef, (snapshot) => {
         let total = snapshot.size;
         let active = 0;
@@ -180,15 +221,18 @@ function listenToTelemetryAndPhotos() {
             rawPhotos.push({ id: photoId, ...d });
 
             const uid = d.uid || "Anonymous";
-            
             const userName = d.userName || d.userEmail?.split('@')[0] || (uid.length > 8 ? uid.substring(0, 8) : uid);
             const userEmail = d.userEmail || `${uid.substring(0, 8)}@cloud`;
 
             if (!usersMap.has(uid)) {
+                const proData = usersProDataMap.get(uid) || { isPro: false, proPlan: null };
+
                 usersMap.set(uid, { 
                     uid: uid,
                     name: userName,
                     email: userEmail,
+                    isPro: proData.isPro,
+                    proPlan: proData.proPlan,
                     count: 0, 
                     activeCount: 0,
                     bytes: 0, 
@@ -220,96 +264,32 @@ function listenToTelemetryAndPhotos() {
 
         cachedUsersMap = usersMap;
 
-        // 1. Update Telemetry Cards
+        // Telemetry values
         const elTotal = document.getElementById("valTotalPhotos");
         const elActive = document.getElementById("valActivePhotos");
         const elUsers = document.getElementById("valTotalUsers");
         const elStorage = document.getElementById("valTotalStorage");
-        const elTrash = document.getElementById("valTrashCount");
         const userBadge = document.getElementById("valTotalUsersBadge");
 
         if (elTotal) elTotal.innerText = total;
         if (elActive) elActive.innerText = `${active} active`;
         if (elUsers) elUsers.innerText = usersMap.size;
         if (elStorage) elStorage.innerText = formatBytes(totalBytes);
-        if (elTrash) elTrash.innerText = trash;
-        
-        // 🌟 Fix: Live Total User Count Pill (e.g. "5 Accounts")
         if (userBadge) userBadge.innerText = `${usersMap.size} ${usersMap.size === 1 ? 'Account' : 'Accounts'}`;
 
-        // 2. Render Global Photo Stream
         rawPhotos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         renderPhotoStream(rawPhotos.slice(0, 36));
-
-        // 3. Render Advanced User Directory
         filterAndRenderUsers();
 
-        // 4. Auto-Refresh Modal If Open
         if (selectedUserForModal && usersMap.has(selectedUserForModal.uid)) {
             selectedUserForModal = usersMap.get(selectedUserForModal.uid);
             updateModalUI();
         }
-
-    }, (err) => {
-        console.error("Firestore Read Error:", err);
-        showToast("Firestore Permission Error! Check Security Rules.");
     });
 }
 
 // --------------------------------------------------------------------------
-// 5. RENDER PHOTO STREAM (WITH USER DETAILS)
-// --------------------------------------------------------------------------
-function renderPhotoStream(photos) {
-    const streamGrid = document.getElementById("adminPhotoGrid");
-    const countBadge = document.getElementById("streamCount");
-    if (!streamGrid) return;
-
-    if (photos.length === 0) {
-        streamGrid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-muted); font-size:0.85rem;">No photos in cloud yet.</div>`;
-        if (countBadge) countBadge.innerText = `0 recent`;
-        return;
-    }
-
-    if (countBadge) countBadge.innerText = `${photos.length} latest`;
-    streamGrid.innerHTML = "";
-
-    photos.forEach((p) => {
-        const card = document.createElement("div");
-        card.className = "admin-photo-card";
-        
-        const uploaderName = p.userName || (p.uid ? p.uid.substring(0, 8) : "User");
-
-        card.innerHTML = `
-            <img src="${p.image}" loading="lazy" alt="Cloud Photo" onerror="this.src='/loadingphoto.png'">
-            <div class="admin-photo-overlay">
-                <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-                <div class="photo-meta-info" title="Uploaded by: ${uploaderName} (UID: ${p.uid || 'N/A'})">
-                    <i class="fa-solid fa-user"></i> ${uploaderName}
-                </div>
-            </div>
-        `;
-
-        card.querySelector(".btn-mod-delete").onclick = async (e) => {
-            e.stopPropagation();
-            if (confirm("Permanently delete this photo from cloud?")) {
-                try {
-                    await deleteDoc(doc(db, "user_photos", p.id));
-                    card.remove();
-                    showToast("Photo deleted permanently by Admin!");
-                } catch (err) {
-                    showToast("Delete failed: " + err.message);
-                }
-            }
-        };
-
-        streamGrid.appendChild(card);
-    });
-}
-
-// --------------------------------------------------------------------------
-// 6. USER SEARCH ENGINE
+// 5. RENDER USER DIRECTORY (WITH PRO/FREE BADGE)
 // --------------------------------------------------------------------------
 function setupUserSearch() {
     const searchInput = document.getElementById("userSearchInput");
@@ -348,6 +328,10 @@ function filterAndRenderUsers() {
         const tr = document.createElement("tr");
         const initial = user.name.charAt(0).toUpperCase();
 
+        const planBadge = user.isPro 
+            ? `<span class="admin-pro-badge"><i class="fa-solid fa-crown"></i> PRO (${(user.proPlan || 'lifetime').toUpperCase()})</span>`
+            : `<span class="admin-free-badge">FREE</span>`;
+
         tr.innerHTML = `
             <td>
                 <div class="user-profile-cell">
@@ -358,13 +342,13 @@ function filterAndRenderUsers() {
                     </div>
                 </div>
             </td>
+            <td>${planBadge}</td>
             <td><strong>${user.activeCount}</strong></td>
             <td><span style="font-family:'JetBrains Mono'; font-weight:700; color:var(--accent);">${formatBytes(user.bytes)}</span></td>
             <td>${user.favs} ❤️</td>
-            <td>${user.trash} 🗑️</td>
             <td>
                 <button class="btn-inspect-user" data-uid="${user.uid}">
-                    <i class="fa-solid fa-eye"></i> View Photos
+                    <i class="fa-solid fa-sliders"></i> Manage User
                 </button>
             </td>
         `;
@@ -380,7 +364,51 @@ function filterAndRenderUsers() {
 }
 
 // --------------------------------------------------------------------------
-// 7. VIEW PHOTOS MODAL (ACTIVE PHOTOS COUNT SYNCHRONIZED)
+// 🌟 6. PRO SUBSCRIPTION GRANT/REVOKE CONTROLLER (ADMIN DIRECT ACTION)
+// --------------------------------------------------------------------------
+function setupProGrantActions() {
+    document.getElementById("btnGrantProLifetime")?.addEventListener("click", () => updateSelectedUserPlan("lifetime"));
+    document.getElementById("btnGrantPro1Year")?.addEventListener("click", () => updateSelectedUserPlan("annual"));
+    document.getElementById("btnGrantPro1Month")?.addEventListener("click", () => updateSelectedUserPlan("monthly"));
+    document.getElementById("btnRevokePro")?.addEventListener("click", () => updateSelectedUserPlan("free"));
+}
+
+async function updateSelectedUserPlan(planType) {
+    if (!selectedUserForModal) return;
+    const uid = selectedUserForModal.uid;
+
+    let isPro = planType !== "free";
+    let expiryDate = null;
+
+    if (planType === "monthly") {
+        expiryDate = Date.now() + (30 * 24 * 60 * 60 * 1000);
+    } else if (planType === "annual") {
+        expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
+    }
+
+    try {
+        await setDoc(doc(db, "users", uid), {
+            isPro: isPro,
+            proPlan: isPro ? planType : null,
+            proExpiry: expiryDate,
+            updatedByAdmin: currentUser.email,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        selectedUserForModal.isPro = isPro;
+        selectedUserForModal.proPlan = isPro ? planType : null;
+
+        updateModalUI();
+        filterAndRenderUsers();
+
+        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro to user!` : `Removed Pro! User set to Free Plan.`);
+    } catch (err) {
+        showToast("Subscription update failed: " + err.message);
+    }
+}
+
+// --------------------------------------------------------------------------
+// 7. USER INSPECTOR MODAL WITH PRO CONTROLS
 // --------------------------------------------------------------------------
 function setupModalTabs() {
     document.getElementById("tabStatPhotos")?.addEventListener("click", () => switchModalTab('photos'));
@@ -408,24 +436,48 @@ function updateModalUI() {
     if (!selectedUserForModal) return;
     const user = selectedUserForModal;
 
-    // 1. Update Profile Header
+    // Header & Profile
     document.getElementById("modalUserAvatar").innerText = user.name.charAt(0).toUpperCase();
     document.getElementById("modalUserName").innerText = user.name;
     document.getElementById("modalUserEmail").innerText = `${user.email} (UID: ${user.uid})`;
 
-    // 2. Shows ACTIVE Photos count (e.g. 110)
+    // Pro Badges & Status Text
+    const proBadge = document.getElementById("modalProBadge");
+    const statusText = document.getElementById("modalSubscriptionStatusText");
+
+    if (user.isPro) {
+        if (proBadge) {
+            proBadge.className = "admin-pro-badge";
+            proBadge.innerHTML = `<i class="fa-solid fa-crown"></i> PRO (${(user.proPlan || 'lifetime').toUpperCase()})`;
+        }
+        if (statusText) {
+            statusText.innerText = `Active Plan: ${(user.proPlan || 'Lifetime').toUpperCase()}`;
+            statusText.style.color = "#d97706";
+        }
+    } else {
+        if (proBadge) {
+            proBadge.className = "admin-free-badge";
+            proBadge.innerText = "FREE";
+        }
+        if (statusText) {
+            statusText.innerText = "Current Plan: Free Tier";
+            statusText.style.color = "#64748b";
+        }
+    }
+
+    // Stats
     document.getElementById("modalTotalPhotos").innerText = user.activeCount;
     document.getElementById("modalTotalStorage").innerText = formatBytes(user.bytes);
     document.getElementById("modalFavPhotos").innerText = user.favs;
     document.getElementById("modalTrashPhotos").innerText = user.trash;
 
-    // 3. Highlight Active Tab
+    // Tab Highlight
     document.getElementById("tabStatPhotos")?.classList.toggle('active', currentModalFilterTab === 'photos');
     document.getElementById("tabStatFavs")?.classList.toggle('active', currentModalFilterTab === 'favs');
     document.getElementById("tabStatTrash")?.classList.toggle('active', currentModalFilterTab === 'trash');
     document.getElementById("tabStatStorage")?.classList.toggle('active', currentModalFilterTab === 'all');
 
-    // 4. Filter Photos
+    // Filtered Photos Grid
     let filteredList = [];
     let headingText = "Active Photos";
 
@@ -446,18 +498,15 @@ function updateModalUI() {
     document.getElementById("modalGalleryHeading").innerText = headingText;
     document.getElementById("modalGalleryCountBadge").innerText = `(${filteredList.length})`;
 
-    // 5. Render Exact 3-Column Square Grid
     const grid = document.getElementById("modalUserPhotosGrid");
     grid.innerHTML = "";
 
     if (filteredList.length === 0) {
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:45px 15px; color:var(--text-muted); font-size:0.85rem;">No ${headingText.toLowerCase()} found for this account.</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px 15px; color:var(--text-muted); font-size:0.85rem;">No ${headingText.toLowerCase()} found.</div>`;
         return;
     }
 
     filteredList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-
-    const fragment = document.createDocumentFragment();
 
     filteredList.forEach(p => {
         const card = document.createElement("div");
@@ -465,16 +514,14 @@ function updateModalUI() {
         card.innerHTML = `
             <img src="${p.image}" loading="lazy" alt="User Photo" onerror="this.src='/loadingphoto.png'">
             <div class="admin-photo-overlay">
-                <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
+                <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}"><i class="fa-solid fa-trash"></i></button>
                 <div class="photo-meta-info">${p.isFavorite ? '❤️ Fav' : (p.isDeleted ? '🗑️ Trash' : 'Active')}</div>
             </div>
         `;
 
         card.querySelector(".btn-mod-delete").onclick = async (e) => {
             e.stopPropagation();
-            if (confirm("Delete this photo permanently for this user?")) {
+            if (confirm("Delete this photo permanently?")) {
                 try {
                     await deleteDoc(doc(db, "user_photos", p.id));
                     card.remove();
@@ -485,33 +532,22 @@ function updateModalUI() {
             }
         };
 
-        fragment.appendChild(card);
+        grid.appendChild(card);
     });
-
-    grid.appendChild(fragment);
 }
 
 document.getElementById("closeInspectModal")?.addEventListener("click", () => {
-    const modal = document.getElementById("userInspectModal");
-    if (modal) modal.style.display = "none";
+    document.getElementById("userInspectModal").style.display = "none";
     selectedUserForModal = null;
 });
 
-document.getElementById("userInspectModal")?.addEventListener("click", (e) => {
-    if (e.target.id === "userInspectModal") {
-        e.target.style.display = "none";
-        selectedUserForModal = null;
-    }
-});
+// --------------------------------------------------------------------------
+// 8. RENDER GLOBAL PHOTO STREAM
+// --------------------------------------------------------------------------
+function renderPhotoStream(photos) {
+    const streamGrid = document.getElementById("adminPhotoGrid");
+    const countBadge = document.getElementById("streamCount");
+    if (!streamGrid) return;
 
-// 🌟 8. SMART REFRESH BUTTON WITH ROTATE ANIMATION
-document.getElementById("btnRefreshStream")?.addEventListener("click", () => {
-    const icon = document.getElementById("refreshIcon");
-    if (icon) {
-        icon.classList.remove("spin");
-        void icon.offsetWidth; // trigger reflow
-        icon.classList.add("spin");
-    }
-    listenToTelemetryAndPhotos();
-    showToast("Telemetry & Photos Refreshed!");
-});
+    if (photos.length === 0) {
+        streamGr
