@@ -1,9 +1,12 @@
 // ==========================================================================
-// ANANT PRO - SUBSCRIPTION ENGINE & FREE vs PRO COMPARISON PAYWALL
+// ANANT PRO - RAZORPAY PAYMENT GATEWAY & FREE vs PRO COMPARISON PAYWALL
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// 🌟 YOUR RAZORPAY KEY ID (LINKED & ACTIVE)
+const RAZORPAY_KEY_ID = "rzp_test_TXCTS1kZ6QU5Wn";
 
 // Fast Memory & LocalStorage Cache (Zero Network Lag on Startup)
 let cachedProState = {
@@ -378,7 +381,85 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 3. SHOW PRO PAYWALL MODAL
+// 🌟 3. RAZORPAY CHECKOUT GATEWAY TRIGGER
+// --------------------------------------------------------------------------
+function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuccessCallback) {
+    const user = auth.currentUser;
+    if (!user) return alert("Please log in to purchase Pro!");
+
+    if (typeof Razorpay === "undefined") {
+        alert("Payment gateway is loading. Please check internet connection.");
+        return;
+    }
+
+    const options = {
+        key: RAZORPAY_KEY_ID,
+        amount: amountInRupees * 100, // Amount in paise (₹399 = 39900)
+        currency: "INR",
+        name: "Anant Gallery",
+        description: `Upgrade to Anant Pro - ${planTitle}`,
+        image: "/icon-192.png",
+        prefill: {
+            name: user.displayName || "Anant User",
+            email: user.email || "user@anant.gallery",
+        },
+        theme: {
+            color: "#f59e0b"
+        },
+        handler: async function (response) {
+            // 🌟 PAYMENT SUCCESSFUL HANDLER
+            try {
+                let expiryDate = null;
+                if (planKey === "monthly") {
+                    expiryDate = Date.now() + (30 * 24 * 60 * 60 * 1000);
+                } else if (planKey === "annual") {
+                    expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
+                }
+
+                await setDoc(doc(db, "users", user.uid), {
+                    isPro: true,
+                    proPlan: planKey,
+                    proExpiry: expiryDate,
+                    paymentId: response.razorpay_payment_id || "manual_test",
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+
+                cachedProState = {
+                    isPro: true,
+                    plan: planKey,
+                    expiry: expiryDate
+                };
+
+                localStorage.setItem("anant_is_pro", "true");
+                window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
+
+                if (onSuccessCallback) onSuccessCallback();
+
+                const toast = document.getElementById("toast");
+                if (toast) {
+                    toast.innerText = "👑 Payment Successful! Welcome to Anant Pro.";
+                    toast.style.opacity = '1';
+                    toast.style.top = '100px';
+                    setTimeout(() => { toast.style.opacity = '0'; toast.style.top = '80px'; }, 3500);
+                }
+            } catch (err) {
+                console.error("Pro Activation Error:", err);
+                alert("Failed to activate Pro: " + err.message);
+            }
+        },
+        modal: {
+            ondismiss: function() {
+                console.log("Payment window closed by user");
+            }
+        }
+    };
+
+    const rzp = new Razorpay(options);
+    rzp.open();
+}
+
+// --------------------------------------------------------------------------
+// 4. SHOW PRO PAYWALL MODAL
 // --------------------------------------------------------------------------
 export function showProPaywallModal(highlightReason = "Unlock All Features") {
     injectProStyles();
@@ -390,7 +471,9 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
     modal.id = "anantProModal";
     modal.className = "pro-modal-overlay";
 
-    let selectedPlan = "lifetime"; // Default Best Value
+    let selectedPlan = "lifetime";
+    let selectedAmount = 999;
+    let selectedTitle = "Lifetime VIP Access";
 
     modal.innerHTML = `
         <div class="pro-modal-card">
@@ -445,20 +528,20 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
 
             <!-- Plans Switcher -->
             <div class="pro-pricing-grid">
-                <div class="pricing-plan-card" data-plan="monthly">
+                <div class="pricing-plan-card" data-plan="monthly" data-amount="49" data-title="Monthly Plan">
                     <div class="plan-duration">Monthly</div>
                     <div class="plan-price">₹49</div>
                     <div class="plan-subtext">per month</div>
                 </div>
 
-                <div class="pricing-plan-card" data-plan="annual">
+                <div class="pricing-plan-card" data-plan="annual" data-amount="399" data-title="1 Year Plan">
                     <div class="plan-ribbon">SAVE 40%</div>
                     <div class="plan-duration">1 Year</div>
                     <div class="plan-price">₹399</div>
                     <div class="plan-subtext">₹33 / mo</div>
                 </div>
 
-                <div class="pricing-plan-card active" data-plan="lifetime">
+                <div class="pricing-plan-card active" data-plan="lifetime" data-amount="999" data-title="Lifetime VIP Access">
                     <div class="plan-ribbon">BEST VALUE</div>
                     <div class="plan-duration">Lifetime</div>
                     <div class="plan-price">₹999</div>
@@ -467,11 +550,11 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
             </div>
 
             <button class="btn-upgrade-pro" id="btnConfirmProUpgrade">
-                <i class="fa-solid fa-crown"></i> <span>Upgrade for ₹999</span>
+                <i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹999</span>
             </button>
 
             <div class="pro-secure-guarantee">
-                <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> 100% Secure Checkout • Instant Activation
+                <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> Powered by Razorpay • 100% Secure UPI / Card
             </div>
         </div>
     `;
@@ -490,61 +573,18 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
             planCards.forEach(c => c.classList.remove("active"));
             card.classList.add("active");
             selectedPlan = card.getAttribute("data-plan");
-            
-            let priceText = "₹999";
-            if (selectedPlan === "monthly") priceText = "₹49";
-            if (selectedPlan === "annual") priceText = "₹399";
+            selectedAmount = Number(card.getAttribute("data-amount"));
+            selectedTitle = card.getAttribute("data-title");
 
-            upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Upgrade for ${priceText}</span>`;
+            upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${selectedAmount}</span>`;
             if (navigator.vibrate) navigator.vibrate(10);
         };
     });
 
-    // 🌟 Instant Activation Trigger
-    upgradeBtn.onclick = async () => {
-        const user = auth.currentUser;
-        if (!user) return alert("Please log in to upgrade!");
-
-        upgradeBtn.disabled = true;
-        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Activating Pro...`;
-
-        try {
-            let expiryDate = null;
-            if (selectedPlan === "monthly") {
-                expiryDate = Date.now() + (30 * 24 * 60 * 60 * 1000);
-            } else if (selectedPlan === "annual") {
-                expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
-            }
-
-            await setDoc(doc(db, "users", user.uid), {
-                isPro: true,
-                proPlan: selectedPlan,
-                proExpiry: expiryDate,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-
-            cachedProState = {
-                isPro: true,
-                plan: selectedPlan,
-                expiry: expiryDate
-            };
-
-            localStorage.setItem("anant_is_pro", "true");
-            window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
+    // 🌟 CLICK TO TRIGGER RAZORPAY PAYMENT GATEWAY
+    upgradeBtn.onclick = () => {
+        triggerRazorpayCheckout(selectedPlan, selectedAmount, selectedTitle, () => {
             close();
-
-            const toast = document.getElementById("toast");
-            if (toast) {
-                toast.innerText = "👑 Welcome to Anant Pro! All features unlocked.";
-                toast.style.opacity = '1';
-                toast.style.top = '100px';
-                setTimeout(() => { toast.style.opacity = '0'; toast.style.top = '80px'; }, 3500);
-            }
-        } catch (err) {
-            console.error("Pro Upgrade Error:", err);
-            alert("Upgrade failed: " + err.message);
-        } finally {
-            upgradeBtn.disabled = false;
-        }
+        });
     };
 }
