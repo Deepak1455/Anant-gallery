@@ -13,7 +13,7 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 SUPER ADMIN EMAILS
+// 🌟 SUPER ADMIN EMAILS (इन ईमेल को एडमिन पैनल का फुल एक्सेस मिलेगा)
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
     "admin@anant.gallery",
@@ -23,6 +23,7 @@ const SUPER_ADMIN_EMAILS = [
 let currentUser = null;
 let toastTimer = null;
 let cachedUsersMap = new Map();
+let usersProDataMap = new Map();
 let currentSearchTerm = "";
 
 // Active inspected user in modal
@@ -33,9 +34,13 @@ function showToast(msg) {
     const t = document.getElementById("adminToast");
     if (!t) return;
     if (toastTimer) clearTimeout(toastTimer);
+    t.style.display = "block";
     t.innerText = msg;
-    t.classList.add("show");
-    toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
+    requestAnimationFrame(() => t.classList.add("show"));
+    toastTimer = setTimeout(() => {
+        t.classList.remove("show");
+        setTimeout(() => { t.style.display = "none"; }, 300);
+    }, 2800);
 }
 
 function formatBytes(bytes) {
@@ -113,6 +118,8 @@ function listenToGlobalAppConfig() {
             if (previewBox) previewBox.style.display = "none";
             if (liveBadge) liveBadge.style.display = "none";
         }
+    }, (err) => {
+        console.warn("Config listener error:", err);
     });
 
     document.getElementById("toggleMaintenance")?.addEventListener("change", async (e) => {
@@ -157,56 +164,54 @@ function listenToGlobalAppConfig() {
 }
 
 // --------------------------------------------------------------------------
-// 4. REALTIME TELEMETRY, PRO SUBSCRIBERS & LIVE USERS
+// 4. REALTIME TELEMETRY, INDEPENDENT FALLBACK & LIVE DATA LOADER
 // --------------------------------------------------------------------------
 function listenToTelemetryAndPhotos() {
     const photosRef = collection(db, "user_photos");
     const usersRef = collection(db, "users");
 
-    // Realtime Users Snapshot (for Pro status sync)
-    let usersProDataMap = new Map();
+    // 1. Users Collection Snapshot (Safe & Non-blocking)
+    try {
+        onSnapshot(usersRef, (usersSnap) => {
+            usersProDataMap.clear();
+            let proCount = 0;
 
-    onSnapshot(usersRef, (usersSnap) => {
-        usersProDataMap.clear();
-        let proCount = 0;
+            usersSnap.forEach((uDoc) => {
+                const u = uDoc.data();
+                const isProValid = u.isPro === true && (!u.proExpiry || Date.now() < (u.proExpiry.toMillis ? u.proExpiry.toMillis() : u.proExpiry));
+                if (isProValid) proCount++;
 
-        usersSnap.forEach((uDoc) => {
-            const u = uDoc.data();
-            const isProValid = u.isPro === true && (!u.proExpiry || Date.now() < (u.proExpiry.toMillis ? u.proExpiry.toMillis() : u.proExpiry));
-            if (isProValid) proCount++;
-
-            usersProDataMap.set(uDoc.id, {
-                isPro: isProValid,
-                proPlan: u.proPlan || 'lifetime',
-                proExpiry: u.proExpiry
+                usersProDataMap.set(uDoc.id, {
+                    isPro: isProValid,
+                    proPlan: u.proPlan || 'lifetime',
+                    proExpiry: u.proExpiry
+                });
             });
-        });
 
-        const proCountVal = document.getElementById("valProUsersCount");
-        const proSub = document.getElementById("valProSubscribers");
-        if (proCountVal) proCountVal.innerText = proCount;
-        if (proSub) proSub.innerText = `${proCount} Pro Active`;
+            const proCountVal = document.getElementById("valProUsersCount");
+            const proSub = document.getElementById("valProSubscribers");
+            if (proCountVal) proCountVal.innerText = proCount;
+            if (proSub) proSub.innerText = `${proCount} Pro Active`;
 
-        // Update existing cached map with fresh pro data
-        cachedUsersMap.forEach((val, key) => {
-            const proData = usersProDataMap.get(key);
-            if (proData) {
-                val.isPro = proData.isPro;
-                val.proPlan = proData.proPlan;
-            } else {
-                val.isPro = false;
-                val.proPlan = null;
+            cachedUsersMap.forEach((val, key) => {
+                const proData = usersProDataMap.get(key);
+                if (proData) {
+                    val.isPro = proData.isPro;
+                    val.proPlan = proData.proPlan;
+                }
+            });
+
+            filterAndRenderUsers();
+            if (selectedUserForModal && cachedUsersMap.has(selectedUserForModal.uid)) {
+                selectedUserForModal = cachedUsersMap.get(selectedUserForModal.uid);
+                updateModalUI();
             }
+        }, (err) => {
+            console.warn("Users collection warning (fallback active):", err);
         });
+    } catch (e) {}
 
-        filterAndRenderUsers();
-        if (selectedUserForModal && cachedUsersMap.has(selectedUserForModal.uid)) {
-            selectedUserForModal = cachedUsersMap.get(selectedUserForModal.uid);
-            updateModalUI();
-        }
-    });
-
-    // Realtime Photos Snapshot
+    // 2. Photos Collection Snapshot (Primary Data Source)
     onSnapshot(photosRef, (snapshot) => {
         let total = snapshot.size;
         let active = 0;
@@ -264,7 +269,7 @@ function listenToTelemetryAndPhotos() {
 
         cachedUsersMap = usersMap;
 
-        // Telemetry values
+        // Update Live Telemetry
         const elTotal = document.getElementById("valTotalPhotos");
         const elActive = document.getElementById("valActivePhotos");
         const elUsers = document.getElementById("valTotalUsers");
@@ -285,11 +290,19 @@ function listenToTelemetryAndPhotos() {
             selectedUserForModal = usersMap.get(selectedUserForModal.uid);
             updateModalUI();
         }
+
+    }, (err) => {
+        console.error("Firestore Read Error:", err);
+        const tableBody = document.getElementById("userTableBody");
+        if (tableBody) {
+            tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:18px; color:var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Firestore Permission Error! Check Security Rules.</td></tr>`;
+        }
+        showToast("Firestore Permission Error! Check Rules.");
     });
 }
 
 // --------------------------------------------------------------------------
-// 5. RENDER USER DIRECTORY (WITH PRO/FREE BADGE)
+// 5. RENDER USER DIRECTORY TABLE
 // --------------------------------------------------------------------------
 function setupUserSearch() {
     const searchInput = document.getElementById("userSearchInput");
@@ -306,7 +319,7 @@ function filterAndRenderUsers() {
     tableBody.innerHTML = "";
 
     if (cachedUsersMap.size === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--text-muted);">No registered accounts found.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:22px 14px; color:var(--text-muted);"><i class="fa-solid fa-users" style="font-size:1.4rem; margin-bottom:6px; display:block; opacity:0.5;"></i>No registered accounts found yet.</td></tr>`;
         return;
     }
 
@@ -320,7 +333,7 @@ function filterAndRenderUsers() {
     });
 
     if (filteredUsers.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--text-muted);">No users matching "${currentSearchTerm}"</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:18px; color:var(--text-muted);">No accounts matching "${currentSearchTerm}"</td></tr>`;
         return;
     }
 
@@ -550,4 +563,51 @@ function renderPhotoStream(photos) {
     if (!streamGrid) return;
 
     if (photos.length === 0) {
-        streamGr
+        streamGrid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-muted); font-size:0.85rem;">No photos in cloud yet.</div>`;
+        if (countBadge) countBadge.innerText = `0 recent`;
+        return;
+    }
+
+    if (countBadge) countBadge.innerText = `${photos.length} latest`;
+    streamGrid.innerHTML = "";
+
+    photos.forEach((p) => {
+        const card = document.createElement("div");
+        card.className = "admin-photo-card";
+        const uploaderName = p.userName || (p.uid ? p.uid.substring(0, 8) : "User");
+
+        card.innerHTML = `
+            <img src="${p.image}" loading="lazy" alt="Cloud Photo" onerror="this.src='/loadingphoto.png'">
+            <div class="admin-photo-overlay">
+                <button class="btn-mod-delete" title="Delete Photo" data-id="${p.id}"><i class="fa-solid fa-trash"></i></button>
+                <div class="photo-meta-info"><i class="fa-solid fa-user"></i> ${uploaderName}</div>
+            </div>
+        `;
+
+        card.querySelector(".btn-mod-delete").onclick = async (e) => {
+            e.stopPropagation();
+            if (confirm("Permanently delete this photo from cloud?")) {
+                try {
+                    await deleteDoc(doc(db, "user_photos", p.id));
+                    card.remove();
+                    showToast("Photo deleted permanently by Admin!");
+                } catch (err) {
+                    showToast("Delete failed: " + err.message);
+                }
+            }
+        };
+
+        streamGrid.appendChild(card);
+    });
+}
+
+document.getElementById("btnRefreshStream")?.addEventListener("click", () => {
+    const icon = document.getElementById("refreshIcon");
+    if (icon) {
+        icon.classList.remove("spin");
+        void icon.offsetWidth;
+        icon.classList.add("spin");
+    }
+    listenToTelemetryAndPhotos();
+    showToast("Telemetry & Photos Refreshed!");
+});
