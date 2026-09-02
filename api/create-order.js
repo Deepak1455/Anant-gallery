@@ -1,5 +1,5 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - CREATE RAZORPAY ORDER
+// VERCEL SERVERLESS API - CREATE RAZORPAY ORDER (AUTHENTICATION FIXED)
 // ==========================================================================
 
 const KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_TXCUlCZB4AyWw9";
@@ -15,18 +15,21 @@ export default async function handler(req, res) {
 
     try {
         let body = req.body;
-        if (typeof body === 'string') body = JSON.parse(body);
+        if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch (e) { body = {}; }
+        }
 
-        const amountInRupees = Number(body.amount);
+        const amountInRupees = Number(body?.amount);
         if (!amountInRupees || amountInRupees < 1) {
             return res.status(400).json({ error: 'Invalid amount. Minimum is ₹1 (100 paise)' });
         }
 
         const amountInPaise = Math.round(amountInRupees * 100);
         const receipt = `rcpt_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        const authHeader = 'Basic ' + Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64');
 
-        // Call Razorpay API
+        // 🌟 BASIC AUTH HEADER WITH MATCHED CREDENTIALS
+        const authHeader = 'Basic ' + Buffer.from(`${KEY_ID.trim()}:${KEY_SECRET.trim()}`).toString('base64');
+
         const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
             method: 'POST',
             headers: {
@@ -44,9 +47,9 @@ export default async function handler(req, res) {
         const orderData = await rzpResponse.json();
 
         if (!rzpResponse.ok || !orderData.id) {
-            console.error('[Razorpay Order Error]:', orderData);
+            console.error('[Razorpay Auth Error]:', orderData);
             return res.status(rzpResponse.status || 500).json({ 
-                error: orderData.error?.description || 'Failed to create Razorpay order' 
+                error: orderData.error?.description || 'Razorpay Authentication failed. Check Keys.' 
             });
         }
 
