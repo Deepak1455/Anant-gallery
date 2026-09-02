@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Anant Gallery - Admin Center</title>
+    <title>Anant Gallery - Super Admin Command Center</title>
     
     <link rel="icon" type="image/png" href="/icon-192.png">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <link rel="stylesheet" href="admin.css">
@@ -31,7 +31,7 @@
                 <i class="fa-solid fa-infinity" style="display:none;"></i>
             </div>
             <div>
-                <div class="brand-title">Admin Center</div>
+                <div class="brand-title">Admin Command Center</div>
                 <div class="brand-sub"><span class="live-pulse"></span> Anant Cloud Master</div>
             </div>
         </div>
@@ -68,12 +68,23 @@
                 <div>
                     <div class="telemetry-label">Cloud Users</div>
                     <div class="telemetry-value" id="valTotalUsers">0</div>
-                    <div class="telemetry-sub">Registered accounts</div>
+                    <div class="telemetry-sub" id="valProSubscribers">0 Pro Members</div>
                 </div>
             </div>
 
             <div class="telemetry-card">
                 <div class="telemetry-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Anant Pro Active</div>
+                    <div class="telemetry-value" id="valProUsersCount">0</div>
+                    <div class="telemetry-sub">Subscribers & VIP</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
                     <i class="fa-solid fa-server"></i>
                 </div>
                 <div>
@@ -82,20 +93,9 @@
                     <div class="telemetry-sub">Infinite Telegram CDN</div>
                 </div>
             </div>
-
-            <div class="telemetry-card">
-                <div class="telemetry-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
-                    <i class="fa-solid fa-trash-can"></i>
-                </div>
-                <div>
-                    <div class="telemetry-label">Trash Bin</div>
-                    <div class="telemetry-value" id="valTrashCount">0</div>
-                    <div class="telemetry-sub">30-Day auto purge</div>
-                </div>
-            </div>
         </section>
 
-        <!-- 🌟 2. GLOBAL APP REMOTE CONTROLS & NEW ANNOUNCEMENT BANNER -->
+        <!-- 🌟 2. GLOBAL APP REMOTE CONTROLS -->
         <section class="control-board">
             <div class="section-heading">
                 <i class="fa-solid fa-sliders" style="color: var(--accent);"></i> App Remote Controls
@@ -125,7 +125,7 @@
                 </div>
             </div>
 
-            <!-- 🌟 REDESIGNED BROADCAST BOX (NO CUTOFF / 100% RESPONSIVE) -->
+            <!-- BROADCAST CARD -->
             <div class="broadcast-card">
                 <div class="broadcast-header">
                     <div class="broadcast-title">
@@ -160,12 +160,12 @@
             </div>
         </section>
 
-        <!-- 🌟 3. USER DIRECTORY & PROFILE MANAGER (FIXED HEADER & TOTAL BADGE) -->
+        <!-- 🌟 3. USER DIRECTORY & SUBSCRIPTION CONTROLLER -->
         <section class="users-board">
             <div class="section-heading-split">
                 <div class="dir-title-box">
                     <div class="section-heading" style="margin-bottom:0;">
-                        <i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory & Profile Manager
+                        <i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory & Pro Manager
                     </div>
                     <span class="user-count-pill" id="valTotalUsersBadge">0 Accounts</span>
                 </div>
@@ -180,10 +180,10 @@
                     <thead>
                         <tr>
                             <th>User Profile</th>
+                            <th>Plan / Tier</th>
                             <th>Active Photos</th>
                             <th>Storage</th>
-                            <th>Favorites</th>
-                            <th>Trash</th>
+                            <th>Favs</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -194,7 +194,7 @@
             </div>
         </section>
 
-        <!-- 🌟 4. REALTIME GLOBAL PHOTO STREAM (NEW HIGH-DEF REFRESH BUTTON) -->
+        <!-- 🌟 4. REALTIME PHOTO STREAM -->
         <section class="moderation-board">
             <div class="section-heading-split">
                 <div class="section-heading" style="margin-bottom: 0;">
@@ -218,7 +218,7 @@
 
     </main>
 
-    <!-- 🌟 5. PROVEN ZERO-COLLAPSE USER INSPECTOR MODAL -->
+    <!-- 🌟 5. PRO USER INSPECTOR & PRO GRANT MODAL -->
     <div id="userInspectModal" class="user-modal-overlay" style="display: none;">
         <div class="user-modal-card">
             
@@ -227,11 +227,39 @@
                 <div class="user-modal-profile">
                     <div class="user-avatar-modal" id="modalUserAvatar">U</div>
                     <div style="overflow:hidden;">
-                        <div class="user-modal-name" id="modalUserName">User Name</div>
+                        <div class="user-modal-name-wrap">
+                            <div class="user-modal-name" id="modalUserName">User Name</div>
+                            <span id="modalProBadge" class="admin-free-badge">FREE</span>
+                        </div>
                         <div class="user-modal-email" id="modalUserEmail">user@email.com</div>
                     </div>
                 </div>
                 <button class="user-modal-close" id="closeInspectModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- 👑 PRO SUBSCRIPTION GRANT BOX -->
+            <div class="pro-grant-box">
+                <div class="pro-grant-header">
+                    <div class="pro-grant-title">
+                        <i class="fa-solid fa-crown" style="color:#f59e0b;"></i> Subscription Management
+                    </div>
+                    <span id="modalSubscriptionStatusText" style="font-size:0.75rem; font-weight:700; color:#64748b;">Free Plan</span>
+                </div>
+                
+                <div class="pro-grant-actions">
+                    <button class="btn-grant-pro" id="btnGrantProLifetime" title="Grant Lifetime Pro">
+                        <i class="fa-solid fa-infinity"></i> Lifetime Pro
+                    </button>
+                    <button class="btn-grant-pro" id="btnGrantPro1Year" title="Grant 1 Year Pro">
+                        <i class="fa-solid fa-calendar"></i> 1 Year Pro
+                    </button>
+                    <button class="btn-grant-pro" id="btnGrantPro1Month" title="Grant 1 Month Pro">
+                        <i class="fa-solid fa-clock"></i> 1 Month
+                    </button>
+                    <button class="btn-revoke-pro" id="btnRevokePro" title="Revoke Pro Status">
+                        <i class="fa-solid fa-ban"></i> Set Free
+                    </button>
+                </div>
             </div>
 
             <!-- Clickable Interactive Tabs -->
