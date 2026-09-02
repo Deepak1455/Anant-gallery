@@ -16,26 +16,25 @@ export default async function handler(req, res) {
 
     try {
         let body = req.body;
-        if (typeof body === 'string') body = JSON.parse(body);
+        if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch (e) { body = {}; }
+        }
 
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body || {};
 
-        // 1. Check Missing Fields
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
             return res.status(400).json({ error: 'Missing required payment verification fields' });
         }
 
-        // 2. Generate HMAC-SHA256 Signature: order_id + "|" + payment_id
+        // HMAC-SHA256 Signature Generation
         const expectedSignature = crypto
-            .createHmac('sha256', KEY_SECRET)
+            .createHmac('sha256', KEY_SECRET.trim())
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
             .digest('hex');
 
-        // 3. Timing-Safe Comparison
         const isSignatureValid = expectedSignature === razorpay_signature;
 
         if (!isSignatureValid) {
-            console.warn('[Signature Mismatch]:', { expected: expectedSignature, received: razorpay_signature });
             return res.status(400).json({ 
                 ok: false, 
                 error: 'Payment verification failed (Signature mismatch)' 
@@ -50,7 +49,6 @@ export default async function handler(req, res) {
         });
 
     } catch (err) {
-        console.error('[Server Error /api/verify-payment]:', err);
         return res.status(500).json({ error: err.message || 'Internal Server Error' });
     }
 }
