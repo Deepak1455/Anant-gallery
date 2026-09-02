@@ -15,6 +15,157 @@ import { openImageViewer } from "./image-viewer.js";
 import { isBiometricAvailable, authenticateWithBiometric } from "./biometric-auth.js";
 import { isProUser, guardProFeature } from "./pro-manager.js";
 
+// --------------------------------------------------------------------------
+// 1. DYNAMIC CSS FOR PIN MODAL, VAULT BANNER & BIOMETRIC BUTTON
+// --------------------------------------------------------------------------
+const vaultCSS = `
+    .vault-header-banner {
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(236, 72, 153, 0.1));
+        border: 1px dashed rgba(79, 70, 229, 0.35);
+        padding: 14px 20px;
+        margin: 15px 12px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--accent, #4f46e5);
+        font-weight: 600;
+        font-size: 0.9rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        animation: fadeInUp 0.35s ease;
+    }
+
+    .vault-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: vaultFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .vault-modal-card {
+        background: var(--bg-card, #ffffff);
+        border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+        width: 90%;
+        max-width: 320px;
+        border-radius: 26px;
+        padding: 28px 22px;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        animation: vaultPopUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .vault-logo-box {
+        width: 68px;
+        height: 68px;
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.2), rgba(147, 51, 234, 0.2));
+        border: 2px solid rgba(79, 70, 229, 0.3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 14px auto;
+        box-shadow: 0 8px 20px rgba(79, 70, 229, 0.2);
+        overflow: hidden;
+        color: var(--accent, #4f46e5);
+        font-size: 1.6rem;
+    }
+
+    .vault-modal-card h3 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--text-main, #0f172a);
+        margin-bottom: 4px;
+    }
+
+    .vault-modal-card p {
+        font-size: 0.82rem;
+        color: var(--text-muted, #64748b);
+        margin-bottom: 18px;
+    }
+
+    #vaultPinInput {
+        width: 170px;
+        text-align: center;
+        font-size: 1.8rem;
+        letter-spacing: 12px;
+        padding: 10px 14px;
+        background: var(--bg-body, #f8fafc);
+        border: 2px solid var(--border, #cbd5e1);
+        border-radius: 16px;
+        margin-bottom: 20px;
+        color: var(--text-main, #0f172a);
+        outline: none;
+        transition: all 0.2s;
+    }
+
+    #vaultPinInput:focus {
+        border-color: var(--accent, #4f46e5);
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+    }
+
+    .vault-modal-btns {
+        display: flex;
+        gap: 10px;
+    }
+
+    .vault-btn {
+        flex: 1;
+        padding: 13px;
+        border-radius: 14px;
+        border: none;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: transform 0.15s, opacity 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .vault-btn:active { transform: scale(0.96); }
+    .vault-btn.primary { background: var(--accent, #4f46e5); color: #ffffff; }
+    .vault-btn.secondary { background: rgba(100, 116, 139, 0.12); color: var(--text-muted, #64748b); }
+    
+    .vault-btn.biometric {
+        background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+        color: #ffffff;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+        margin-bottom: 14px;
+        width: 100%;
+    }
+
+    @keyframes vaultFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes vaultPopUp { from { opacity: 0; transform: scale(0.88) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes vaultShake {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-8px); }
+        40%, 80% { transform: translateX(8px); }
+    }
+    .vault-shake { 
+        animation: vaultShake 0.35s ease-in-out; 
+        border-color: #ef4444 !important; 
+    }
+`;
+
+(function injectVaultStyles() {
+    if (!document.getElementById("vault-styles-injected")) {
+        const styleTag = document.createElement("style");
+        styleTag.id = "vault-styles-injected";
+        styleTag.textContent = vaultCSS;
+        document.head.appendChild(styleTag);
+    }
+})();
+
+// --------------------------------------------------------------------------
+// 2. CRYPTOGRAPHIC SHA-256 HASH ENGINE & DECOY PIN
+// --------------------------------------------------------------------------
 const SALT = "anant_vault_secure_salt_#2026";
 const DECOY_PIN = "0000"; // 🌟 Decoy/Fake Vault PIN for Pro
 
@@ -26,6 +177,9 @@ export async function hashSecretPin(pin) {
     return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+// --------------------------------------------------------------------------
+// 3. STATE & AUTO-LOCK CONTROLLER
+// --------------------------------------------------------------------------
 let unsubscribeHidden = null;
 let isVaultUnlocked = false;
 let isDecoyMode = false;
@@ -37,7 +191,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // --------------------------------------------------------------------------
-// SMART PIN & BIOMETRIC MODAL
+// 4. SMART PIN & BIOMETRIC MODAL (FREE PIN + PRO BIOMETRIC & DECOY)
 // --------------------------------------------------------------------------
 async function showPinModal(onSuccess) {
     if (isVaultUnlocked) {
@@ -45,9 +199,10 @@ async function showPinModal(onSuccess) {
         return;
     }
 
-    let savedHash = localStorage.getItem("private_photos_pin_hash");
+    let savedHash = localStorage.getItem("private_photos_pin_hash") || localStorage.getItem("vault_pin_hash");
+    
     if (!savedHash) {
-        const oldPlain = localStorage.getItem("private_photos_pin") || "1234";
+        const oldPlain = localStorage.getItem("private_photos_pin") || localStorage.getItem("vault_pin") || "1234";
         savedHash = await hashSecretPin(oldPlain);
         localStorage.setItem("private_photos_pin_hash", savedHash);
     }
@@ -92,7 +247,7 @@ async function showPinModal(onSuccess) {
     const statusText = document.getElementById("vaultStatusText");
     pinInput.value = "";
 
-    // 🌟 Biometric Handler with Pro Check
+    // 🌟 Biometric Handler with Smart Pro Check
     const biometricBtn = document.getElementById("vaultBiometricBtn");
     if (biometricBtn) {
         biometricBtn.onclick = async () => {
@@ -111,12 +266,13 @@ async function showPinModal(onSuccess) {
             }
         };
 
+        // Pro users get instant smooth auto-fingerprint prompt
         if (isPro) {
-            setTimeout(() => biometricBtn.click(), 200);
+            setTimeout(() => biometricBtn.click(), 180);
         }
     }
 
-    // 🌟 PIN & Decoy Vault Check
+    // 🌟 PIN & Decoy Vault Verification
     const handleUnlock = async () => {
         if (lockoutTimer) return;
 
@@ -185,7 +341,7 @@ async function showPinModal(onSuccess) {
 }
 
 // --------------------------------------------------------------------------
-// RENDER PRIVATE PHOTOS SCREEN
+// 5. RENDER PRIVATE PHOTOS SCREEN
 // --------------------------------------------------------------------------
 export function renderHiddenScreen(container, currentUser, callbacks) {
     showPinModal((isDecoy) => {
@@ -196,7 +352,7 @@ export function renderHiddenScreen(container, currentUser, callbacks) {
             container.innerHTML = `
                 <div class="vault-header-banner">
                     <i class="fa-solid fa-user-shield"></i>
-                    <span>Private Photos (Decoy Safe)</span>
+                    <span>Private Photos (Decoy Safe Space)</span>
                 </div>
                 <div style="text-align:center; padding:60px 20px; color: var(--text-muted, #64748b);">
                     <i class="fa-solid fa-lock-open" style="font-size: 3rem; margin-bottom: 15px; opacity:0.4;"></i>
@@ -209,7 +365,7 @@ export function renderHiddenScreen(container, currentUser, callbacks) {
         container.innerHTML = `
             <div class="vault-header-banner">
                 <i class="fa-solid fa-user-shield"></i>
-                <span>Private Photos Active - Encrypted Space</span>
+                <span>Private Photos Active - Locked Space</span>
             </div>
             <div id="hiddenGalleryGrid">
                 <div class="grid" style="padding:10px;">
@@ -270,6 +426,9 @@ export function renderHiddenScreen(container, currentUser, callbacks) {
     });
 }
 
+// --------------------------------------------------------------------------
+// 6. AUTO-LOCK & ACTIONS
+// --------------------------------------------------------------------------
 export function stopHiddenListener() {
     isVaultUnlocked = false;
     isDecoyMode = false;
