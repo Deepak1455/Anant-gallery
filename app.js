@@ -61,7 +61,7 @@ import { uploadPhotoToTelegram, uploadBatchPhotos } from "./telegram-photo.js";
 import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
-import { initProManager, showProPaywallModal, isProUser } from "./pro-manager.js";
+import { initProManager, showProPaywallModal, isProUser, guardProFeature } from "./pro-manager.js";
 
 // 🌟 SUPER ADMIN EMAILS LIST
 const SUPER_ADMIN_EMAILS = [
@@ -223,7 +223,7 @@ function setupGlobalAdminListener() {
 }
 
 // --------------------------------------------------------------------------
-// 4. PHOTO DOWNLOAD ENGINE
+// 4. PHOTO DOWNLOAD ENGINE (WITH PRO BULK DOWNLOAD CHECK)
 // --------------------------------------------------------------------------
 function getExtensionFromMime(mimeType) {
     if (!mimeType) return 'jpg';
@@ -268,6 +268,15 @@ async function downloadPhoto(imageUrl, customFilename = null) {
 
 async function multiDownload() {
     if (selectedIds.size === 0) return;
+
+    // 🔒 Free Plan Limit: Max 5 Photos Bulk Download (Pro = Unlimited)
+    if (!isProUser() && selectedIds.size > 5) {
+        guardProFeature("Bulk Download 5+ Photos with Anant Pro", () => {
+            multiDownload();
+        });
+        return;
+    }
+
     showToast(`Downloading ${selectedIds.size} photo(s)...`);
     
     const downloadPromises = Array.from(selectedIds).map((id, index) => {
