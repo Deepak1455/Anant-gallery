@@ -13,8 +13,10 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// 🌟 SUPER ADMIN EMAILS (इन सभी ईमेल्स को मास्टर परमिशन मिलेगी)
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
+    "dt4527129@gmail.com",
     "admin@anant.gallery",
     "vikash@gmail.com"
 ];
@@ -227,7 +229,6 @@ function listenToTelemetryAndPhotos() {
 
         cachedUsersMap = usersMap;
 
-        // Telemetry Update
         const elTotal = document.getElementById("valTotalPhotos");
         const elActive = document.getElementById("valActivePhotos");
         const elUsers = document.getElementById("valTotalUsers");
@@ -251,7 +252,7 @@ function listenToTelemetryAndPhotos() {
     });
 }
 
-// 4. USER DIRECTORY RENDERER (CLEAN COLUMNS & NO OVERLAP)
+// 4. USER DIRECTORY RENDERER
 function setupUserSearch() {
     document.getElementById("userSearchInput")?.addEventListener("input", (e) => {
         currentSearchTerm = e.target.value.toLowerCase().trim();
@@ -278,11 +279,6 @@ function filterAndRenderUsers() {
             (u.uid && u.uid.toLowerCase().includes(currentSearchTerm))
         );
     });
-
-    if (filteredUsers.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:18px; color:var(--text-muted);">No accounts matching "${currentSearchTerm}"</td></tr>`;
-        return;
-    }
 
     filteredUsers.forEach((user) => {
         const tr = document.createElement("tr");
@@ -323,7 +319,7 @@ function filterAndRenderUsers() {
     });
 }
 
-// 5. PRO SUBSCRIPTION GRANT/REVOKE CONTROLLER
+// 🌟 5. PRO SUBSCRIPTION GRANT/REVOKE CONTROLLER (100% WORKING)
 function setupProGrantActions() {
     document.getElementById("btnGrantProLifetime")?.addEventListener("click", () => updateSelectedUserPlan("lifetime"));
     document.getElementById("btnGrantPro1Year")?.addEventListener("click", () => updateSelectedUserPlan("annual"));
@@ -349,7 +345,7 @@ async function updateSelectedUserPlan(planType) {
             isPro: isPro,
             proPlan: isPro ? planType : null,
             proExpiry: expiryDate,
-            updatedByAdmin: currentUser.email,
+            updatedByAdmin: currentUser ? currentUser.email : "Super Admin",
             updatedAt: serverTimestamp()
         }, { merge: true });
 
@@ -358,9 +354,10 @@ async function updateSelectedUserPlan(planType) {
 
         updateModalUI();
         filterAndRenderUsers();
-        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro!` : `User set to Free Plan.`);
+        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro to ${selectedUserForModal.name}!` : `User downgraded to Free Plan.`);
     } catch (err) {
-        showToast("Update failed: " + err.message);
+        console.error("Firestore Permission Error:", err);
+        showToast("Update failed: Check Firestore Rules in Firebase Console!");
     }
 }
 
@@ -485,7 +482,7 @@ document.getElementById("closeInspectModal")?.addEventListener("click", () => {
     selectedUserForModal = null;
 });
 
-// 7. RENDER GLOBAL PHOTO STREAM (LOCKED 3-COLUMNS)
+// 7. RENDER GLOBAL PHOTO STREAM
 function renderPhotoStream(photos) {
     const streamGrid = document.getElementById("adminPhotoGrid");
     const countBadge = document.getElementById("streamCount");
@@ -518,7 +515,7 @@ function renderPhotoStream(photos) {
             if (confirm("Delete this photo from cloud?")) {
                 await deleteDoc(doc(db, "user_photos", p.id));
                 card.remove();
-                showToast("Photo deleted permanently!");
+                showToast("Photo deleted permanently by Admin!");
             }
         };
 
