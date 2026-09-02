@@ -65,9 +65,9 @@ import { initProManager, showProPaywallModal, isProUser, guardProFeature } from 
 
 // 🌟 SUPER ADMIN EMAILS LIST
 const SUPER_ADMIN_EMAILS = [
-    "admin@anant.gallery",
-    "vikash@gmail.com",
-    "dt8484970@gmail.com"
+    "dt8484970@gmail.com",
+    "dt4527129@gmail.com",
+    "anantgalleryogr@gmail.com"
 ];
 
 setPersistence(auth, browserLocalPersistence).catch(() => {});
