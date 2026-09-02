@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - 100% BUG-FREE & FAST (WITH LEGAL LINKS & ACCOUNT DELETION)
+// PROFILE MODULE - 100% BUG-FREE & FAST (WITH PRO CROWN & SUBSCRIPTION HUB)
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
@@ -13,7 +13,7 @@ import {
     writeBatch, 
     doc 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { updateProfile, deleteUser, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { updateProfile, deleteUser } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { hashSecretPin } from "./hidden-photos.js";
 import { 
     isBiometricAvailable, 
@@ -21,6 +21,7 @@ import {
     registerBiometric, 
     removeBiometric 
 } from "./biometric-auth.js";
+import { isProUser, showProPaywallModal } from "./pro-manager.js";
 
 const CLOUDINARY_CLOUD_NAME = "gvickscl";
 const CLOUDINARY_UPLOAD_PRESET = "my_photo";
@@ -42,26 +43,26 @@ const injectProfileStyles = () => {
     style.textContent = `
         .profile-container {
             max-width: 520px;
-            margin: 20px auto;
-            padding: 0 15px 40px 15px;
+            margin: 16px auto;
+            padding: 0 14px 40px 14px;
             animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         .profile-card {
             background: var(--bg-card, #ffffff);
             border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-            border-radius: 24px;
-            padding: 30px 20px;
+            border-radius: 26px;
+            padding: 28px 20px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
             position: relative;
             overflow: hidden;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
         .avatar-wrapper {
             position: relative;
-            width: 90px;
-            height: 90px;
-            margin: 0 auto 15px auto;
+            width: 92px;
+            height: 92px;
+            margin: 0 auto 14px auto;
         }
         .profile-avatar {
             width: 100%;
@@ -84,8 +85,8 @@ const injectProfileStyles = () => {
             position: absolute;
             bottom: 2px;
             right: 2px;
-            width: 28px;
-            height: 28px;
+            width: 30px;
+            height: 30px;
             background: var(--accent, #4f46e5);
             color: #ffffff;
             border-radius: 50%;
@@ -95,21 +96,24 @@ const injectProfileStyles = () => {
             font-size: 0.75rem;
             cursor: pointer;
             border: 2px solid #ffffff;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             transition: transform 0.2s, background 0.2s;
         }
-        .avatar-edit-badge:hover { transform: scale(1.1); }
+        .avatar-edit-badge:active { transform: scale(0.9); }
+
         .profile-name-container {
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            flex-wrap: wrap;
         }
         .profile-display-name {
-            font-size: 1.25rem;
-            font-weight: 700;
+            font-size: 1.3rem;
+            font-weight: 800;
             color: var(--text-main, #0f172a);
+            letter-spacing: -0.3px;
         }
         .edit-name-icon {
             font-size: 0.95rem;
@@ -126,16 +130,16 @@ const injectProfileStyles = () => {
             margin-bottom: 10px;
         }
         .name-input {
-            padding: 6px 12px !important;
+            padding: 8px 12px !important;
             font-size: 0.9rem !important;
             width: 170px !important;
-            border-radius: 10px !important;
+            border-radius: 12px !important;
         }
         .btn-save-name {
-            padding: 6px 12px !important;
-            font-size: 0.8rem !important;
+            padding: 8px 14px !important;
+            font-size: 0.82rem !important;
             width: auto !important;
-            border-radius: 10px !important;
+            border-radius: 12px !important;
         }
         .btn-cancel-name {
             background: none;
@@ -146,24 +150,41 @@ const injectProfileStyles = () => {
             padding: 4px;
         }
         .profile-email {
-            font-size: 0.88rem;
+            font-size: 0.85rem;
             color: var(--text-muted, #64748b);
             word-break: break-all;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
-        .profile-badge {
+
+        /* 🌟 PRO CROWN BADGE & UPGRADE CARD */
+        .pro-crown-badge {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            font-weight: 800;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            background: rgba(79, 70, 229, 0.08);
-            color: var(--accent, #4f46e5);
-            font-size: 0.8rem;
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-weight: 600;
-            margin-bottom: 25px;
-            border: 1px solid rgba(79, 70, 229, 0.2);
+            gap: 5px;
         }
+
+        .pro-upgrade-banner {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.08) 100%);
+            border: 1.5px dashed rgba(245, 158, 11, 0.45);
+            padding: 14px 16px;
+            border-radius: 20px;
+            margin: 14px 0 18px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.18s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+        .pro-upgrade-banner:active { transform: scale(0.97); }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -173,13 +194,13 @@ const injectProfileStyles = () => {
         .stat-card {
             background: var(--bg-body, #f8fafc);
             padding: 14px 10px;
-            border-radius: 16px;
+            border-radius: 18px;
             border: 1px solid var(--border, rgba(0, 0, 0, 0.06));
             text-align: center;
         }
         .stat-value {
             font-size: 1.35rem;
-            font-weight: 700;
+            font-weight: 800;
             color: var(--text-main, #0f172a);
             line-height: 1.1;
         }
@@ -187,13 +208,14 @@ const injectProfileStyles = () => {
             font-size: 0.72rem;
             color: var(--text-muted, #64748b);
             margin-top: 4px;
-            font-weight: 500;
+            font-weight: 600;
         }
+
         .storage-analytics-card {
             background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
             border: 1px solid rgba(79, 70, 229, 0.2);
             border-radius: 20px;
-            padding: 20px;
+            padding: 18px;
             margin-top: 18px;
             text-align: left;
         }
@@ -201,7 +223,7 @@ const injectProfileStyles = () => {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .storage-title-box {
             display: flex;
@@ -209,23 +231,23 @@ const injectProfileStyles = () => {
             gap: 10px;
         }
         .storage-icon-wrapper {
-            width: 40px;
-            height: 40px;
+            width: 38px;
+            height: 38px;
             background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
             color: #ffffff;
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 1.15rem;
         }
         .storage-main-title {
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 700;
             color: var(--text-main, #0f172a);
         }
         .storage-sub-title {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--text-muted, #64748b);
         }
         .storage-badge-unlimited {
@@ -241,9 +263,9 @@ const injectProfileStyles = () => {
             gap: 4px;
         }
         .storage-big-value {
-            font-size: 1.8rem;
+            font-size: 1.75rem;
             font-weight: 800;
-            color: #4f46e5;
+            color: var(--accent, #4f46e5);
             margin: 10px 0 6px 0;
             display: flex;
             align-items: baseline;
@@ -256,7 +278,7 @@ const injectProfileStyles = () => {
         }
         .storage-progress-bg {
             width: 100%;
-            height: 8px;
+            height: 7px;
             background: rgba(0, 0, 0, 0.06);
             border-radius: 10px;
             overflow: hidden;
@@ -289,7 +311,7 @@ const injectProfileStyles = () => {
 
         .security-card {
             background: var(--bg-card, #ffffff);
-            border-radius: 20px;
+            border-radius: 22px;
             padding: 20px;
             border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
             box-shadow: 0 4px 20px rgba(0,0,0,0.03);
@@ -344,13 +366,13 @@ const injectProfileStyles = () => {
         }
         .btn-pin-action:active { transform: scale(0.95); }
 
-        /* 🌟 DANGER ZONE / DELETE ACCOUNT CARD */
+        /* DANGER ZONE */
         .danger-card {
             background: rgba(239, 68, 68, 0.05);
             border: 1.5px dashed rgba(239, 68, 68, 0.3);
-            border-radius: 20px;
+            border-radius: 22px;
             padding: 20px;
-            margin-top: 20px;
+            margin-top: 18px;
             text-align: left;
         }
         .danger-title {
@@ -374,7 +396,7 @@ const injectProfileStyles = () => {
             background: #ef4444;
             color: #ffffff;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             font-weight: 700;
             font-size: 0.88rem;
             cursor: pointer;
@@ -442,7 +464,6 @@ const injectProfileStyles = () => {
             letter-spacing: 8px;
             margin-bottom: 12px;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
         }
         .pin-input-field:focus {
             border-color: var(--accent, #4f46e5);
@@ -498,7 +519,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// RENDER PROFILE SCREEN
+// RENDER PROFILE SCREEN WITH PRO INTEGRATION
 // --------------------------------------------------------------------------
 export function renderProfileScreen(containerElement, passedUser = null) {
     injectProfileStyles();
@@ -518,6 +539,8 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         ? new Date(creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Active';
 
+    const isPro = isProUser();
+
     const avatarContent = user.photoURL 
         ? `<img src="${user.photoURL}" id="avatarImg" class="profile-avatar" alt="Avatar">`
         : `<div class="profile-avatar" id="avatarInitial">${initial}</div>`;
@@ -536,6 +559,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 
                 <div class="profile-name-container" id="nameDisplayBox">
                     <span class="profile-display-name" id="profileDisplayName">${displayName}</span>
+                    ${isPro ? `<span class="pro-crown-badge"><i class="fa-solid fa-crown"></i> PRO</span>` : ''}
                     <i class="fa-solid fa-pen-to-square edit-name-icon" id="btnEditName" title="Edit Name"></i>
                 </div>
 
@@ -546,10 +570,24 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                 </div>
 
                 <div class="profile-email">${email}</div>
-                
-                <div class="profile-badge">
-                    <i class="fa-solid fa-shield-halved"></i> Active Cloud Storage
-                </div>
+
+                <!-- 🌟 PRO UPGRADE BANNER (FOR FREE USERS) / ACTIVE BADGE (FOR PRO USERS) -->
+                ${!isPro ? `
+                    <div class="pro-upgrade-banner" id="btnProfileUpgradePro">
+                        <div style="display:flex; align-items:center; gap:12px; text-align:left;">
+                            <div style="width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.15rem; box-shadow:0 4px 12px rgba(245, 158, 11, 0.3);"><i class="fa-solid fa-crown"></i></div>
+                            <div>
+                                <div style="font-weight:800; font-size:0.9rem; color:#b45309;">Upgrade to Anant Pro</div>
+                                <div style="font-size:0.72rem; color:var(--text-muted);">4K Original Quality, 500+ Batch & Biometrics</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color:#f59e0b; font-size:0.9rem;"></i>
+                    </div>
+                ` : `
+                    <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(245, 158, 11, 0.12); color:#d97706; border:1px solid rgba(245, 158, 11, 0.35); padding:6px 16px; border-radius:20px; font-weight:700; font-size:0.8rem; margin-bottom:14px;">
+                        <i class="fa-solid fa-crown"></i> Anant Pro Active Member
+                    </div>
+                `}
 
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -664,7 +702,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                 </div>
             </div>
 
-            <!-- 🌟 GOOGLE PLAY MANDATORY: DELETE ACCOUNT & DATA -->
+            <!-- DANGER ZONE -->
             <div class="danger-card">
                 <div class="danger-title">
                     <i class="fa-solid fa-triangle-exclamation"></i> Danger Zone
@@ -685,12 +723,17 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         renderSettingsSection(profileContainer);
     }
 
-    // 🌟 Open Privacy Policy
+    // 🌟 Pro Upgrade Click Trigger
+    document.getElementById("btnProfileUpgradePro")?.addEventListener("click", () => {
+        showProPaywallModal("Unlock Unlimited Cloud Features");
+    });
+
+    // Open Privacy Policy
     document.getElementById('btnOpenPrivacyPolicy')?.addEventListener('click', () => {
         window.open('/privacy.html', '_blank');
     });
 
-    // 🌟 Open Support Email
+    // Open Support Email
     document.getElementById('btnContactSupport')?.addEventListener('click', () => {
         window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=Anant%20Gallery%20Support%20Request`;
     });
@@ -875,7 +918,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         console.warn("Stats listener error:", error);
     });
 
-    // 🌟 DELETE ACCOUNT MODAL HANDLER
+    // Delete Account Handler
     document.getElementById('btnDeleteAccountAction')?.addEventListener('click', () => {
         showDeleteAccountModal(user);
     });
@@ -960,7 +1003,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 GOOGLE PLAY DELETE ACCOUNT MODAL & DATA PURGE ENGINE
+// GOOGLE PLAY DELETE ACCOUNT MODAL & DATA PURGE ENGINE
 // --------------------------------------------------------------------------
 function showDeleteAccountModal(user) {
     let overlay = document.createElement('div');
@@ -991,25 +1034,21 @@ function showDeleteAccountModal(user) {
         btn.innerText = "Deleting All Data...";
 
         try {
-            // 1. Delete all user photos from Firestore
             const qPhotos = query(collection(db, "user_photos"), where("uid", "==", user.uid));
             const photoSnap = await getDocs(qPhotos);
             const batch1 = writeBatch(db);
             photoSnap.forEach(d => batch1.delete(doc(db, "user_photos", d.id)));
             await batch1.commit();
 
-            // 2. Delete all user albums from Firestore
             const qAlbums = query(collection(db, "user_albums"), where("uid", "==", user.uid));
             const albumSnap = await getDocs(qAlbums);
             const batch2 = writeBatch(db);
             albumSnap.forEach(d => batch2.delete(doc(db, "user_albums", d.id)));
             await batch2.commit();
 
-            // 3. Clear Local Storage
             localStorage.clear();
             sessionStorage.clear();
 
-            // 4. Delete Firebase Auth User
             await deleteUser(user);
 
             close();
