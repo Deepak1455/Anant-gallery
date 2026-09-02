@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT PRO - SUBSCRIPTION ENGINE & ULTRA-SMOOTH GLASS PAYWALL MODAL
+// ANANT PRO - SUBSCRIPTION ENGINE & FREE vs PRO COMPARISON PAYWALL
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -27,14 +27,14 @@ function injectProStyles() {
             position: fixed;
             inset: 0;
             z-index: 20000;
-            background: rgba(9, 13, 22, 0.86);
+            background: rgba(9, 13, 22, 0.88);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 16px;
-            animation: proFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            padding: 14px;
+            animation: proFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             user-select: none;
         }
 
@@ -48,13 +48,13 @@ function injectProStyles() {
             border: 1.5px solid rgba(245, 158, 11, 0.35);
             width: 100%;
             max-width: 440px;
-            max-height: 90vh;
+            max-height: 92vh;
             overflow-y: auto;
-            border-radius: 30px;
-            padding: 28px 22px;
+            border-radius: 32px;
+            padding: 24px 18px;
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(245, 158, 11, 0.15);
             position: relative;
-            animation: proPopIn 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            animation: proPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             scrollbar-width: none;
         }
 
@@ -67,8 +67,8 @@ function injectProStyles() {
 
         .pro-close-btn {
             position: absolute;
-            top: 18px;
-            right: 18px;
+            top: 16px;
+            right: 16px;
             width: 34px;
             height: 34px;
             background: rgba(0, 0, 0, 0.05);
@@ -87,19 +87,19 @@ function injectProStyles() {
 
         .pro-hero-header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .pro-crown-box {
-            width: 68px;
-            height: 68px;
-            margin: 0 auto 12px auto;
-            border-radius: 22px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 10px auto;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+            font-size: 1.85rem;
             color: #ffffff;
             box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
             animation: crownPulse 2s infinite ease-in-out;
@@ -111,7 +111,7 @@ function injectProStyles() {
         }
 
         .pro-title {
-            font-size: 1.6rem;
+            font-size: 1.55rem;
             font-weight: 800;
             color: var(--text-main, #0f172a);
             letter-spacing: -0.4px;
@@ -125,55 +125,84 @@ function injectProStyles() {
         }
 
         .pro-subtitle {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             color: var(--text-muted, #64748b);
             margin-top: 4px;
             font-weight: 500;
         }
 
-        /* 🌟 FEATURE MATRIX LIST */
-        .pro-features-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-bottom: 22px;
-        }
-
-        .pro-feature-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+        /* 🌟 FREE VS PRO COMPARISON MATRIX */
+        .comparison-card {
             background: var(--bg-body, #f8fafc);
-            padding: 10px 14px;
-            border-radius: 16px;
-            border: 1px solid var(--border, rgba(0, 0, 0, 0.05));
+            border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+            border-radius: 22px;
+            padding: 12px 14px;
+            margin-bottom: 18px;
         }
 
-        .pro-feature-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
-            background: rgba(245, 158, 11, 0.12);
-            color: #f59e0b;
+        .comparison-header {
+            display: grid;
+            grid-template-columns: 1.3fr 0.8fr 1fr;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+            font-size: 0.75rem;
+            font-weight: 800;
+            align-items: center;
+        }
+
+        .col-free-badge {
+            color: var(--text-muted, #64748b);
+            text-align: center;
+        }
+
+        .col-pro-badge {
+            color: #d97706;
+            text-align: right;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 0.95rem;
-            flex-shrink: 0;
+            justify-content: flex-end;
+            gap: 4px;
         }
 
-        .pro-feature-text {
-            font-size: 0.84rem;
+        .comparison-row {
+            display: grid;
+            grid-template-columns: 1.3fr 0.8fr 1fr;
+            padding: 10px 0;
+            border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.06));
+            font-size: 0.78rem;
+            align-items: center;
+        }
+
+        .comparison-row:last-child {
+            border-bottom: none;
+            padding-bottom: 4px;
+        }
+
+        .feat-name {
             font-weight: 700;
             color: var(--text-main, #0f172a);
-            line-height: 1.25;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .pro-feature-text small {
-            display: block;
-            font-size: 0.72rem;
-            font-weight: 500;
+        .feat-name i {
+            font-size: 0.85rem;
+            color: #f59e0b;
+        }
+
+        .free-val {
+            text-align: center;
             color: var(--text-muted, #64748b);
+            font-weight: 600;
+            font-size: 0.74rem;
+        }
+
+        .pro-val {
+            text-align: right;
+            color: #059669;
+            font-weight: 800;
+            font-size: 0.76rem;
         }
 
         /* 🌟 PRICING CARDS GRID */
@@ -181,14 +210,14 @@ function injectProStyles() {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .pricing-plan-card {
             border: 2px solid var(--border, #e2e8f0);
             background: var(--bg-body, #f8fafc);
             border-radius: 18px;
-            padding: 14px 8px;
+            padding: 14px 6px;
             text-align: center;
             cursor: pointer;
             position: relative;
@@ -210,9 +239,9 @@ function injectProStyles() {
             transform: translateX(-50%);
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: #ffffff;
-            font-size: 0.62rem;
+            font-size: 0.58rem;
             font-weight: 800;
-            padding: 2px 8px;
+            padding: 2px 7px;
             border-radius: 20px;
             white-space: nowrap;
             box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
@@ -230,11 +259,11 @@ function injectProStyles() {
             font-weight: 800;
             color: #f59e0b;
             font-family: 'Outfit', sans-serif;
-            margin: 4px 0 2px 0;
+            margin: 3px 0 1px 0;
         }
 
         .plan-subtext {
-            font-size: 0.68rem;
+            font-size: 0.65rem;
             color: var(--text-muted, #64748b);
             font-weight: 500;
         }
@@ -242,8 +271,8 @@ function injectProStyles() {
         /* 🌟 CTA ACTION BUTTON */
         .btn-upgrade-pro {
             width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            padding: 15px;
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
             color: #ffffff;
             border: none;
             border-radius: 18px;
@@ -267,25 +296,11 @@ function injectProStyles() {
             text-align: center;
             font-size: 0.72rem;
             color: var(--text-muted, #64748b);
-            margin-top: 12px;
+            margin-top: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
-        }
-
-        /* 👑 PRO BADGE ON PROFILE & TOP BAR */
-        .pro-crown-badge {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
-            color: #d97706;
-            border: 1px solid rgba(245, 158, 11, 0.35);
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.72rem;
-            font-weight: 800;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
         }
     `;
     document.head.appendChild(style);
@@ -312,9 +327,8 @@ export function initProManager(currentUser) {
         if (snap.exists()) {
             const data = snap.data();
             const isPro = data.isPro === true;
-            const expiry = data.proExpiry ? data.proExpiry.toMillis ? data.proExpiry.toMillis() : data.proExpiry : null;
+            const expiry = data.proExpiry ? (data.proExpiry.toMillis ? data.proExpiry.toMillis() : data.proExpiry) : null;
 
-            // Check if active or expired
             const isStillValid = isPro && (!expiry || Date.now() < expiry);
 
             currentProState = {
@@ -349,7 +363,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 4. SHOW PRO PAYWALL MODAL
+// 4. SHOW PRO PAYWALL MODAL (WITH FREE VS PRO COMPARISON MATRIX)
 // --------------------------------------------------------------------------
 export function showProPaywallModal(highlightReason = "Unlock All Features") {
     injectProStyles();
@@ -361,7 +375,7 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
     modal.id = "anantProModal";
     modal.className = "pro-modal-overlay";
 
-    let selectedPlan = "annual"; // Default chosen
+    let selectedPlan = "lifetime"; // Default Best Value
 
     modal.innerHTML = `
         <div class="pro-modal-card">
@@ -375,38 +389,36 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 <div class="pro-subtitle">${highlightReason}</div>
             </div>
 
-            <!-- Features -->
-            <div class="pro-features-list">
-                <div class="pro-feature-item">
-                    <div class="pro-feature-icon"><i class="fa-solid fa-gem"></i></div>
-                    <div class="pro-feature-text">
-                        Original 4K & RAW Quality
-                        <small>Zero compression, full camera resolution</small>
-                    </div>
+            <!-- 🌟 FREE VS PRO COMPARISON TABLE -->
+            <div class="comparison-card">
+                <div class="comparison-header">
+                    <span>Feature</span>
+                    <span class="col-free-badge">Free Plan</span>
+                    <span class="col-pro-badge"><i class="fa-solid fa-crown"></i> Pro</span>
                 </div>
 
-                <div class="pro-feature-item">
-                    <div class="pro-feature-icon"><i class="fa-solid fa-bolt"></i></div>
-                    <div class="pro-feature-text">
-                        Unlimited Batch Upload
-                        <small>Backup 500+ photos in a single tap</small>
-                    </div>
+                <div class="comparison-row">
+                    <div class="feat-name"><i class="fa-solid fa-gem"></i> Quality</div>
+                    <div class="free-val">1080p HD</div>
+                    <div class="pro-val">Original 4K / RAW</div>
                 </div>
 
-                <div class="pro-feature-item">
-                    <div class="pro-feature-icon"><i class="fa-solid fa-fingerprint"></i></div>
-                    <div class="pro-feature-text">
-                        Biometric Hardware Lock
-                        <small>Instant fingerprint & decoy fake vault</small>
-                    </div>
+                <div class="comparison-row">
+                    <div class="feat-name"><i class="fa-solid fa-bolt"></i> Upload Limit</div>
+                    <div class="free-val">15 at once</div>
+                    <div class="pro-val">Unlimited 500+</div>
                 </div>
 
-                <div class="pro-feature-item">
-                    <div class="pro-feature-icon"><i class="fa-solid fa-folder-tree"></i></div>
-                    <div class="pro-feature-text">
-                        Unlimited Custom Albums
-                        <small>No restrictions on collections & folders</small>
-                    </div>
+                <div class="comparison-row">
+                    <div class="feat-name"><i class="fa-solid fa-folder-tree"></i> Albums</div>
+                    <div class="free-val">Max 5</div>
+                    <div class="pro-val">Unlimited Folders</div>
+                </div>
+
+                <div class="comparison-row">
+                    <div class="feat-name"><i class="fa-solid fa-fingerprint"></i> Vault Lock</div>
+                    <div class="free-val">PIN Only</div>
+                    <div class="pro-val">Biometric & Decoy</div>
                 </div>
             </div>
 
@@ -418,14 +430,14 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                     <div class="plan-subtext">per month</div>
                 </div>
 
-                <div class="pricing-plan-card active" data-plan="annual">
-                    <div class="plan-ribbon">POPULAR 40% OFF</div>
+                <div class="pricing-plan-card" data-plan="annual">
+                    <div class="plan-ribbon">SAVE 40%</div>
                     <div class="plan-duration">1 Year</div>
                     <div class="plan-price">₹399</div>
                     <div class="plan-subtext">₹33 / mo</div>
                 </div>
 
-                <div class="pricing-plan-card" data-plan="lifetime">
+                <div class="pricing-plan-card active" data-plan="lifetime">
                     <div class="plan-ribbon">BEST VALUE</div>
                     <div class="plan-duration">Lifetime</div>
                     <div class="plan-price">₹999</div>
@@ -434,7 +446,7 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
             </div>
 
             <button class="btn-upgrade-pro" id="btnConfirmProUpgrade">
-                <i class="fa-solid fa-crown"></i> <span>Upgrade for ₹399</span>
+                <i class="fa-solid fa-crown"></i> <span>Upgrade for ₹999</span>
             </button>
 
             <div class="pro-secure-guarantee">
@@ -458,16 +470,16 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
             card.classList.add("active");
             selectedPlan = card.getAttribute("data-plan");
             
-            let priceText = "₹399";
+            let priceText = "₹999";
             if (selectedPlan === "monthly") priceText = "₹49";
-            if (selectedPlan === "lifetime") priceText = "₹999";
+            if (selectedPlan === "annual") priceText = "₹399";
 
             upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Upgrade for ${priceText}</span>`;
             if (navigator.vibrate) navigator.vibrate(10);
         };
     });
 
-    // 🌟 Instant Activation Trigger (Simulation / Razorpay Hook)
+    // 🌟 Instant Activation Trigger
     upgradeBtn.onclick = async () => {
         const user = auth.currentUser;
         if (!user) return alert("Please log in to upgrade!");
@@ -483,7 +495,6 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
             }
 
-            // Update user in Firestore
             await setDoc(doc(db, "users", user.uid), {
                 isPro: true,
                 proPlan: selectedPlan,
