@@ -1,5 +1,5 @@
 // ==========================================================================
-// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (HIGH PERFORMANCE & ADMIN SYNC)
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (PRO UNLIMITED & FREE 15-LIMIT)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -13,9 +13,13 @@ import {
     doc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { addToOfflineQueue } from "./offline-sync.js";
+import { isProUser, guardProFeature } from "./pro-manager.js";
 
 // 🌟 SECURE PROXY ENDPOINT
 const UPLOAD_API_ENDPOINT = "/api/upload";
+
+// 🌟 FREE TIER LIMIT (अधिकतम 15 फ़ोटो एक साथ)
+const FREE_BATCH_LIMIT = 15;
 
 // --------------------------------------------------------------------------
 // 1. SMART FLOATING PROGRESS BAR STYLES (60FPS HARDWARE ACCELERATED)
@@ -195,15 +199,21 @@ function hideProgressModal() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 4. ULTRA-FAST GPU HARDWARE-ACCELERATED COMPRESSION
+// 🌟 4. SMART COMPRESSION (Pro = Original 4K/RAW, Free = HD 1080p Smart Compression)
 // --------------------------------------------------------------------------
 async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
+    // 👑 Anant Pro: Zero Compression, Original Quality Backed up!
+    if (isProUser()) {
+        return file;
+    }
+
+    // 🆓 Free: If already small web image, don't recompress
     if (file.size <= 350 * 1024 && (file.type === "image/jpeg" || file.type === "image/webp")) {
         return file;
     }
 
     try {
-        // Fast Method 1: createImageBitmap (Hardware accelerated, 2x faster, 0 UI Freeze)
+        // Fast Method 1: Hardware-Accelerated createImageBitmap
         if (typeof createImageBitmap === 'function') {
             const bitmap = await createImageBitmap(file);
             let { width, height } = bitmap;
@@ -383,7 +393,6 @@ async function uploadMediaGroupChunk(chunkFiles, currentUser, currentView, onPro
             const originalFile = chunkFiles[idx] || {};
             const docRef = doc(collection(db, "user_photos"));
 
-            // 🌟 Saves Profile Name & Email for Admin Center Sync
             batch.set(docRef, {
                 uid: currentUser.uid,
                 userName: userName,
@@ -422,10 +431,19 @@ async function uploadMediaGroupChunk(chunkFiles, currentUser, currentView, onPro
 }
 
 // --------------------------------------------------------------------------
-// 🌟 7. MASTER BATCH CONTROLLER (HIGH-SPEED CHUNKING)
+// 🌟 7. MASTER BATCH CONTROLLER (FREE: 15 LIMIT, PRO: UNLIMITED)
 // --------------------------------------------------------------------------
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
+
+    // 🔒 1. FREE USER BATCH LIMIT GUARD (Max 15 Photos for Free, Unlimited for Pro)
+    if (!isProUser() && files.length > FREE_BATCH_LIMIT) {
+        guardProFeature("Upload 15+ Photos Simultaneously with Anant Pro", () => {
+            // Callback: अगर यूज़र Pro ले लेता है तो अनरिस्ट्रिक्टेड अपलोड आगे बढ़ेगा
+            uploadBatchPhotos(files, currentUser, currentView, showToast);
+        });
+        return;
+    }
 
     if (!navigator.onLine) {
         for (const file of files) {
@@ -447,7 +465,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         showToast(`Uploading ${totalFiles} photos (${skippedCount} duplicates skipped)`);
     }
 
-    showProgressModal(`Preparing Album Batch...`);
+    showProgressModal(`Preparing Cloud Batch...`);
 
     const CHUNK_SIZE = 10;
     const chunks = [];
@@ -478,7 +496,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
                         const basePercent = Math.round((processedCount / totalFiles) * 100);
                         const chunkContribution = Math.round((percent / 100) * (currentChunk.length / totalFiles) * 100);
                         const totalPercent = Math.min(99, basePercent + chunkContribution);
-                        updateProgress(totalPercent, `Uploading Album (${processedCount + currentChunk.length}/${totalFiles})...`);
+                        updateProgress(totalPercent, `Uploading Photos (${processedCount + currentChunk.length}/${totalFiles})...`);
                     }
                 );
                 successfulUploads += uploadedCount;
@@ -533,7 +551,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
         }
 
         if (!options.isQueueSync) {
-            showProgressModal("Optimizing photo quality...");
+            showProgressModal(isProUser() ? "Securing 4K Original Photo..." : "Optimizing photo quality...");
         }
 
         const compressedFile = await smartCompressImage(file);
@@ -565,7 +583,6 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
 
                         const secureMaskedUrl = response.imageUrl || `/api/upload?file_id=${encodeURIComponent(response.fileId)}`;
 
-                        // 🌟 Saves Profile Name & Email for Admin Center Sync
                         await addDoc(collection(db, "user_photos"), {
                             uid: currentUser.uid,
                             userName: userName,
@@ -584,7 +601,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                             updateProgress(100, "Done!");
                             setTimeout(() => {
                                 hideProgressModal();
-                                if (showToast) showToast("Photo backed up securely!");
+                                if (showToast) showToast(isProUser() ? "4K Photo backed up in Original Quality! 👑" : "Photo backed up securely!");
                             }, 250);
                         }
 
