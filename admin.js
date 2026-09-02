@@ -13,12 +13,11 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 SUPER ADMIN EMAILS (इन सभी ईमेल्स को मास्टर परमिशन मिलेगी)
+// 🌟 SUPER ADMIN EMAILS
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
     "dt4527129@gmail.com",
-    "admin@anant.gallery",
-    "vikash@gmail.com"
+    "anantgalleryogr@gmail.com"
 ];
 
 let currentUser = null;
