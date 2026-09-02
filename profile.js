@@ -21,7 +21,7 @@ import {
     registerBiometric, 
     removeBiometric 
 } from "./biometric-auth.js";
-import { isProUser, showProPaywallModal } from "./pro-manager.js";
+import { isProUser, getProDetails, showProPaywallModal } from "./pro-manager.js";
 
 const CLOUDINARY_CLOUD_NAME = "gvickscl";
 const CLOUDINARY_UPLOAD_PRESET = "my_photo";
@@ -156,11 +156,11 @@ const injectProfileStyles = () => {
             margin-bottom: 14px;
         }
 
-        /* 🌟 PRO CROWN BADGE & UPGRADE CARD */
+        /* 🌟 PRO CROWN BADGE & ACTIVE/UPGRADE CARDS */
         .pro-crown-badge {
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
             color: #d97706;
-            border: 1px solid rgba(245, 158, 11, 0.35);
+            border: 1px solid rgba(245, 158, 11, 0.45);
             padding: 3px 10px;
             border-radius: 12px;
             font-size: 0.72rem;
@@ -168,6 +168,25 @@ const injectProfileStyles = () => {
             display: inline-flex;
             align-items: center;
             gap: 5px;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+            animation: crownShimmer 2.5s infinite ease-in-out;
+        }
+
+        @keyframes crownShimmer {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .pro-active-card {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.06) 100%);
+            border: 1.5px solid rgba(245, 158, 11, 0.35);
+            padding: 14px 16px;
+            border-radius: 20px;
+            margin: 14px 0 18px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-align: left;
         }
 
         .pro-upgrade-banner {
@@ -180,7 +199,7 @@ const injectProfileStyles = () => {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            transition: transform 0.18s ease, box-shadow 0.2s ease;
+            transition: transform 0.18s ease;
             user-select: none;
         }
         .pro-upgrade-banner:active { transform: scale(0.97); }
@@ -519,7 +538,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// RENDER PROFILE SCREEN WITH PRO INTEGRATION
+// RENDER PROFILE SCREEN WITH LIVE PRO SUBSCRIPTION HUB
 // --------------------------------------------------------------------------
 export function renderProfileScreen(containerElement, passedUser = null) {
     injectProfileStyles();
@@ -540,6 +559,8 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         : 'Active';
 
     const isPro = isProUser();
+    const proDetails = getProDetails();
+    const planName = proDetails.plan ? (proDetails.plan === 'lifetime' ? 'Lifetime Access' : `${proDetails.plan.toUpperCase()} Plan`) : 'Active Plan';
 
     const avatarContent = user.photoURL 
         ? `<img src="${user.photoURL}" id="avatarImg" class="profile-avatar" alt="Avatar">`
@@ -571,8 +592,21 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 
                 <div class="profile-email">${email}</div>
 
-                <!-- 🌟 PRO UPGRADE BANNER (FOR FREE USERS) / ACTIVE BADGE (FOR PRO USERS) -->
-                ${!isPro ? `
+                <!-- 🌟 LIVE SUBSCRIPTION HUB: UNLOCKED FOR PRO, UPGRADE CTA FOR FREE -->
+                ${isPro ? `
+                    <div class="pro-active-card">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div style="width:40px; height:40px; border-radius:14px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.25rem; box-shadow:0 4px 12px rgba(245, 158, 11, 0.35);">
+                                <i class="fa-solid fa-crown"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight:800; font-size:0.92rem; color:#b45309;">Anant Pro Active</div>
+                                <div style="font-size:0.75rem; color:#d97706; font-weight:600;">${planName} • All Perks Unlocked ⚡</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-circle-check" style="color:#059669; font-size:1.2rem;"></i>
+                    </div>
+                ` : `
                     <div class="pro-upgrade-banner" id="btnProfileUpgradePro">
                         <div style="display:flex; align-items:center; gap:12px; text-align:left;">
                             <div style="width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.15rem; box-shadow:0 4px 12px rgba(245, 158, 11, 0.3);"><i class="fa-solid fa-crown"></i></div>
@@ -582,10 +616,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                             </div>
                         </div>
                         <i class="fa-solid fa-chevron-right" style="color:#f59e0b; font-size:0.9rem;"></i>
-                    </div>
-                ` : `
-                    <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(245, 158, 11, 0.12); color:#d97706; border:1px solid rgba(245, 158, 11, 0.35); padding:6px 16px; border-radius:20px; font-weight:700; font-size:0.8rem; margin-bottom:14px;">
-                        <i class="fa-solid fa-crown"></i> Anant Pro Active Member
                     </div>
                 `}
 
@@ -640,7 +670,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                         <div class="info-item-val">${formattedDate}</div>
                     </div>
                     
-                    <!-- 🌟 PRIVACY POLICY IN-APP LINK -->
                     <div class="info-item" id="btnOpenPrivacyPolicy">
                         <div class="info-item-left">
                             <i class="fa-solid fa-shield-halved" style="color:#4f46e5;"></i> Privacy Policy & Data Rights
@@ -648,7 +677,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                         <i class="fa-solid fa-chevron-right" style="color:var(--text-muted); font-size:0.8rem;"></i>
                     </div>
 
-                    <!-- 🌟 OFFICIAL SUPPORT EMAIL LINK -->
                     <div class="info-item" id="btnContactSupport">
                         <div class="info-item-left">
                             <i class="fa-solid fa-headset" style="color:#ca8a04;"></i> Official Support Desk
@@ -695,7 +723,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                         <i class="fa-solid fa-user-shield" style="color: #9333ea;"></i>
                         <div>
                             <div class="pin-title">Private Photos PIN</div>
-                            <div class="pin-subtitle">SHA-256 Encrypted PIN</div>
+                            <div class="pin-subtitle">SHA-256 Encrypted PIN ${isPro ? '<span style="color:#f59e0b;">(Decoy: 0000)</span>' : ''}</div>
                         </div>
                     </div>
                     <button class="btn-pin-action" id="btnManagePrivatePin" style="background: #9333ea;">Set / Change</button>
@@ -723,20 +751,19 @@ export function renderProfileScreen(containerElement, passedUser = null) {
         renderSettingsSection(profileContainer);
     }
 
-    // 🌟 Pro Upgrade Click Trigger
     document.getElementById("btnProfileUpgradePro")?.addEventListener("click", () => {
         showProPaywallModal("Unlock Unlimited Cloud Features");
     });
 
-    // Open Privacy Policy
-    document.getElementById('btnOpenPrivacyPolicy')?.addEventListener('click', () => {
-        window.open('/privacy.html', '_blank');
-    });
+    // 🌟 LIVE PRO STATUS LISTENER (Re-renders if Pro is granted while on profile screen)
+    const handleProEvent = () => {
+        renderProfileScreen(containerElement, user);
+    };
+    window.removeEventListener('anant_pro_updated', handleProEvent);
+    window.addEventListener('anant_pro_updated', handleProEvent, { once: true });
 
-    // Open Support Email
-    document.getElementById('btnContactSupport')?.addEventListener('click', () => {
-        window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=Anant%20Gallery%20Support%20Request`;
-    });
+    document.getElementById('btnOpenPrivacyPolicy')?.addEventListener('click', () => { window.open('/privacy.html', '_blank'); });
+    document.getElementById('btnContactSupport')?.addEventListener('click', () => { window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=Support`; });
 
     // Biometric Check
     isBiometricAvailable().then((supported) => {
@@ -751,6 +778,12 @@ export function renderProfileScreen(containerElement, passedUser = null) {
             if (sub) sub.innerText = isActive ? 'Fingerprint Saved & Active' : 'Scan finger to save & activate';
 
             toggle.onchange = async (e) => {
+                if (!isProUser()) {
+                    toggle.checked = false;
+                    showProPaywallModal("Biometric Hardware Lock requires Anant Pro");
+                    return;
+                }
+
                 const wantsEnable = e.target.checked;
                 if (wantsEnable) {
                     showToast("Scanning finger to save passkey...");
@@ -790,7 +823,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
             if (!file) return;
 
             showToast("Uploading profile picture...");
-            
             try {
                 const formData = new FormData();
                 formData.append("file", file);
@@ -824,7 +856,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 
                 showToast("Profile picture updated!");
             } catch (err) {
-                console.error("Avatar update error:", err);
                 showToast("Upload Error: " + err.message);
             }
         });
@@ -869,7 +900,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
                 if (nameDisplayBox) nameDisplayBox.style.display = 'flex';
                 showToast("Name updated successfully!");
             } catch (err) {
-                console.error("Name update error:", err);
                 showToast("Failed to update name");
             }
         });
@@ -915,10 +945,9 @@ export function renderProfileScreen(containerElement, passedUser = null) {
             storageValEl.innerHTML = `${formattedStorage} <span>phone memory freed</span>`;
         }
     }, (error) => {
-        console.warn("Stats listener error:", error);
+        console.warn("Stats listener warning:", error);
     });
 
-    // Delete Account Handler
     document.getElementById('btnDeleteAccountAction')?.addEventListener('click', () => {
         showDeleteAccountModal(user);
     });
@@ -954,18 +983,7 @@ export function renderProfileScreen(containerElement, passedUser = null) {
 
         modal.style.display = "flex";
 
-        const triggerShake = () => {
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-            const card = document.getElementById('pinModalCard');
-            if (card) {
-                card.classList.add('shake');
-                setTimeout(() => card.classList.remove('shake'), 380);
-            }
-        };
-
-        document.getElementById("closePinModal").onclick = () => {
-            modal.style.display = "none";
-        };
+        document.getElementById("closePinModal").onclick = () => { modal.style.display = "none"; };
 
         document.getElementById("savePinBtn").onclick = async () => {
             const oldPinInput = document.getElementById("oldPinInput");
@@ -975,18 +993,15 @@ export function renderProfileScreen(containerElement, passedUser = null) {
             if (currentSavedHash && oldPinInput) {
                 const oldHash = await hashSecretPin(oldPinInput.value.trim());
                 if (oldHash !== currentSavedHash) {
-                    triggerShake();
                     return showToast("Incorrect Old PIN!");
                 }
             }
 
             if (newPin.length !== 4 || isNaN(newPin)) {
-                triggerShake();
                 return showToast("New PIN must be 4 digits!");
             }
 
             if (newPin !== confirmPin) {
-                triggerShake();
                 return showToast("New PINs do not match!");
             }
 
@@ -1002,9 +1017,6 @@ export function renderProfileScreen(containerElement, passedUser = null) {
     document.getElementById("btnManagePrivatePin")?.addEventListener("click", () => openPinModal('private'));
 }
 
-// --------------------------------------------------------------------------
-// GOOGLE PLAY DELETE ACCOUNT MODAL & DATA PURGE ENGINE
-// --------------------------------------------------------------------------
 function showDeleteAccountModal(user) {
     let overlay = document.createElement('div');
     overlay.className = 'pin-modal-overlay';
@@ -1048,18 +1060,12 @@ function showDeleteAccountModal(user) {
 
             localStorage.clear();
             sessionStorage.clear();
-
             await deleteUser(user);
 
             close();
             showToast("Account and all data permanently deleted!");
         } catch (err) {
-            console.error("Account delete error:", err);
-            if (err.code === 'auth/requires-recent-login') {
-                showToast("Security: Please log out and log in again to delete your account.");
-            } else {
-                showToast("Failed to delete account: " + err.message);
-            }
+            showToast("Failed to delete account: " + err.message);
             close();
         }
     };
