@@ -63,7 +63,7 @@ import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
 import { initProManager, showProPaywallModal, isProUser, guardProFeature } from "./pro-manager.js";
 
-// 🌟 SUPER ADMIN EMAILS LIST
+// 🌟 3 SUPER ADMIN EMAILS
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
     "dt4527129@gmail.com",
@@ -239,7 +239,7 @@ async function downloadPhoto(imageUrl, customFilename = null) {
     try {
         let downloadUrl = imageUrl;
 
-        // Append &dl=1 for native attachment download trigger
+        // Ensure &dl=1 is appended for native attachment trigger
         if (imageUrl.startsWith('/api/') || imageUrl.includes('workers.dev')) {
             downloadUrl = imageUrl.includes('?') ? `${imageUrl}&dl=1` : `${imageUrl}?dl=1`;
         } else if (!imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
@@ -280,7 +280,7 @@ async function downloadPhoto(imageUrl, customFilename = null) {
     }
 }
 
-// 🌟 SMART MULTI-DOWNLOAD WITH 250ms POPUP-BLOCKER BYPASS
+// 🌟 SMART MULTI-DOWNLOAD (CHROME POPUP-BLOCKER BYPASS WITH 250ms DELAY)
 async function multiDownload() {
     if (selectedIds.size === 0) return;
 
@@ -482,7 +482,7 @@ if (passInput) passInput.onkeydown = (e) => { if (e.key === 'Enter') handleAuth(
 if (emailInput) emailInput.onkeydown = (e) => { if (e.key === 'Enter' && passInput) passInput.focus(); };
 
 // --------------------------------------------------------------------------
-// 🌟 7. AUTH STATE CHANGED (INITIALIZE PRO MANAGER & APP HUBS)
+// 🌟 7. AUTH STATE CHANGED (PRO MANAGER & SIDEBAR LIVE SYNC)
 // --------------------------------------------------------------------------
 onAuthStateChanged(auth, (user) => {
     hideSplashScreen();
@@ -497,7 +497,7 @@ onAuthStateChanged(auth, (user) => {
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
         
-        // 👑 1. INITIALIZE PRO MANAGER REALTIME
+        // 👑 1. INITIALIZE REALTIME PRO MANAGER
         initProManager(user);
 
         // 🌟 2. SETUP SIDEBAR BADGES
@@ -523,7 +523,6 @@ onAuthStateChanged(auth, (user) => {
 
 // 🌟 DYNAMICALLY INJECT PRO UPGRADE & ADMIN LINK IN SIDEBAR
 function setupSidebarLinks(user) {
-    // 1. Pro Badge Button
     const existingPro = document.getElementById('sidebarProBadge');
     if (existingPro) existingPro.remove();
 
@@ -548,7 +547,6 @@ function setupSidebarLinks(user) {
         navProfile.parentElement.insertBefore(proItem, navProfile);
     }
 
-    // 2. Admin Link
     const existingAdmin = document.getElementById('navAdminPortal');
     if (existingAdmin) existingAdmin.remove();
 
@@ -853,4 +851,177 @@ function enterSelectionMode(initialId, customContext) {
     if (currentView === 'photos' || customContext === 'album') {
         selectActions.innerHTML = `
             <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save to Gallery"></i>
-            <i class="fa-solid fa-folder-plus" id="multiAlbumBtn" style=
+            <i class="fa-solid fa-folder-plus" id="multiAlbumBtn" style="color: #0ea5e9;" title="Move to Album"></i>
+            ${customContext === 'album' ? `<i class="fa-solid fa-folder-minus" id="multiRemoveAlbumBtn" style="color: #f59e0b;" title="Remove from Album"></i>` : ''}
+            <i class="fa-solid fa-heart" id="multiFavBtn" style="color: #ec4899;" title="Add Favorites"></i>
+            <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
+            <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
+        `;
+        document.getElementById('multiDownloadBtn').onclick = multiDownload;
+        document.getElementById('multiAlbumBtn').onclick = () => {
+            showAddToAlbumModal(Array.from(selectedIds), currentUser, exitSelectionMode, showToast);
+        };
+        if (document.getElementById('multiRemoveAlbumBtn')) {
+            document.getElementById('multiRemoveAlbumBtn').onclick = async () => {
+                await removePhotosFromAlbum(Array.from(selectedIds), showToast);
+                exitSelectionMode();
+            };
+        }
+        document.getElementById('multiFavBtn').onclick = multiFav;
+        document.getElementById('multiHideBtn').onclick = () => multiHideAction(true);
+        document.getElementById('multiTrashBtn').onclick = multiMoveToTrash;
+
+    } else if (currentView === 'favorites') {
+        selectActions.innerHTML = `
+            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save to Gallery"></i>
+            <i class="fa-solid fa-heart-crack" id="multiUnfavBtn" style="color: #ec4899;" title="Remove from Favorites"></i>
+            <i class="fa-solid fa-eye-slash" id="multiHideBtn" style="color: #6366f1;" title="Move Private"></i>
+            <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
+        `;
+        document.getElementById('multiDownloadBtn').onclick = multiDownload;
+        document.getElementById('multiUnfavBtn').onclick = async () => {
+            const idsToUnfav = Array.from(selectedIds);
+            await batchUnfavoritePhotos(idsToUnfav, showToast, exitSelectionMode);
+        };
+        document.getElementById('multiHideBtn').onclick = () => multiHideAction(true);
+        document.getElementById('multiTrashBtn').onclick = multiMoveToTrash;
+
+    } else if (currentView === 'hidden') {
+        selectActions.innerHTML = `
+            <i class="fa-solid fa-eye" id="multiUnhideBtn" style="color: var(--success);" title="Unhide Photos"></i>
+            <i class="fa-solid fa-download" id="multiDownloadBtn" style="color: var(--accent);" title="Save to Gallery"></i>
+            <i class="fa-solid fa-trash" id="multiTrashBtn" style="color: var(--danger);" title="Trash"></i>
+        `;
+        document.getElementById('multiDownloadBtn').onclick = multiDownload;
+        document.getElementById('multiUnhideBtn').onclick = () => multiHideAction(false);
+        document.getElementById('multiTrashBtn').onclick = multiMoveToTrash;
+    } else {
+        selectActions.innerHTML = `
+            <i class="fa-solid fa-rotate-left" id="multiRestoreBtn" style="color: var(--success);" title="Restore Photos"></i>
+            <i class="fa-solid fa-ban" id="multiDeleteBtn" style="color: var(--danger);" title="Delete Permanently"></i>
+        `;
+        document.getElementById('multiRestoreBtn').onclick = multiRestore;
+        document.getElementById('multiDeleteBtn').onclick = multiDeletePerm;
+    }
+
+    selectId(initialId, document.querySelector(`div[data-id="${initialId}"]`));
+}
+
+function exitSelectionMode() {
+    isSelectionMode = false;
+    selectedIds.clear();
+    document.querySelectorAll('.photo-card.selected').forEach(el => el.classList.remove('selected'));
+    document.getElementById('albumsMainBoard')?.classList.remove('selection-active');
+    selectionHeader.style.display = 'none';
+    document.getElementById('mainHeader').style.display = 'flex';
+}
+
+function selectId(id, element) {
+    if (!element) element = document.querySelector(`div[data-id="${id}"]`);
+    if (!selectedIds.has(id)) {
+        selectedIds.add(id);
+        if (element) element.classList.add('selected');
+    }
+    selectionCount.innerText = `${selectedIds.size} Selected`;
+}
+
+function deselectId(id, element) {
+    if (!element) element = document.querySelector(`div[data-id="${id}"]`);
+    if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+        if (element) element.classList.remove('selected');
+    }
+    selectionCount.innerText = `${selectedIds.size} Selected`;
+    if (selectedIds.size === 0) exitSelectionMode();
+}
+
+function toggleSelection(id, element) {
+    if (!element) element = document.querySelector(`div[data-id="${id}"]`);
+    if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+        if (element) element.classList.remove('selected');
+    } else {
+        selectedIds.add(id);
+        if (element) element.classList.add('selected');
+    }
+    selectionCount.innerText = `${selectedIds.size} Selected`;
+    if (selectedIds.size === 0) exitSelectionMode();
+}
+
+document.getElementById('cancelSelect')?.addEventListener('click', exitSelectionMode);
+
+async function batchUpdatePhotos(updateFields, toastMsg) {
+    if (selectedIds.size === 0) return;
+    const batch = writeBatch(db);
+    selectedIds.forEach(id => {
+        batch.update(doc(db, "user_photos", id), updateFields);
+    });
+    await batch.commit();
+    showToast(toastMsg);
+    exitSelectionMode();
+}
+
+async function multiHideAction(shouldHide) {
+    await batchUpdatePhotos({ isHidden: shouldHide }, shouldHide ? "Moved to Private Photos" : "Restored to Gallery");
+}
+
+function multiMoveToTrash() {
+    if (selectedIds.size === 0) return;
+    showConfirmModal({
+        title: "Move to Trash?",
+        message: `Move ${selectedIds.size} item(s) to Trash?`,
+        icon: "fa-trash",
+        confirmText: "Move to Trash",
+        onConfirm: async () => {
+            await batchUpdatePhotos({ 
+                isDeleted: true, 
+                deletedAt: serverTimestamp() 
+            }, "Moved to Trash");
+        }
+    });
+}
+
+async function multiFav() {
+    await batchUpdatePhotos({ isFavorite: true }, "Added to Favorites");
+}
+
+async function multiRestore() {
+    await batchUpdatePhotos({ isDeleted: false, deletedAt: null }, "Restored Photos");
+}
+
+function multiDeletePerm() {
+    if (selectedIds.size === 0) return;
+    showConfirmModal({
+        title: "Delete Permanently?",
+        message: `Permanently delete ${selectedIds.size} item(s)?`,
+        icon: "fa-ban",
+        confirmText: "Delete Permanently",
+        onConfirm: async () => {
+            const batch = writeBatch(db);
+            selectedIds.forEach(id => batch.delete(doc(db, "user_photos", id)));
+            await batch.commit();
+            showToast("Permanently Deleted");
+            exitSelectionMode();
+        }
+    });
+}
+
+// --------------------------------------------------------------------------
+// 12. FILE UPLOAD ENGINE (AUTO PRO BATCH & QUALITY ROUTER)
+// --------------------------------------------------------------------------
+const fileInputEl = document.getElementById('fileInput');
+if (fileInputEl) {
+    fileInputEl.addEventListener('change', async (e) => {
+        if (!isUploadAllowedGlobally) {
+            e.target.value = '';
+            return showToast("⚠️ Cloud uploads are temporarily paused by Admin!");
+        }
+
+        if (!e.target.files || e.target.files.length === 0) return;
+        const files = Array.from(e.target.files).filter(f => f && (f.type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(f.name)));
+        if (!files.length) return showToast("Please select valid photos!");
+        
+        await uploadBatchPhotos(files, currentUser, currentView, showToast);
+        e.target.value = '';
+    });
+}
