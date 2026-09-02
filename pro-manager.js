@@ -5,7 +5,10 @@
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Fast Memory & LocalStorage Cache
+// 🌟 YOUR RAZORPAY KEY ID (LINKED & ACTIVE)
+const RAZORPAY_KEY_ID = "rzp_test_TXCUlCZB4AyWw9";
+
+// Fast Memory & LocalStorage Cache (Zero Network Lag on Startup)
 let cachedProState = {
     isPro: localStorage.getItem("anant_is_pro") === "true",
     plan: localStorage.getItem("anant_pro_plan") || null,
@@ -15,119 +18,299 @@ let cachedProState = {
 let unsubscribeProListener = null;
 
 // --------------------------------------------------------------------------
-// 1. INJECT STYLES
+// 1. INJECT ULTRA-MODERN 60FPS GLASSMORPHIC PRO STYLES
 // --------------------------------------------------------------------------
 function injectProStyles() {
     if (document.getElementById("anant-pro-styles")) return;
     const style = document.createElement("style");
     style.id = "anant-pro-styles";
     style.textContent = `
+        /* 🌟 PRO PAYWALL OVERLAY */
         .pro-modal-overlay {
-            position: fixed; inset: 0; z-index: 20000;
+            position: fixed;
+            inset: 0;
+            z-index: 20000;
             background: rgba(9, 13, 22, 0.88);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            display: flex; align-items: center; justify-content: center;
-            padding: 14px; animation: proFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            animation: proFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             user-select: none;
         }
-        @keyframes proFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        @keyframes proFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
         .pro-modal-card {
             background: var(--bg-card, #ffffff);
             border: 1.5px solid rgba(245, 158, 11, 0.35);
-            width: 100%; max-width: 440px; max-height: 92vh;
-            overflow-y: auto; border-radius: 32px; padding: 24px 18px;
+            width: 100%;
+            max-width: 440px;
+            max-height: 92vh;
+            overflow-y: auto;
+            border-radius: 32px;
+            padding: 24px 18px;
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(245, 158, 11, 0.15);
-            position: relative; animation: proPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+            animation: proPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             scrollbar-width: none;
         }
+
         .pro-modal-card::-webkit-scrollbar { display: none; }
+
         @keyframes proPopIn {
             0% { transform: scale(0.9) translateY(20px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
+
         .pro-close-btn {
-            position: absolute; top: 16px; right: 16px; width: 34px; height: 34px;
-            background: rgba(0, 0, 0, 0.05); border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            color: var(--text-muted, #64748b); font-size: 1rem; cursor: pointer;
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 34px;
+            height: 34px;
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted, #64748b);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.15s ease;
         }
+
         .pro-close-btn:active { transform: scale(0.88); }
-        .pro-hero-header { text-align: center; margin-bottom: 16px; }
+
+        .pro-hero-header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
         .pro-crown-box {
-            width: 64px; height: 64px; margin: 0 auto 10px auto; border-radius: 20px;
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 10px auto;
+            border-radius: 20px;
             background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.85rem; color: #ffffff; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.85rem;
+            color: #ffffff;
+            box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
             animation: crownPulse 2s infinite ease-in-out;
         }
+
         @keyframes crownPulse {
             0%, 100% { transform: scale(1); box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4); }
             50% { transform: scale(1.06); box-shadow: 0 14px 35px rgba(245, 158, 11, 0.6); }
         }
+
         .pro-title {
-            font-size: 1.55rem; font-weight: 800; color: var(--text-main, #0f172a);
-            letter-spacing: -0.4px; line-height: 1.2;
+            font-size: 1.55rem;
+            font-weight: 800;
+            color: var(--text-main, #0f172a);
+            letter-spacing: -0.4px;
+            line-height: 1.2;
         }
+
         .pro-title span {
             background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        .pro-subtitle { font-size: 0.8rem; color: var(--text-muted, #64748b); margin-top: 4px; font-weight: 500; }
+
+        .pro-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted, #64748b);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* 🌟 FREE VS PRO COMPARISON MATRIX */
         .comparison-card {
-            background: var(--bg-body, #f8fafc); border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-            border-radius: 22px; padding: 12px 14px; margin-bottom: 18px;
+            background: var(--bg-body, #f8fafc);
+            border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+            border-radius: 22px;
+            padding: 12px 14px;
+            margin-bottom: 18px;
         }
+
         .comparison-header {
-            display: grid; grid-template-columns: 1.3fr 0.8fr 1fr; padding-bottom: 8px;
-            border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06)); font-size: 0.75rem; font-weight: 800;
+            display: grid;
+            grid-template-columns: 1.3fr 0.8fr 1fr;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+            font-size: 0.75rem;
+            font-weight: 800;
+            align-items: center;
         }
-        .col-free-badge { color: var(--text-muted, #64748b); text-align: center; }
-        .col-pro-badge { color: #d97706; text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+
+        .col-free-badge {
+            color: var(--text-muted, #64748b);
+            text-align: center;
+        }
+
+        .col-pro-badge {
+            color: #d97706;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+        }
+
         .comparison-row {
-            display: grid; grid-template-columns: 1.3fr 0.8fr 1fr; padding: 10px 0;
-            border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.06)); font-size: 0.78rem; align-items: center;
+            display: grid;
+            grid-template-columns: 1.3fr 0.8fr 1fr;
+            padding: 10px 0;
+            border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.06));
+            font-size: 0.78rem;
+            align-items: center;
         }
-        .comparison-row:last-child { border-bottom: none; padding-bottom: 4px; }
-        .feat-name { font-weight: 700; color: var(--text-main, #0f172a); display: flex; align-items: center; gap: 6px; }
-        .feat-name i { font-size: 0.85rem; color: #f59e0b; }
-        .free-val { text-align: center; color: var(--text-muted, #64748b); font-weight: 600; font-size: 0.74rem; }
-        .pro-val { text-align: right; color: #059669; font-weight: 800; font-size: 0.76rem; }
-        .pro-pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+
+        .comparison-row:last-child {
+            border-bottom: none;
+            padding-bottom: 4px;
+        }
+
+        .feat-name {
+            font-weight: 700;
+            color: var(--text-main, #0f172a);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .feat-name i {
+            font-size: 0.85rem;
+            color: #f59e0b;
+        }
+
+        .free-val {
+            text-align: center;
+            color: var(--text-muted, #64748b);
+            font-weight: 600;
+            font-size: 0.74rem;
+        }
+
+        .pro-val {
+            text-align: right;
+            color: #059669;
+            font-weight: 800;
+            font-size: 0.76rem;
+        }
+
+        /* 🌟 PRICING CARDS GRID */
+        .pro-pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+
         .pricing-plan-card {
-            border: 2px solid var(--border, #e2e8f0); background: var(--bg-body, #f8fafc);
-            border-radius: 18px; padding: 14px 6px; text-align: center; cursor: pointer; position: relative;
+            border: 2px solid var(--border, #e2e8f0);
+            background: var(--bg-body, #f8fafc);
+            border-radius: 18px;
+            padding: 14px 6px;
+            text-align: center;
+            cursor: pointer;
+            position: relative;
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
+
         .pricing-plan-card:active { transform: scale(0.96); }
+
         .pricing-plan-card.active {
-            border-color: #f59e0b; background: rgba(245, 158, 11, 0.06);
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.06);
             box-shadow: 0 4px 18px rgba(245, 158, 11, 0.22);
         }
+
         .plan-ribbon {
-            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff;
-            font-size: 0.58rem; font-weight: 800; padding: 2px 7px; border-radius: 20px; white-space: nowrap;
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+            font-size: 0.58rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 20px;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
         }
-        .plan-duration { font-size: 0.8rem; font-weight: 700; color: var(--text-main, #0f172a); margin-top: 4px; }
-        .plan-price { font-size: 1.25rem; font-weight: 800; color: #f59e0b; margin: 3px 0 1px 0; }
-        .plan-subtext { font-size: 0.65rem; color: var(--text-muted, #64748b); font-weight: 500; }
+
+        .plan-duration {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-main, #0f172a);
+            margin-top: 4px;
+        }
+
+        .plan-price {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #f59e0b;
+            font-family: 'Outfit', sans-serif;
+            margin: 3px 0 1px 0;
+        }
+
+        .plan-subtext {
+            font-size: 0.65rem;
+            color: var(--text-muted, #64748b);
+            font-weight: 500;
+        }
+
+        /* 🌟 CTA ACTION BUTTON */
         .btn-upgrade-pro {
-            width: 100%; padding: 15px; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
-            color: #ffffff; border: none; border-radius: 18px; font-size: 1rem; font-weight: 800;
-            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
-            box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4); transition: transform 0.15s ease;
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 18px;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
         }
-        .btn-upgrade-pro:active { transform: scale(0.96); }
+
+        .btn-upgrade-pro:active {
+            transform: scale(0.96);
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+        }
+
         .pro-secure-guarantee {
-            text-align: center; font-size: 0.72rem; color: var(--text-muted, #64748b);
-            margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--text-muted, #64748b);
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
     `;
     document.head.appendChild(style);
 }
 
 // --------------------------------------------------------------------------
-// 2. REALTIME STATE LISTENER
+// 2. FAST REALTIME STATE LISTENER & EVENT DISPATCHER
 // --------------------------------------------------------------------------
 export function initProManager(currentUser) {
     injectProStyles();
@@ -160,6 +343,7 @@ export function initProManager(currentUser) {
                 expiry: expiry
             };
 
+            // Instant LocalStorage Sync
             localStorage.setItem("anant_is_pro", isStillValid ? "true" : "false");
             if (data.proPlan) localStorage.setItem("anant_pro_plan", data.proPlan);
             if (expiry) localStorage.setItem("anant_pro_expiry", String(expiry));
@@ -168,12 +352,14 @@ export function initProManager(currentUser) {
             localStorage.setItem("anant_is_pro", "false");
         }
 
+        // 🌟 पूरे ऐप को तुरंत लाइव सिग्नल भेजें
         window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
     }, (err) => {
         console.warn("[ProManager] Listener warning:", err);
     });
 }
 
+// 🌟 Synchronous Zero-Lag Check (0.001s)
 export function isProUser() {
     return cachedProState.isPro === true;
 }
@@ -182,6 +368,7 @@ export function getProDetails() {
     return cachedProState;
 }
 
+// 🌟 Smart Pro Feature Guard
 export function guardProFeature(featureName, onAllowed) {
     if (isProUser()) {
         if (onAllowed) onAllowed();
@@ -194,21 +381,39 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 3. STEP 2 & 3: STANDARD CHECKOUT WITH SERVER-SIDE ORDER & VERIFICATION
+// 🌟 3. AUTO SDK LOADER & BULLETPROOF RAZORPAY CHECKOUT
 // --------------------------------------------------------------------------
+async function ensureRazorpaySDK() {
+    if (typeof Razorpay !== "undefined") return true;
+
+    return new Promise((resolve) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.head.appendChild(script);
+    });
+}
+
 async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuccessCallback) {
     const user = auth.currentUser;
     if (!user) return alert("Please log in to purchase Pro!");
-
-    if (typeof Razorpay === "undefined") {
-        alert("Payment SDK is loading. Please check internet connection.");
-        return;
-    }
 
     const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
     if (upgradeBtn) {
         upgradeBtn.disabled = true;
         upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Securing Order...`;
+    }
+
+    // Ensure SDK is ready
+    const sdkReady = await ensureRazorpaySDK();
+    if (!sdkReady) {
+        alert("Payment gateway could not load. Please check your internet connection.");
+        if (upgradeBtn) {
+            upgradeBtn.disabled = false;
+            upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
+        }
+        return;
     }
 
     try {
@@ -226,7 +431,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 
         // STEP 2: Launch Razorpay Standard Checkout
         const options = {
-            key: orderData.keyId,
+            key: orderData.keyId || RAZORPAY_KEY_ID,
             amount: orderData.amount,
             currency: orderData.currency || "INR",
             name: "Anant Gallery",
@@ -241,7 +446,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
                 color: "#f59e0b"
             },
             handler: async function (response) {
-                // STEP 3: Call Backend to Verify Payment Signature
+                // STEP 3: Verify Payment Signature on Backend
                 if (upgradeBtn) {
                     upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Payment...`;
                 }
