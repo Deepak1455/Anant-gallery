@@ -13,12 +13,13 @@ const KEYS = {
 };
 
 let isUnlocked = false;
-let isBiometricAuthInProgress = false; // 🌟 Biometric Shield Guard
+let isBiometricAuthInProgress = false;
+let isPaymentInProgress = false; // 🌟 Payment Shield Guard
 let autoThemeCheckInterval = null;
 const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 // --------------------------------------------------------------------------
-// 1. BIOMETRIC SHIELD STATE CONTROLLER
+// 1. BIOMETRIC & PAYMENT SHIELD CONTROLLER
 // --------------------------------------------------------------------------
 export function setBiometricPromptState(state) {
     isBiometricAuthInProgress = state;
@@ -28,10 +29,22 @@ export function setBiometricPromptState(state) {
     }
 }
 
+export function setPaymentProgressState(state) {
+    isPaymentInProgress = state;
+    const shield = document.getElementById('privacyShield');
+    if (shield) {
+        if (state) {
+            shield.classList.remove('active');
+        } else {
+            shield.classList.remove('active');
+        }
+    }
+}
+
 // Toast Helper
 const showToast = (msg) => {
     const toast = document.getElementById('toast');
-    if (!toast) return alert(msg);
+    if (!toast) return;
     toast.innerText = msg;
     toast.style.opacity = '1';
     toast.style.top = "100px";
@@ -42,7 +55,7 @@ const showToast = (msg) => {
 };
 
 // --------------------------------------------------------------------------
-// 2. SMART TIME-AWARE + SYSTEM THEME APPLIER
+// 2. THEME CONTROLLER
 // --------------------------------------------------------------------------
 export function isNightTime() {
     const currentHour = new Date().getHours();
@@ -92,7 +105,7 @@ if (!autoThemeCheckInterval) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. DYNAMIC STYLES (ABSOLUTE HIGHEST Z-INDEX PRIVACY SHIELD)
+// 3. DYNAMIC STYLES
 // --------------------------------------------------------------------------
 const injectSettingsStyles = () => {
     let existingStyle = document.getElementById('settings-styles');
@@ -101,11 +114,11 @@ const injectSettingsStyles = () => {
     const style = document.createElement('style');
     style.id = 'settings-styles';
     style.textContent = `
-        /* 🌟 100% UNCONDITIONAL RECENT APPS PRIVACY SHIELD */
+        /* 🌟 ANTI-SNOOP PRIVACY SHIELD */
         #privacyShield {
             position: fixed !important;
             inset: 0 !important;
-            z-index: 2147483647 !important; /* Maximum browser z-index */
+            z-index: 2147483647 !important;
             background: #090d16 !important;
             display: none !important;
             align-items: center !important;
@@ -525,7 +538,7 @@ export async function showPinLockOverlay(correctHash) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 5. 100% UNCONDITIONAL ANTI-SNOOP RECENT APPS PRIVACY SHIELD
+// 🌟 5. SMART PRIVACY SHIELD (NEVER BLOCKS RAZORPAY PAYMENT POPUP)
 // --------------------------------------------------------------------------
 function setupPrivacyShield() {
     let shield = document.getElementById('privacyShield');
@@ -542,9 +555,19 @@ function setupPrivacyShield() {
         document.body.appendChild(shield);
     }
 
-    // 🌟 Trigger on ALL screens (Login, PIN Keypad, Gallery, Settings)
     const showShield = () => {
-        if (isBiometricAuthInProgress) return;
+        // 🌟 Payment ya Biometric chalte samay shield screen nahi aayegi!
+        if (isBiometricAuthInProgress || isPaymentInProgress) return;
+        
+        // Agar Razorpay iframe active hai to shield mat dikhao
+        if (document.activeElement && (
+            document.activeElement.tagName === 'IFRAME' || 
+            document.activeElement.classList.contains('razorpay-checkout-frame') ||
+            document.querySelector('.razorpay-container')
+        )) {
+            return;
+        }
+
         shield.classList.add('active');
     };
 
