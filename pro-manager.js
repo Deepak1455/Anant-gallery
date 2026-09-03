@@ -1,12 +1,12 @@
 // ==========================================================================
-// ANANT PRO - RAZORPAY STANDARD WEB CHECKOUT ENGINE (PRO-MANAGER.JS)
+// ANANT PRO - LIVE PRODUCTION RAZORPAY CHECKOUT ENGINE (PRO-MANAGER.JS)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 YOUR LATEST RAZORPAY KEY ID
-const RAZORPAY_KEY_ID = "rzp_test_TXPxCO0uGG3F1G";
+// 🌟 YOUR OFFICIAL LIVE RAZORPAY KEY ID
+const RAZORPAY_KEY_ID = "rzp_live_TXQF269P6nkbDI";
 
 // Fast Cache
 let cachedProState = {
@@ -197,7 +197,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. FRONTEND CHECKOUT WITH ORDER ID & SIGNATURE VERIFY
+// 🌟 3. REAL LIVE CHECKOUT WITH SIGNATURE VERIFICATION
 // --------------------------------------------------------------------------
 async function ensureRazorpaySDK() {
     if (typeof Razorpay !== "undefined") return true;
@@ -231,12 +231,12 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
     const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
     if (upgradeBtn) {
         upgradeBtn.disabled = true;
-        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Creating Order...`;
+        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Initializing Order...`;
     }
 
     await ensureRazorpaySDK();
 
-    // 🚀 STEP 1: Call Backend to Create Order
+    // 🚀 STEP 1: Backend Call to Create Live Order
     let orderData = null;
     try {
         const res = await fetch('/api/create-order', {
@@ -254,11 +254,11 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
             upgradeBtn.disabled = false;
             upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
         }
-        showInAppToast(orderData?.error || "Could not initialize Razorpay order.");
+        showInAppToast(orderData?.error || "Could not initialize Razorpay live order.");
         return;
     }
 
-    // 🚀 STEP 2: Open Razorpay Modal with order_id
+    // 🚀 STEP 2: Open Razorpay Live Modal
     const options = {
         key: orderData.key_id || RAZORPAY_KEY_ID,
         amount: orderData.amount,
@@ -276,10 +276,10 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         },
         handler: async function (response) {
             if (upgradeBtn) {
-                upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Payment...`;
+                upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Live Payment...`;
             }
 
-            // 🚀 STEP 3: Verify Signature with Backend
+            // 🚀 STEP 3: Cryptographic Signature Verification
             try {
                 const verifyRes = await fetch('/api/verify-payment', {
                     method: 'POST',
@@ -323,11 +323,11 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
                     if (onSuccessCallback) onSuccessCallback();
                     showInAppToast(`👑 Payment Verified! Welcome to Anant Pro (${planKey.toUpperCase()})`);
                 } else {
-                    showInAppToast("Signature verification failed!");
+                    showInAppToast("Payment verification failed! Please contact support.");
                 }
             } catch (verErr) {
                 console.error("Verification error:", verErr);
-                showInAppToast("Payment verification network error.");
+                showInAppToast("Network error during payment verification.");
             }
         },
         modal: {
