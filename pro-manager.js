@@ -1,14 +1,14 @@
 // ==========================================================================
-// ANANT PRO - BULLETPROOF RAZORPAY CHECKOUT & PRO SUBSCRIPTION ENGINE
+// ANANT PRO - RAZORPAY STANDARD WEB CHECKOUT ENGINE (PRO-MANAGER.JS)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 ACTIVE RAZORPAY KEY ID
-const RAZORPAY_KEY_ID = "rzp_test_TXCUlCZB4AyWw9";
+// 🌟 YOUR VERIFIED RAZORPAY KEY ID
+const RAZORPAY_KEY_ID = "rzp_test_TXOeqzNv9j0baP";
 
-// Fast Memory & LocalStorage Cache (Zero Lag)
+// Fast Cache
 let cachedProState = {
     isPro: localStorage.getItem("anant_is_pro") === "true",
     plan: localStorage.getItem("anant_pro_plan") || null,
@@ -18,7 +18,7 @@ let cachedProState = {
 let unsubscribeProListener = null;
 
 // --------------------------------------------------------------------------
-// 1. INJECT ULTRA-MODERN 60FPS GLASSMORPHIC PRO STYLES
+// 1. INJECT 60FPS PRO MODAL STYLES
 // --------------------------------------------------------------------------
 function injectProStyles() {
     if (document.getElementById("anant-pro-styles")) return;
@@ -197,7 +197,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. BULLETPROOF RAZORPAY CHECKOUT & INSTANT ACTIVATION ENGINE
+// 🌟 3. STEP 2: FRONTEND CHECKOUT WITH ORDER ID & SIGNATURE VERIFY (STEP 3)
 // --------------------------------------------------------------------------
 async function ensureRazorpaySDK() {
     if (typeof Razorpay !== "undefined") return true;
@@ -211,56 +211,62 @@ async function ensureRazorpaySDK() {
     });
 }
 
+function showInAppToast(message) {
+    const toast = document.getElementById("toast");
+    if (toast) {
+        toast.innerText = message;
+        toast.style.opacity = '1';
+        toast.style.top = '100px';
+        setTimeout(() => { toast.style.opacity = '0'; toast.style.top = '80px'; }, 3500);
+    }
+}
+
 async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuccessCallback) {
     const user = auth.currentUser;
     if (!user) {
-        const toast = document.getElementById("toast");
-        if (toast) {
-            toast.innerText = "Please log in to purchase Pro!";
-            toast.style.opacity = '1';
-            setTimeout(() => toast.style.opacity = '0', 2500);
-        }
+        showInAppToast("Please log in to upgrade to Pro!");
         return;
     }
 
     const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
     if (upgradeBtn) {
         upgradeBtn.disabled = true;
-        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Initializing Checkout...`;
+        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Securing Order...`;
     }
 
     await ensureRazorpaySDK();
 
-    let serverOrderId = null;
-    let activeKeyId = RAZORPAY_KEY_ID;
-
-    // 1. Try to fetch order from secure server API
+    // 🚀 STEP 1: Call Backend to Create Order
+    let orderData = null;
     try {
-        const orderRes = await fetch('/api/create-order', {
+        const res = await fetch('/api/create-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount: amountInRupees, plan: planKey })
         });
-
-        if (orderRes.ok) {
-            const orderData = await orderRes.json();
-            if (orderData.orderId) {
-                serverOrderId = orderData.orderId;
-                if (orderData.keyId) activeKeyId = orderData.keyId;
-            }
-        }
+        orderData = await res.json();
     } catch (e) {
-        console.warn("Server order generation bypassed, using direct modal:", e);
+        console.error("Order creation request error:", e);
     }
 
-    // 2. Launch Razorpay Options
+    if (!orderData || !orderData.order_id) {
+        if (upgradeBtn) {
+            upgradeBtn.disabled = false;
+            upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
+        }
+        showInAppToast(orderData?.error || "Could not initialize Razorpay order.");
+        return;
+    }
+
+    // 🚀 STEP 2: Open Razorpay Modal with order_id
     const options = {
-        key: activeKeyId,
-        amount: Math.round(amountInRupees * 100),
-        currency: "INR",
+        key: orderData.key_id || RAZORPAY_KEY_ID,
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
         name: "Anant Gallery",
         description: `Upgrade to Anant Pro - ${planTitle}`,
         image: "/icon-192.png",
+        order_id: orderData.order_id,
         prefill: {
             name: user.displayName || "Anant User",
             email: user.email || "user@anant.gallery",
@@ -270,47 +276,58 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         },
         handler: async function (response) {
             if (upgradeBtn) {
-                upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Activating Pro...`;
+                upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Payment...`;
             }
 
+            // 🚀 STEP 3: Verify Payment Signature via Backend
             try {
-                let expiryDate = null;
-                if (planKey === "monthly") {
-                    expiryDate = Date.now() + (30 * 24 * 60 * 60 * 1000);
-                } else if (planKey === "annual") {
-                    expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
+                const verifyRes = await fetch('/api/verify-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_signature: response.razorpay_signature
+                    })
+                });
+
+                const verifyData = await verifyRes.json();
+
+                if (verifyData.ok && verifyData.verified) {
+                    let expiryDate = null;
+                    if (planKey === "monthly") {
+                        expiryDate = Date.now() + (30 * 24 * 60 * 60 * 1000);
+                    } else if (planKey === "annual") {
+                        expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
+                    }
+
+                    // Save verified Pro status to Firestore
+                    await setDoc(doc(db, "users", user.uid), {
+                        isPro: true,
+                        proPlan: planKey,
+                        proExpiry: expiryDate,
+                        paymentId: response.razorpay_payment_id,
+                        orderId: response.razorpay_order_id,
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+
+                    cachedProState = {
+                        isPro: true,
+                        plan: planKey,
+                        expiry: expiryDate
+                    };
+
+                    localStorage.setItem("anant_is_pro", "true");
+                    window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
+
+                    if (onSuccessCallback) onSuccessCallback();
+                    showInAppToast(`👑 Payment Verified! Welcome to Anant Pro (${planKey.toUpperCase()})`);
+                } else {
+                    showInAppToast("Payment verification failed! Please contact support.");
                 }
-
-                // Update Firestore Profile
-                await setDoc(doc(db, "users", user.uid), {
-                    isPro: true,
-                    proPlan: planKey,
-                    proExpiry: expiryDate,
-                    paymentId: response.razorpay_payment_id || "pay_verified",
-                    orderId: response.razorpay_order_id || serverOrderId || "order_direct",
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
-
-                cachedProState = {
-                    isPro: true,
-                    plan: planKey,
-                    expiry: expiryDate
-                };
-
-                localStorage.setItem("anant_is_pro", "true");
-                window.dispatchEvent(new CustomEvent('anant_pro_updated', { detail: cachedProState }));
-
-                if (onSuccessCallback) onSuccessCallback();
-
-                const toast = document.getElementById("toast");
-                if (toast) {
-                    toast.innerText = "👑 Payment Successful! Anant Pro Activated.";
-                    toast.style.opacity = '1';
-                    toast.style.top = '100px';
-                    setTimeout(() => { toast.style.opacity = '0'; toast.style.top = '80px'; }, 3500);
-                }
-            } catch (actErr) {
-                console.error("Activation Error:", actErr);
+            } catch (verErr) {
+                console.error("Verification error:", verErr);
+                showInAppToast("Network error during payment verification.");
             }
         },
         modal: {
@@ -323,14 +340,11 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         }
     };
 
-    if (serverOrderId) {
-        options.order_id = serverOrderId;
-    }
-
     try {
         const rzp = new Razorpay(options);
         rzp.on('payment.failed', function (resp) {
-            console.warn("Payment Cancelled / Incomplete:", resp.error);
+            console.warn("Payment Failed:", resp.error);
+            showInAppToast(`Payment Failed: ${resp.error?.description || 'Cancelled'}`);
             if (upgradeBtn) {
                 upgradeBtn.disabled = false;
                 upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
@@ -340,6 +354,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         rzp.open();
     } catch (err) {
         console.error("Razorpay open error:", err);
+        showInAppToast("Failed to open Razorpay gateway.");
         if (upgradeBtn) {
             upgradeBtn.disabled = false;
             upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
