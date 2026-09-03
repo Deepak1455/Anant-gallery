@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - COMMAND CENTER & PRO SUBSCRIPTION CONTROLLER (ADMIN.JS)
+// ANANT GALLERY - SUPER ADMIN COMMAND CENTER (PERFECT USER & PRO ENGINE)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -22,8 +22,8 @@ const SUPER_ADMIN_EMAILS = [
 
 let currentUser = null;
 let toastTimer = null;
-let cachedUsersMap = new Map();
-let usersProDataMap = new Map();
+let firestoreUsersMap = new Map();
+let photosList = [];
 let currentSearchTerm = "";
 
 let selectedUserForModal = null;
@@ -72,7 +72,7 @@ document.getElementById("btnExitAdmin")?.addEventListener("click", () => { windo
 
 function initAdminDashboard() {
     listenToGlobalAppConfig();
-    listenToTelemetryAndPhotos();
+    listenToUsersAndTelemetry();
     setupUserSearch();
     setupModalTabs();
     setupProGrantActions();
@@ -133,122 +133,148 @@ function listenToGlobalAppConfig() {
     });
 }
 
-// 3. REALTIME TELEMETRY & DATA STREAM
-function listenToTelemetryAndPhotos() {
-    const photosRef = collection(db, "user_photos");
+// 3. MASTER USERS & PHOTOS SYNCHRONIZER
+function listenToUsersAndTelemetry() {
     const usersRef = collection(db, "users");
+    const photosRef = collection(db, "user_photos");
 
-    try {
-        onSnapshot(usersRef, (usersSnap) => {
-            usersProDataMap.clear();
-            let proCount = 0;
+    // A. Realtime Users Collection Listener
+    onSnapshot(usersRef, (usersSnap) => {
+        firestoreUsersMap.clear();
 
-            usersSnap.forEach((uDoc) => {
-                const u = uDoc.data();
-                const isProValid = u.isPro === true && (!u.proExpiry || Date.now() < (u.proExpiry.toMillis ? u.proExpiry.toMillis() : u.proExpiry));
-                if (isProValid) proCount++;
+        usersSnap.forEach((uDoc) => {
+            const u = uDoc.data();
+            const isProValid = u.isPro === true && (!u.proExpiry || Date.now() < (u.proExpiry.toMillis ? u.proExpiry.toMillis() : u.proExpiry));
 
-                usersProDataMap.set(uDoc.id, {
-                    isPro: isProValid,
-                    proPlan: u.proPlan || 'lifetime',
-                    proExpiry: u.proExpiry
-                });
+            firestoreUsersMap.set(uDoc.id, {
+                uid: uDoc.id,
+                name: u.displayName || u.name || (u.email ? u.email.split('@')[0] : `User_${uDoc.id.substring(0, 5)}`),
+                email: u.email || `${uDoc.id.substring(0, 8)}@cloud`,
+                isPro: isProValid,
+                proPlan: u.proPlan || (isProValid ? 'lifetime' : null),
+                proExpiry: u.proExpiry || null,
+                count: 0,
+                activeCount: 0,
+                bytes: 0,
+                favs: 0,
+                trash: 0,
+                photos: []
             });
-
-            const proCountVal = document.getElementById("valProUsersCount");
-            const proSub = document.getElementById("valProSubscribers");
-            if (proCountVal) proCountVal.innerText = proCount;
-            if (proSub) proSub.innerText = `${proCount} Pro Active`;
-
-            cachedUsersMap.forEach((val, key) => {
-                const proData = usersProDataMap.get(key);
-                if (proData) {
-                    val.isPro = proData.isPro;
-                    val.proPlan = proData.proPlan;
-                }
-            });
-
-            filterAndRenderUsers();
         });
-    } catch (e) {}
 
-    onSnapshot(photosRef, (snapshot) => {
-        let total = snapshot.size;
-        let active = 0;
-        let trash = 0;
-        let totalBytes = 0;
-        const usersMap = new Map();
-        const rawPhotos = [];
+        recalculateAndRender();
+    });
 
-        snapshot.forEach((docSnap) => {
+    // B. Realtime Photos Collection Listener
+    onSnapshot(photosRef, (photosSnap) => {
+        photosList = [];
+
+        photosSnap.forEach((docSnap) => {
             const d = docSnap.data();
-            const photoId = docSnap.id;
-            rawPhotos.push({ id: photoId, ...d });
-
-            const uid = d.uid || "Anonymous";
-            const userName = d.userName || d.userEmail?.split('@')[0] || (uid.length > 8 ? uid.substring(0, 8) : uid);
-            const userEmail = d.userEmail || `${uid.substring(0, 8)}@cloud`;
-
-            if (!usersMap.has(uid)) {
-                const proData = usersProDataMap.get(uid) || { isPro: false, proPlan: null };
-                usersMap.set(uid, { 
-                    uid: uid,
-                    name: userName,
-                    email: userEmail,
-                    isPro: proData.isPro,
-                    proPlan: proData.proPlan,
-                    count: 0, 
-                    activeCount: 0,
-                    bytes: 0, 
-                    favs: 0, 
-                    trash: 0,
-                    photos: []
-                });
-            }
-
-            const uData = usersMap.get(uid);
-            if (d.userName && uData.name.startsWith(uid.substring(0, 4))) uData.name = d.userName;
-            if (d.userEmail && uData.email.includes('@cloud')) uData.email = d.userEmail;
-
-            uData.count++;
-            const bytes = Number(d.fileSize) || (3.5 * 1024 * 1024);
-            uData.bytes += bytes;
-            totalBytes += bytes;
-            uData.photos.push({ id: photoId, ...d });
-
-            if (d.isDeleted === true) {
-                trash++;
-                uData.trash++;
-            } else {
-                active++;
-                uData.activeCount++;
-                if (d.isFavorite === true) uData.favs++;
-            }
+            photosList.push({ id: docSnap.id, ...d });
         });
 
-        cachedUsersMap = usersMap;
+        recalculateAndRender();
+    });
+}
 
-        const elTotal = document.getElementById("valTotalPhotos");
-        const elActive = document.getElementById("valActivePhotos");
-        const elUsers = document.getElementById("valTotalUsers");
-        const elStorage = document.getElementById("valTotalStorage");
-        const userBadge = document.getElementById("valTotalUsersBadge");
+function recalculateAndRender() {
+    let totalPhotos = photosList.length;
+    let totalActive = 0;
+    let totalStorageBytes = 0;
+    let proCount = 0;
 
-        if (elTotal) elTotal.innerText = total;
-        if (elActive) elActive.innerText = `${active} active`;
-        if (elUsers) elUsers.innerText = usersMap.size;
-        if (elStorage) elStorage.innerText = formatBytes(totalBytes);
-        if (userBadge) userBadge.innerText = `${usersMap.size} ${usersMap.size === 1 ? 'Account' : 'Accounts'}`;
+    // Reset user photo counters
+    firestoreUsersMap.forEach((user) => {
+        user.count = 0;
+        user.activeCount = 0;
+        user.bytes = 0;
+        user.favs = 0;
+        user.trash = 0;
+        user.photos = [];
+    });
 
-        rawPhotos.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        renderPhotoStream(rawPhotos.slice(0, 36));
-        filterAndRenderUsers();
+    // Populate photos into users
+    photosList.forEach((p) => {
+        const uid = p.uid || "Anonymous";
+        const bytes = Number(p.fileSize) || (3.5 * 1024 * 1024);
+        totalStorageBytes += bytes;
 
-        if (selectedUserForModal && usersMap.has(selectedUserForModal.uid)) {
-            selectedUserForModal = usersMap.get(selectedUserForModal.uid);
-            updateModalUI();
+        if (!firestoreUsersMap.has(uid)) {
+            const userName = p.userName || (p.userEmail ? p.userEmail.split('@')[0] : (uid.length > 8 ? uid.substring(0, 8) : uid));
+            const userEmail = p.userEmail || `${uid.substring(0, 8)}@cloud`;
+
+            firestoreUsersMap.set(uid, {
+                uid: uid,
+                name: userName,
+                email: userEmail,
+                isPro: false,
+                proPlan: null,
+                proExpiry: null,
+                count: 0,
+                activeCount: 0,
+                bytes: 0,
+                favs: 0,
+                trash: 0,
+                photos: []
+            });
+        }
+
+        const userObj = firestoreUsersMap.get(uid);
+        if (p.userName && (userObj.name.startsWith("User_") || userObj.name.length < 3)) {
+            userObj.name = p.userName;
+        }
+        if (p.userEmail && userObj.email.includes("@cloud")) {
+            userObj.email = p.userEmail;
+        }
+
+        userObj.count++;
+        userObj.bytes += bytes;
+        userObj.photos.push(p);
+
+        if (p.isDeleted === true) {
+            userObj.trash++;
+        } else {
+            totalActive++;
+            userObj.activeCount++;
+            if (p.isFavorite === true) userObj.favs++;
         }
     });
+
+    // Count active pro users
+    firestoreUsersMap.forEach((u) => {
+        if (u.isPro) proCount++;
+    });
+
+    // Update Top Telemetry UI
+    const elTotal = document.getElementById("valTotalPhotos");
+    const elActive = document.getElementById("valActivePhotos");
+    const elUsers = document.getElementById("valTotalUsers");
+    const elProCount = document.getElementById("valProUsersCount");
+    const elProSub = document.getElementById("valProSubscribers");
+    const elStorage = document.getElementById("valTotalStorage");
+    const elUserBadge = document.getElementById("valTotalUsersBadge");
+
+    if (elTotal) elTotal.innerText = totalPhotos;
+    if (elActive) elActive.innerText = `${totalActive} active`;
+    if (elUsers) elUsers.innerText = firestoreUsersMap.size;
+    if (elProCount) elProCount.innerText = proCount;
+    if (elProSub) elProSub.innerText = `${proCount} Pro Active`;
+    if (elStorage) elStorage.innerText = formatBytes(totalStorageBytes);
+    if (elUserBadge) elUserBadge.innerText = `${firestoreUsersMap.size} Accounts`;
+
+    // Render Global Photo Stream (Sorted Latest First)
+    photosList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    renderPhotoStream(photosList.slice(0, 36));
+
+    // Render User Directory
+    filterAndRenderUsers();
+
+    // Update Modal UI if currently inspecting a user
+    if (selectedUserForModal && firestoreUsersMap.has(selectedUserForModal.uid)) {
+        selectedUserForModal = firestoreUsersMap.get(selectedUserForModal.uid);
+        updateModalUI();
+    }
 }
 
 // 4. USER DIRECTORY RENDERER
@@ -265,12 +291,12 @@ function filterAndRenderUsers() {
 
     tableBody.innerHTML = "";
 
-    if (cachedUsersMap.size === 0) {
+    if (firestoreUsersMap.size === 0) {
         tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No accounts found.</td></tr>`;
         return;
     }
 
-    const filteredUsers = Array.from(cachedUsersMap.values()).filter(u => {
+    const filteredUsers = Array.from(firestoreUsersMap.values()).filter(u => {
         if (!currentSearchTerm) return true;
         return (
             (u.name && u.name.toLowerCase().includes(currentSearchTerm)) ||
@@ -318,7 +344,7 @@ function filterAndRenderUsers() {
     });
 }
 
-// 🌟 5. PRO SUBSCRIPTION GRANT/REVOKE CONTROLLER (100% WORKING)
+// 🌟 5. PRO SUBSCRIPTION GRANT/REVOKE (100% REALTIME)
 function setupProGrantActions() {
     document.getElementById("btnGrantProLifetime")?.addEventListener("click", () => updateSelectedUserPlan("lifetime"));
     document.getElementById("btnGrantPro1Year")?.addEventListener("click", () => updateSelectedUserPlan("annual"));
@@ -350,12 +376,13 @@ async function updateSelectedUserPlan(planType) {
 
         selectedUserForModal.isPro = isPro;
         selectedUserForModal.proPlan = isPro ? planType : null;
+        selectedUserForModal.proExpiry = expiryDate;
 
         updateModalUI();
         filterAndRenderUsers();
-        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro to ${selectedUserForModal.name}!` : `User downgraded to Free Plan.`);
+        showToast(isPro ? `👑 Granted ${planType.toUpperCase()} Pro to ${selectedUserForModal.name}!` : `User downgraded to Free Tier.`);
     } catch (err) {
-        console.error("Firestore Permission Error:", err);
+        console.error("Firestore Update Error:", err);
         showToast("Update failed: Check Firestore Rules in Firebase Console!");
     }
 }
@@ -529,6 +556,6 @@ document.getElementById("btnRefreshStream")?.addEventListener("click", () => {
         void icon.offsetWidth;
         icon.classList.add("spin");
     }
-    listenToTelemetryAndPhotos();
-    showToast("Telemetry & Photos Refreshed!");
+    listenToUsersAndTelemetry();
+    showToast("Admin Data Refreshed!");
 });
