@@ -20,6 +20,7 @@ import {
     onSnapshot, 
     deleteDoc, 
     doc, 
+    setDoc,
     updateDoc, 
     writeBatch, 
     serverTimestamp 
@@ -104,6 +105,7 @@ const sidebarOverlay = document.getElementById('sidebarOverlay');
 const menuBtn = document.getElementById('menuBtn');
 
 function showToast(msg) {
+    const toast = document.getElementById('toast');
     if (!toast) return;
     if (toastTimer) clearTimeout(toastTimer);
 
@@ -149,6 +151,24 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
         close();
         if (onConfirm) onConfirm();
     };
+}
+
+// --------------------------------------------------------------------------
+// 🌟 HELPER: SYNC USER ACCOUNT TO FIRESTORE (ADMIN PANEL VISIBILITY)
+// --------------------------------------------------------------------------
+async function syncUserToFirestore(user) {
+    if (!user) return;
+    try {
+        await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            email: user.email || "",
+            displayName: user.displayName || (user.email ? user.email.split('@')[0] : "User"),
+            photoURL: user.photoURL || "",
+            lastLoginAt: serverTimestamp()
+        }, { merge: true });
+    } catch (e) {
+        console.warn("[User Sync Note]:", e);
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -223,7 +243,7 @@ function setupGlobalAdminListener() {
 }
 
 // --------------------------------------------------------------------------
-// 4. BULLETPROOF PHOTO DOWNLOAD ENGINE (MOBILE & DESKTOP 100% WORKING)
+// 4. BULLETPROOF PHOTO DOWNLOAD ENGINE
 // --------------------------------------------------------------------------
 function getExtensionFromMime(mimeType) {
     if (!mimeType) return 'jpg';
@@ -239,7 +259,6 @@ async function downloadPhoto(imageUrl, customFilename = null) {
     try {
         let downloadUrl = imageUrl;
 
-        // Ensure &dl=1 is appended for native attachment trigger
         if (imageUrl.startsWith('/api/') || imageUrl.includes('workers.dev')) {
             downloadUrl = imageUrl.includes('?') ? `${imageUrl}&dl=1` : `${imageUrl}?dl=1`;
         } else if (!imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
@@ -280,11 +299,9 @@ async function downloadPhoto(imageUrl, customFilename = null) {
     }
 }
 
-// 🌟 SMART MULTI-DOWNLOAD (CHROME POPUP-BLOCKER BYPASS WITH 250ms DELAY)
 async function multiDownload() {
     if (selectedIds.size === 0) return;
 
-    // 🔒 Free Plan Limit: Max 5 Photos Bulk Download (Pro = Unlimited)
     if (!isProUser() && selectedIds.size > 5) {
         guardProFeature("Bulk Download 5+ Photos with Anant Pro", () => {
             multiDownload();
@@ -302,7 +319,6 @@ async function multiDownload() {
         if (item && item.image) {
             await downloadPhoto(item.image, `anant-gallery-${Date.now()}-${i + 1}`);
             downloaded++;
-            // 250ms delay between downloads prevents Android Chrome from blocking multiple downloads
             await new Promise(res => setTimeout(res, 250));
         }
     }
@@ -430,13 +446,15 @@ async function handleAuth() {
     }
 
     try {
+        let userCredential;
         if (isLogin) {
-            await signInWithEmailAndPassword(auth, email, pass);
+            userCredential = await signInWithEmailAndPassword(auth, email, pass);
             showToast("Welcome Back!");
         } else {
-            await createUserWithEmailAndPassword(auth, email, pass);
+            userCredential = await createUserWithEmailAndPassword(auth, email, pass);
             showToast("Account Created Successfully!");
         }
+        await syncUserToFirestore(userCredential.user);
     } catch (e) {
         let msg = "Authentication failed!";
         if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') msg = "Incorrect Email or Password!";
@@ -464,6 +482,7 @@ async function handleGoogleAuth() {
         
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
+        await syncUserToFirestore(user);
         showToast(`Welcome, ${user.displayName || 'User'}!`);
     } catch (e) {
         showToast("Google Sign-In cancelled or failed.");
@@ -482,9 +501,9 @@ if (passInput) passInput.onkeydown = (e) => { if (e.key === 'Enter') handleAuth(
 if (emailInput) emailInput.onkeydown = (e) => { if (e.key === 'Enter' && passInput) passInput.focus(); };
 
 // --------------------------------------------------------------------------
-// 🌟 7. AUTH STATE CHANGED (PRO MANAGER & SIDEBAR LIVE SYNC)
+// 🌟 7. AUTH STATE CHANGED (AUTO USER SYNC, PRO MANAGER & SIDEBAR)
 // --------------------------------------------------------------------------
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     hideSplashScreen();
     const authScreen = document.getElementById('authScreen');
     const appScreen = document.getElementById('appScreen');
@@ -497,6 +516,9 @@ onAuthStateChanged(auth, (user) => {
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
         
+        // 🌟 Auto-sync profile to Firestore users collection
+        await syncUserToFirestore(user);
+
         // 👑 1. INITIALIZE REALTIME PRO MANAGER
         initProManager(user);
 
