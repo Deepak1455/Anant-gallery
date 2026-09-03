@@ -5,8 +5,8 @@
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 🌟 YOUR VERIFIED RAZORPAY KEY ID
-const RAZORPAY_KEY_ID = "rzp_test_TXOeqzNv9j0baP";
+// 🌟 YOUR LATEST RAZORPAY KEY ID
+const RAZORPAY_KEY_ID = "rzp_test_TXPxCO0uGG3F1G";
 
 // Fast Cache
 let cachedProState = {
@@ -197,7 +197,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. STEP 2: FRONTEND CHECKOUT WITH ORDER ID & SIGNATURE VERIFY (STEP 3)
+// 🌟 3. FRONTEND CHECKOUT WITH ORDER ID & SIGNATURE VERIFY
 // --------------------------------------------------------------------------
 async function ensureRazorpaySDK() {
     if (typeof Razorpay !== "undefined") return true;
@@ -231,7 +231,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
     const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
     if (upgradeBtn) {
         upgradeBtn.disabled = true;
-        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Securing Order...`;
+        upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Creating Order...`;
     }
 
     await ensureRazorpaySDK();
@@ -279,7 +279,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
                 upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Payment...`;
             }
 
-            // 🚀 STEP 3: Verify Payment Signature via Backend
+            // 🚀 STEP 3: Verify Signature with Backend
             try {
                 const verifyRes = await fetch('/api/verify-payment', {
                     method: 'POST',
@@ -323,11 +323,11 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
                     if (onSuccessCallback) onSuccessCallback();
                     showInAppToast(`👑 Payment Verified! Welcome to Anant Pro (${planKey.toUpperCase()})`);
                 } else {
-                    showInAppToast("Payment verification failed! Please contact support.");
+                    showInAppToast("Signature verification failed!");
                 }
             } catch (verErr) {
                 console.error("Verification error:", verErr);
-                showInAppToast("Network error during payment verification.");
+                showInAppToast("Payment verification network error.");
             }
         },
         modal: {
