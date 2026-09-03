@@ -1,10 +1,10 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - VERIFY PAYMENT SIGNATURE (STEP 3)
+// VERCEL SERVERLESS API - VERIFY LIVE PAYMENT SIGNATURE (STEP 3)
 // ==========================================================================
 
 import crypto from 'crypto';
 
-const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "5KM22mbCi7i8EUrnJLFkDJzO").trim();
+const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "fzwRN6KylxsqNXKYd94YHxvV").trim();
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ ok: false, error: 'Missing required signature parameters' });
         }
 
-        // HMAC-SHA256 signature verification
+        // HMAC-SHA256 signature verification with Live Secret
         const generatedSignature = crypto
             .createHmac('sha256', KEY_SECRET)
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
