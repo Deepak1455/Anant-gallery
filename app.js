@@ -111,12 +111,12 @@ function showToast(msg) {
 
     toast.innerText = msg;
     toast.style.opacity = '1';
-    toast.style.top = "100px";
+    toast.style.top = "95px";
 
     toastTimer = setTimeout(() => { 
         toast.style.opacity = '0'; 
-        toast.style.top = "80px"; 
-    }, 2800);
+        toast.style.top = "75px"; 
+    }, 3000);
 }
 
 function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Confirm", onConfirm }) {
@@ -397,9 +397,11 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 6. AUTH CONTROLLER
+// 🌟 6. SMART & FAST AUTH CONTROLLER (GOOGLE SIGN-IN & 30s COOLDOWN RESET)
 // --------------------------------------------------------------------------
 let isLogin = true;
+let isResetCooldown = false;
+
 const toggleAuthBtn = document.getElementById('toggleAuth');
 const forgotPassBtn = document.getElementById('forgotPassBtn');
 const authBtn = document.getElementById('authBtn');
@@ -419,16 +421,54 @@ if (toggleAuthBtn) {
     };
 }
 
+// 🌟 SMART FORGOT PASSWORD (DIRECT INBOX DELIVERY & 30s COOLDOWN)
 if (forgotPassBtn) {
     forgotPassBtn.onclick = async () => {
+        if (isResetCooldown) {
+            return showToast("⏳ Please wait 30s before requesting another link.");
+        }
+
         const email = emailInput ? emailInput.value.trim() : '';
-        if (!email) return showToast("Enter your email above first!");
-        
+        if (!email) {
+            if (emailInput) emailInput.focus();
+            return showToast("⚠️ Enter your email address above first!");
+        }
+
+        forgotPassBtn.style.opacity = '0.6';
+        forgotPassBtn.innerText = "Sending Link...";
+
         try {
             await sendPasswordResetEmail(auth, email);
-            showToast("Password reset link sent! Check your email inbox.");
+            if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+            
+            showToast("✅ Password reset link sent directly to your Inbox!");
+            
+            // 30 Seconds Anti-Spam Protection Timer
+            isResetCooldown = true;
+            let cooldownSeconds = 30;
+            const timer = setInterval(() => {
+                cooldownSeconds--;
+                if (cooldownSeconds <= 0) {
+                    clearInterval(timer);
+                    isResetCooldown = false;
+                    forgotPassBtn.style.opacity = '1';
+                    forgotPassBtn.innerText = "Forgot Password?";
+                } else {
+                    forgotPassBtn.innerText = `Resend in ${cooldownSeconds}s`;
+                }
+            }, 1000);
+
         } catch (err) {
-            showToast("Could not send reset email.");
+            forgotPassBtn.style.opacity = '1';
+            forgotPassBtn.innerText = "Forgot Password?";
+            
+            if (err.code === 'auth/user-not-found') {
+                showToast("❌ No account found with this email!");
+            } else if (err.code === 'auth/invalid-email') {
+                showToast("❌ Invalid email address!");
+            } else {
+                showToast("⚠️ Could not send reset link. Try again later.");
+            }
         }
     };
 }
@@ -469,6 +509,7 @@ async function handleAuth() {
     }
 }
 
+// 🌟 ULTRA-SMOOTH GOOGLE SIGN-IN (HAPTIC + FAST CACHE)
 async function handleGoogleAuth() {
     if (googleAuthBtn) {
         googleAuthBtn.disabled = true;
@@ -478,14 +519,19 @@ async function handleGoogleAuth() {
     try {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        showToast("Connecting to Google...");
+        
+        if (navigator.vibrate) navigator.vibrate(15);
+        showToast("Connecting securely to Google...");
         
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
+        
         await syncUserToFirestore(user);
-        showToast(`Welcome, ${user.displayName || 'User'}!`);
+        showToast(`Welcome, ${user.displayName || 'User'}! ⚡`);
     } catch (e) {
-        showToast("Google Sign-In cancelled or failed.");
+        if (e.code !== 'auth/popup-closed-by-user') {
+            showToast("Google Sign-In cancelled or failed.");
+        }
     } finally {
         if (googleAuthBtn) {
             googleAuthBtn.disabled = false;
@@ -516,7 +562,7 @@ onAuthStateChanged(auth, async (user) => {
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
         
-        // 🌟 Auto-sync profile to Firestore users collection
+        // Auto-sync profile to Firestore users collection
         await syncUserToFirestore(user);
 
         // 👑 1. INITIALIZE REALTIME PRO MANAGER
