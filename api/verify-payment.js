@@ -4,7 +4,7 @@
 
 import crypto from 'crypto';
 
-const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "QvAyksLhGqwzfs7W6LIdXiCx").trim();
+const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "5KM22mbCi7i8EUrnJLFkDJzO").trim();
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,14 +26,14 @@ export default async function handler(req, res) {
             return res.status(400).json({ ok: false, error: 'Missing required signature parameters' });
         }
 
-        // Generate HMAC-SHA256 Signature
+        // HMAC-SHA256 signature verification
         const generatedSignature = crypto
             .createHmac('sha256', KEY_SECRET)
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
             .digest('hex');
 
         if (generatedSignature !== razorpay_signature) {
-            return res.status(400).json({ ok: false, error: 'Signature verification failed. Invalid transaction!' });
+            return res.status(400).json({ ok: false, error: 'Signature mismatch! Payment verification failed.' });
         }
 
         return res.status(200).json({
