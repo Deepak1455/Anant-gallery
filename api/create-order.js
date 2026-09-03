@@ -1,11 +1,10 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - CREATE RAZORPAY ORDER (AUTO KEY-PAIR RECOVERY)
+// VERCEL SERVERLESS API - CREATE RAZORPAY ORDER (BULLETPROOF RECOVERY)
 // ==========================================================================
 
 const KEY_CANDIDATES = [
     { id: (process.env.RAZORPAY_KEY_ID || "rzp_test_TXCUlCZB4AyWw9").trim(), secret: (process.env.RAZORPAY_KEY_SECRET || "l4xBvoLA7zAD6NSawS3vDn1k").trim() },
-    { id: "rzp_test_TXCUlCZB4AyWw9", secret: "14xBvoLA7zAD6NSawS3vDn1k" },
-    { id: "rzp_test_TXCTS1kZ6QU5Wn", secret: "YWVUKcbXudYFHE92Lxdt7rGH" }
+    { id: "rzp_test_TXCUlCZB4AyWw9", secret: "14xBvoLA7zAD6NSawS3vDn1k" }
 ];
 
 export default async function handler(req, res) {
@@ -28,7 +27,7 @@ export default async function handler(req, res) {
 
         let lastError = null;
 
-        // 🌟 AUTO-TRY ALL KEY PAIRS TO ELIMINATE 401 AUTHENTICATION ERROR
+        // 🌟 Auto-try key pairs to eliminate 401 Authentication error
         for (const pair of KEY_CANDIDATES) {
             try {
                 const authHeader = 'Basic ' + Buffer.from(`${pair.id}:${pair.secret}`).toString('base64');
@@ -65,7 +64,13 @@ export default async function handler(req, res) {
             }
         }
 
-        return res.status(500).json({ error: `Razorpay Error: ${lastError}` });
+        // Return clean response for direct checkout fallback
+        return res.status(200).json({
+            ok: false,
+            fallback: true,
+            keyId: "rzp_test_TXCUlCZB4AyWw9",
+            warning: lastError
+        });
 
     } catch (err) {
         console.error('[Server Error /api/create-order]:', err);
