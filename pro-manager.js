@@ -4,6 +4,7 @@
 
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { setPaymentProgressState } from "./settings.js";
 
 // 🌟 YOUR OFFICIAL LIVE RAZORPAY KEY ID
 const RAZORPAY_KEY_ID = "rzp_live_TXQF269P6nkbDI";
@@ -197,7 +198,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. REAL LIVE CHECKOUT WITH SIGNATURE VERIFICATION
+// 🌟 3. REAL LIVE CHECKOUT (WITH ZERO-SHIELD OVERLAY INTERFERENCE)
 // --------------------------------------------------------------------------
 async function ensureRazorpaySDK() {
     if (typeof Razorpay !== "undefined") return true;
@@ -258,6 +259,9 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         return;
     }
 
+    // 🌟 Payment शुरू होते ही Shield को Disable कर दो
+    setPaymentProgressState(true);
+
     // 🚀 STEP 2: Open Razorpay Live Modal
     const options = {
         key: orderData.key_id || RAZORPAY_KEY_ID,
@@ -275,6 +279,8 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
             color: "#f59e0b"
         },
         handler: async function (response) {
+            setPaymentProgressState(false);
+
             if (upgradeBtn) {
                 upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Live Payment...`;
             }
@@ -332,6 +338,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         },
         modal: {
             ondismiss: function() {
+                setPaymentProgressState(false);
                 if (upgradeBtn) {
                     upgradeBtn.disabled = false;
                     upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
@@ -343,6 +350,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
     try {
         const rzp = new Razorpay(options);
         rzp.on('payment.failed', function (resp) {
+            setPaymentProgressState(false);
             console.warn("Payment Failed:", resp.error);
             showInAppToast(`Payment Failed: ${resp.error?.description || 'Cancelled'}`);
             if (upgradeBtn) {
@@ -353,6 +361,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 
         rzp.open();
     } catch (err) {
+        setPaymentProgressState(false);
         console.error("Razorpay open error:", err);
         showInAppToast("Failed to open Razorpay gateway.");
         if (upgradeBtn) {
