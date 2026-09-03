@@ -1,14 +1,10 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - VERIFY RAZORPAY PAYMENT SIGNATURE
+// VERCEL SERVERLESS API - VERIFY PAYMENT SIGNATURE (STEP 3)
 // ==========================================================================
 
 import crypto from 'crypto';
 
-const SECRET_CANDIDATES = [
-    (process.env.RAZORPAY_KEY_SECRET || "l4xBvoLA7zAD6NSawS3vDn1k").trim(),
-    "14xBvoLA7zAD6NSawS3vDn1k",
-    "YWVUKcbXudYFHE92Lxdt7rGH"
-];
+const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "QvAyksLhGqwzfs7W6LIdXiCx").trim();
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,32 +22,29 @@ export default async function handler(req, res) {
 
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body || {};
 
-        if (!razorpay_order_id || !razorpay_payment_id) {
-            return res.status(400).json({ error: 'Missing payment fields' });
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ ok: false, error: 'Missing required signature parameters' });
         }
 
-        // Test signature match
-        let isVerified = false;
-        for (const secret of SECRET_CANDIDATES) {
-            const expectedSignature = crypto
-                .createHmac('sha256', secret)
-                .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-                .digest('hex');
+        // Generate HMAC-SHA256 Signature
+        const generatedSignature = crypto
+            .createHmac('sha256', KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest('hex');
 
-            if (expectedSignature === razorpay_signature || !razorpay_signature) {
-                isVerified = true;
-                break;
-            }
+        if (generatedSignature !== razorpay_signature) {
+            return res.status(400).json({ ok: false, error: 'Signature verification failed. Invalid transaction!' });
         }
 
         return res.status(200).json({
             ok: true,
-            verified: isVerified,
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id
+            verified: true,
+            payment_id: razorpay_payment_id,
+            order_id: razorpay_order_id
         });
 
     } catch (err) {
-        return res.status(500).json({ error: err.message || 'Internal Server Error' });
+        console.error('[Server Error /api/verify-payment]:', err);
+        return res.status(500).json({ ok: false, error: err.message || 'Internal Server Error' });
     }
 }
