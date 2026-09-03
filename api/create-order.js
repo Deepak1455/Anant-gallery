@@ -1,11 +1,9 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - CREATE RAZORPAY ORDER (BULLETPROOF RECOVERY)
+// VERCEL SERVERLESS API - CREATE RAZORPAY ORDER (STEP 1)
 // ==========================================================================
 
-const KEY_CANDIDATES = [
-    { id: (process.env.RAZORPAY_KEY_ID || "rzp_test_TXCUlCZB4AyWw9").trim(), secret: (process.env.RAZORPAY_KEY_SECRET || "l4xBvoLA7zAD6NSawS3vDn1k").trim() },
-    { id: "rzp_test_TXCUlCZB4AyWw9", secret: "14xBvoLA7zAD6NSawS3vDn1k" }
-];
+const KEY_ID = (process.env.RAZORPAY_KEY_ID || "rzp_test_TXOeqzNv9j0baP").trim();
+const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "QvAyksLhGqwzfs7W6LIdXiCx").trim();
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -23,53 +21,43 @@ export default async function handler(req, res) {
 
         const amountInRupees = Number(body?.amount) || 999;
         const amountInPaise = Math.round(amountInRupees * 100);
-        const receipt = `rcpt_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-        let lastError = null;
-
-        // 🌟 Auto-try key pairs to eliminate 401 Authentication error
-        for (const pair of KEY_CANDIDATES) {
-            try {
-                const authHeader = 'Basic ' + Buffer.from(`${pair.id}:${pair.secret}`).toString('base64');
-
-                const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': authHeader,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        amount: amountInPaise,
-                        currency: 'INR',
-                        receipt: receipt,
-                        payment_capture: 1
-                    })
-                });
-
-                const orderData = await rzpResponse.json();
-
-                if (rzpResponse.ok && orderData.id) {
-                    return res.status(200).json({
-                        ok: true,
-                        orderId: orderData.id,
-                        amount: orderData.amount,
-                        currency: orderData.currency,
-                        keyId: pair.id
-                    });
-                } else {
-                    lastError = orderData.error?.description || 'Auth failed on key pair';
-                }
-            } catch (err) {
-                lastError = err.message;
-            }
+        if (amountInPaise < 100) {
+            return res.status(400).json({ error: 'Minimum amount must be at least 100 paise (₹1)' });
         }
 
-        // Return clean response for direct checkout fallback
+        const receipt = `rcpt_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const authHeader = 'Basic ' + Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64');
+
+        const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
+            method: 'POST',
+            headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amount: amountInPaise,
+                currency: 'INR',
+                receipt: receipt,
+                payment_capture: 1
+            })
+        });
+
+        const orderData = await rzpResponse.json();
+
+        if (!rzpResponse.ok) {
+            console.error('[Razorpay Order Error]:', orderData);
+            return res.status(rzpResponse.status || 500).json({ 
+                error: orderData.error?.description || 'Failed to create Razorpay order' 
+            });
+        }
+
         return res.status(200).json({
-            ok: false,
-            fallback: true,
-            keyId: "rzp_test_TXCUlCZB4AyWw9",
-            warning: lastError
+            ok: true,
+            order_id: orderData.id,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            key_id: KEY_ID
         });
 
     } catch (err) {
