@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT PRO - SECURE RAZORPAY & BILLING MANAGER (PRO-MANAGER.JS)
+// ANANT PRO - 100% GOOGLE PLAY COMPLIANT & SECURE PRO ENGINE (PRO-MANAGER.JS)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -15,9 +15,14 @@ let cachedProState = {
 
 let unsubscribeProListener = null;
 
-// Helper: Check if running inside Android TWA
-function isAndroidAppWrapper() {
-    return document.referrer.includes('android-app://') || window.location.search.includes('mode=apk');
+// 🌟 SMART GOOGLE PLAY STORE / TWA DETECTION
+function isPlayStoreApp() {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const isTwaReferrer = document.referrer.includes('android-app://');
+    const isApkParam = window.location.search.includes('mode=apk');
+
+    return isTwaReferrer || isApkParam || (isStandalone && isAndroid);
 }
 
 // --------------------------------------------------------------------------
@@ -127,6 +132,17 @@ function injectProStyles() {
         .pro-secure-guarantee {
             text-align: center; font-size: 0.72rem; color: var(--text-muted, #64748b);
             margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .play-compliance-box {
+            background: rgba(79, 70, 229, 0.08);
+            border: 1px dashed rgba(79, 70, 229, 0.3);
+            border-radius: 16px;
+            padding: 12px;
+            text-align: center;
+            font-size: 0.76rem;
+            color: var(--text-muted, #64748b);
+            margin-bottom: 14px;
+            line-height: 1.4;
         }
     `;
     document.head.appendChild(style);
@@ -239,7 +255,6 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 
     await ensureRazorpaySDK();
 
-    // 🚀 STEP 1: Backend Order Creation
     let orderData = null;
     try {
         const res = await fetch('/api/create-order', {
@@ -263,7 +278,6 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 
     setPaymentProgressState(true);
 
-    // 🚀 STEP 2: Open Razorpay Gateway
     const options = {
         key: orderData.key_id,
         amount: orderData.amount,
@@ -286,7 +300,6 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
                 upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Payment...`;
             }
 
-            // 🚀 STEP 3: Cryptographic Signature Verification on Backend
             try {
                 const verifyRes = await fetch('/api/verify-payment', {
                     method: 'POST',
@@ -371,7 +384,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 }
 
 // --------------------------------------------------------------------------
-// 4. SHOW PRO PAYWALL MODAL
+// 4. SHOW PRO PAYWALL MODAL (100% PLAY STORE SAFE)
 // --------------------------------------------------------------------------
 export function showProPaywallModal(highlightReason = "Unlock All Features") {
     injectProStyles();
@@ -379,6 +392,7 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
     let existing = document.getElementById("anantProModal");
     if (existing) existing.remove();
 
+    const isPlayApp = isPlayStoreApp();
     const modal = document.createElement("div");
     modal.id = "anantProModal";
     modal.className = "pro-modal-overlay";
@@ -437,35 +451,47 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 </div>
             </div>
 
-            <div class="pro-pricing-grid">
-                <div class="pricing-plan-card" data-plan="monthly" data-amount="49" data-title="Monthly Plan">
-                    <div class="plan-duration">Monthly</div>
-                    <div class="plan-price">₹49</div>
-                    <div class="plan-subtext">per month</div>
+            ${isPlayApp ? `
+                <!-- 🛡️ 100% GOOGLE PLAY POLICY COMPLIANT VIEW -->
+                <div class="play-compliance-box">
+                    <i class="fa-solid fa-shield-halved" style="color:#4f46e5; margin-right:4px;"></i>
+                    Account and subscriptions are securely managed via the official Anant Cloud portal.
+                </div>
+                <button class="btn-upgrade-pro" id="btnOpenWebPortal">
+                    <i class="fa-solid fa-globe"></i> <span>Manage on Web Portal</span>
+                </button>
+            ` : `
+                <!-- 🌐 FULL WEB RAZORPAY VIEW -->
+                <div class="pro-pricing-grid">
+                    <div class="pricing-plan-card" data-plan="monthly" data-amount="49" data-title="Monthly Plan">
+                        <div class="plan-duration">Monthly</div>
+                        <div class="plan-price">₹49</div>
+                        <div class="plan-subtext">per month</div>
+                    </div>
+
+                    <div class="pricing-plan-card" data-plan="annual" data-amount="399" data-title="1 Year Plan">
+                        <div class="plan-ribbon">SAVE 40%</div>
+                        <div class="plan-duration">1 Year</div>
+                        <div class="plan-price">₹399</div>
+                        <div class="plan-subtext">₹33 / mo</div>
+                    </div>
+
+                    <div class="pricing-plan-card active" data-plan="lifetime" data-amount="999" data-title="Lifetime VIP Access">
+                        <div class="plan-ribbon">BEST VALUE</div>
+                        <div class="plan-duration">Lifetime</div>
+                        <div class="plan-price">₹999</div>
+                        <div class="plan-subtext">one-time pay</div>
+                    </div>
                 </div>
 
-                <div class="pricing-plan-card" data-plan="annual" data-amount="399" data-title="1 Year Plan">
-                    <div class="plan-ribbon">SAVE 40%</div>
-                    <div class="plan-duration">1 Year</div>
-                    <div class="plan-price">₹399</div>
-                    <div class="plan-subtext">₹33 / mo</div>
+                <button class="btn-upgrade-pro" id="btnConfirmProUpgrade">
+                    <i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹999</span>
+                </button>
+
+                <div class="pro-secure-guarantee">
+                    <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> 100% Secure UPI / Card Checkout
                 </div>
-
-                <div class="pricing-plan-card active" data-plan="lifetime" data-amount="999" data-title="Lifetime VIP Access">
-                    <div class="plan-ribbon">BEST VALUE</div>
-                    <div class="plan-duration">Lifetime</div>
-                    <div class="plan-price">₹999</div>
-                    <div class="plan-subtext">one-time pay</div>
-                </div>
-            </div>
-
-            <button class="btn-upgrade-pro" id="btnConfirmProUpgrade">
-                <i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹999</span>
-            </button>
-
-            <div class="pro-secure-guarantee">
-                <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> 100% Secure UPI / Card Checkout
-            </div>
+            `}
         </div>
     `;
 
@@ -475,25 +501,32 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
     document.getElementById("closeProModal").onclick = close;
     modal.onclick = (e) => { if (e.target === modal) close(); };
 
-    const planCards = modal.querySelectorAll(".pricing-plan-card");
-    const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
-
-    planCards.forEach(card => {
-        card.onclick = () => {
-            planCards.forEach(c => c.classList.remove("active"));
-            card.classList.add("active");
-            selectedPlan = card.getAttribute("data-plan");
-            selectedAmount = Number(card.getAttribute("data-amount"));
-            selectedTitle = card.getAttribute("data-title");
-
-            upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${selectedAmount}</span>`;
-            if (navigator.vibrate) navigator.vibrate(10);
-        };
-    });
-
-    upgradeBtn.onclick = () => {
-        triggerRazorpayCheckout(selectedPlan, selectedAmount, selectedTitle, () => {
+    if (isPlayApp) {
+        document.getElementById("btnOpenWebPortal")?.addEventListener("click", () => {
+            window.open(window.location.origin, "_blank");
             close();
         });
-    };
+    } else {
+        const planCards = modal.querySelectorAll(".pricing-plan-card");
+        const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
+
+        planCards.forEach(card => {
+            card.onclick = () => {
+                planCards.forEach(c => c.classList.remove("active"));
+                card.classList.add("active");
+                selectedPlan = card.getAttribute("data-plan");
+                selectedAmount = Number(card.getAttribute("data-amount"));
+                selectedTitle = card.getAttribute("data-title");
+
+                upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${selectedAmount}</span>`;
+                if (navigator.vibrate) navigator.vibrate(10);
+            };
+        });
+
+        upgradeBtn.onclick = () => {
+            triggerRazorpayCheckout(selectedPlan, selectedAmount, selectedTitle, () => {
+                close();
+            });
+        };
+    }
 }
