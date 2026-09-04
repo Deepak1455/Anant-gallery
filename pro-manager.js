@@ -17,6 +17,11 @@ let unsubscribeProListener = null;
 
 // 🌟 SMART GOOGLE PLAY STORE / TWA DETECTION
 function isPlayStoreApp() {
+    // 🌐 Agar URL me ?portal=web hai, to user Chrome me hai (wahan plans dikhao)
+    if (window.location.search.includes('portal=web')) {
+        return false;
+    }
+
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isAndroid = /android/i.test(navigator.userAgent);
     const isTwaReferrer = document.referrer.includes('android-app://');
@@ -384,7 +389,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 }
 
 // --------------------------------------------------------------------------
-// 4. SHOW PRO PAYWALL MODAL (100% PLAY STORE SAFE)
+// 4. SHOW PRO PAYWALL MODAL (100% PLAY STORE & EXTERNAL CHROME READY)
 // --------------------------------------------------------------------------
 export function showProPaywallModal(highlightReason = "Unlock All Features") {
     injectProStyles();
@@ -452,16 +457,16 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
             </div>
 
             ${isPlayApp ? `
-                <!-- 🛡️ 100% GOOGLE PLAY POLICY COMPLIANT VIEW -->
+                <!-- 🛡️ GOOGLE PLAY STORE COMPLIANT VIEW -->
                 <div class="play-compliance-box">
                     <i class="fa-solid fa-shield-halved" style="color:#4f46e5; margin-right:4px;"></i>
-                    Account and subscriptions are securely managed via the official Anant Cloud portal.
+                    Subscriptions and upgrades are securely processed on Chrome Web Portal.
                 </div>
                 <button class="btn-upgrade-pro" id="btnOpenWebPortal">
-                    <i class="fa-solid fa-globe"></i> <span>Manage on Web Portal</span>
+                    <i class="fa-brands fa-chrome"></i> <span>Upgrade in Chrome Browser</span>
                 </button>
             ` : `
-                <!-- 🌐 FULL WEB RAZORPAY VIEW -->
+                <!-- 🌐 FULL WEB VIEW (RAZORPAY DIRECT) -->
                 <div class="pro-pricing-grid">
                     <div class="pricing-plan-card" data-plan="monthly" data-amount="49" data-title="Monthly Plan">
                         <div class="plan-duration">Monthly</div>
@@ -501,9 +506,18 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
     document.getElementById("closeProModal").onclick = close;
     modal.onclick = (e) => { if (e.target === modal) close(); };
 
+    // 🌟 FORCES CHROME BROWSER INTENT (NEVER RE-OPENS THE APP)
     if (isPlayApp) {
         document.getElementById("btnOpenWebPortal")?.addEventListener("click", () => {
-            window.open(window.location.origin, "_blank");
+            const host = window.location.host;
+            const fullWebUrl = `https://${host}/?portal=web`;
+
+            // Android Intent force-calling Chrome package
+            try {
+                window.location.href = `intent://${host}/?portal=web#Intent;scheme=https;package=com.android.chrome;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
+            } catch (err) {
+                window.open(fullWebUrl, '_system');
+            }
             close();
         });
     } else {
