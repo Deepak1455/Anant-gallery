@@ -1,9 +1,6 @@
 // ==========================================================================
-// VERCEL SERVERLESS API - CREATE LIVE RAZORPAY ORDER (STEP 1)
+// VERCEL SERVERLESS API - CREATE SECURE ORDER (STEP 1)
 // ==========================================================================
-
-const KEY_ID = (process.env.RAZORPAY_KEY_ID || "rzp_live_TXQF269P6nkbDI").trim();
-const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "fzwRN6KylxsqNXKYd94YHxvV").trim();
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,6 +9,14 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+
+    const KEY_ID = (process.env.RAZORPAY_KEY_ID || "").trim();
+    const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+
+    if (!KEY_ID || !KEY_SECRET) {
+        console.error("[Razorpay Config Error]: Environment variables RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET are missing.");
+        return res.status(500).json({ error: 'Payment gateway configuration missing on server.' });
+    }
 
     try {
         let body = req.body;
@@ -26,7 +31,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Minimum amount must be at least 100 paise (₹1)' });
         }
 
-        const receipt = `rcpt_live_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const receipt = `rcpt_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         const authHeader = 'Basic ' + Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64');
 
         const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
@@ -46,9 +51,9 @@ export default async function handler(req, res) {
         const orderData = await rzpResponse.json();
 
         if (!rzpResponse.ok) {
-            console.error('[Razorpay Live Order Error]:', orderData);
+            console.error('[Razorpay Order Creation Error]:', orderData);
             return res.status(rzpResponse.status || 500).json({ 
-                error: orderData.error?.description || 'Failed to create Live Razorpay order' 
+                error: orderData.error?.description || 'Failed to initialize payment order.' 
             });
         }
 
