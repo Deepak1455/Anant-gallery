@@ -84,19 +84,21 @@ function listenToGlobalAppConfig() {
 
     onSnapshot(configDocRef, (snap) => {
         if (!snap.exists()) {
-            setDoc(configDocRef, { maintenanceMode: false, allowUploads: true, broadcastNotice: "" }, { merge: true });
+            setDoc(configDocRef, { maintenanceMode: false, allowUploads: true, playStoreReviewMode: true, broadcastNotice: "" }, { merge: true });
             return;
         }
 
         const data = snap.data();
         const toggleMaint = document.getElementById("toggleMaintenance");
         const toggleUp = document.getElementById("toggleUploads");
+        const toggleReview = document.getElementById("toggleReviewMode");
         const previewBox = document.getElementById("noticePreviewBox");
         const previewText = document.getElementById("noticePreviewText");
         const liveBadge = document.getElementById("liveNoticeBadge");
 
         if (toggleMaint) toggleMaint.checked = !!data.maintenanceMode;
         if (toggleUp) toggleUp.checked = data.allowUploads !== false;
+        if (toggleReview) toggleReview.checked = data.playStoreReviewMode !== false;
 
         if (data.broadcastNotice && data.broadcastNotice.trim()) {
             if (previewBox) previewBox.style.display = "flex";
@@ -116,6 +118,11 @@ function listenToGlobalAppConfig() {
     document.getElementById("toggleUploads")?.addEventListener("change", async (e) => {
         await setDoc(configDocRef, { allowUploads: e.target.checked }, { merge: true });
         showToast(e.target.checked ? "✅ Uploads Enabled" : "⚠️ Uploads Paused Globally!");
+    });
+
+    document.getElementById("toggleReviewMode")?.addEventListener("change", async (e) => {
+        await setDoc(configDocRef, { playStoreReviewMode: e.target.checked }, { merge: true });
+        showToast(e.target.checked ? "🛡️ Review Mode ON (Safe for Google Reviewers)" : "👑 Live Monetization ON (Razorpay Live)");
     });
 
     document.getElementById("btnPublishNotice")?.addEventListener("click", async () => {
