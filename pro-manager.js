@@ -1,13 +1,10 @@
 // ==========================================================================
-// ANANT PRO - LIVE PRODUCTION RAZORPAY CHECKOUT ENGINE (PRO-MANAGER.JS)
+// ANANT PRO - SECURE RAZORPAY & BILLING MANAGER (PRO-MANAGER.JS)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { setPaymentProgressState } from "./settings.js";
-
-// 🌟 YOUR OFFICIAL LIVE RAZORPAY KEY ID
-const RAZORPAY_KEY_ID = "rzp_live_TXQF269P6nkbDI";
 
 // Fast Cache
 let cachedProState = {
@@ -17,6 +14,11 @@ let cachedProState = {
 };
 
 let unsubscribeProListener = null;
+
+// Helper: Check if running inside Android TWA
+function isAndroidAppWrapper() {
+    return document.referrer.includes('android-app://') || window.location.search.includes('mode=apk');
+}
 
 // --------------------------------------------------------------------------
 // 1. INJECT 60FPS PRO MODAL STYLES
@@ -198,7 +200,7 @@ export function guardProFeature(featureName, onAllowed) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. REAL LIVE CHECKOUT (WITH ZERO-SHIELD OVERLAY INTERFERENCE)
+// 3. SECURE CHECKOUT HANDLER
 // --------------------------------------------------------------------------
 async function ensureRazorpaySDK() {
     if (typeof Razorpay !== "undefined") return true;
@@ -237,7 +239,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 
     await ensureRazorpaySDK();
 
-    // 🚀 STEP 1: Backend Call to Create Live Order
+    // 🚀 STEP 1: Backend Order Creation
     let orderData = null;
     try {
         const res = await fetch('/api/create-order', {
@@ -250,21 +252,20 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         console.error("Order creation request error:", e);
     }
 
-    if (!orderData || !orderData.order_id) {
+    if (!orderData || !orderData.order_id || !orderData.key_id) {
         if (upgradeBtn) {
             upgradeBtn.disabled = false;
             upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
         }
-        showInAppToast(orderData?.error || "Could not initialize Razorpay live order.");
+        showInAppToast(orderData?.error || "Could not initialize order.");
         return;
     }
 
-    // 🌟 Payment शुरू होते ही Shield को Disable कर दो
     setPaymentProgressState(true);
 
-    // 🚀 STEP 2: Open Razorpay Live Modal
+    // 🚀 STEP 2: Open Razorpay Gateway
     const options = {
-        key: orderData.key_id || RAZORPAY_KEY_ID,
+        key: orderData.key_id,
         amount: orderData.amount,
         currency: orderData.currency || "INR",
         name: "Anant Gallery",
@@ -282,10 +283,10 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
             setPaymentProgressState(false);
 
             if (upgradeBtn) {
-                upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Live Payment...`;
+                upgradeBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying Payment...`;
             }
 
-            // 🚀 STEP 3: Cryptographic Signature Verification
+            // 🚀 STEP 3: Cryptographic Signature Verification on Backend
             try {
                 const verifyRes = await fetch('/api/verify-payment', {
                     method: 'POST',
@@ -307,7 +308,6 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
                         expiryDate = Date.now() + (365 * 24 * 60 * 60 * 1000);
                     }
 
-                    // Save verified Pro status to Firestore
                     await setDoc(doc(db, "users", user.uid), {
                         isPro: true,
                         proPlan: planKey,
@@ -351,7 +351,6 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         const rzp = new Razorpay(options);
         rzp.on('payment.failed', function (resp) {
             setPaymentProgressState(false);
-            console.warn("Payment Failed:", resp.error);
             showInAppToast(`Payment Failed: ${resp.error?.description || 'Cancelled'}`);
             if (upgradeBtn) {
                 upgradeBtn.disabled = false;
@@ -362,8 +361,8 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
         rzp.open();
     } catch (err) {
         setPaymentProgressState(false);
-        console.error("Razorpay open error:", err);
-        showInAppToast("Failed to open Razorpay gateway.");
+        console.error("Gateway error:", err);
+        showInAppToast("Failed to open payment gateway.");
         if (upgradeBtn) {
             upgradeBtn.disabled = false;
             upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${amountInRupees}</span>`;
@@ -400,7 +399,6 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 <div class="pro-subtitle">${highlightReason}</div>
             </div>
 
-            <!-- Free vs Pro Comparison Table -->
             <div class="comparison-card">
                 <div class="comparison-header">
                     <span>Feature</span>
@@ -439,7 +437,6 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 </div>
             </div>
 
-            <!-- Plans Switcher -->
             <div class="pro-pricing-grid">
                 <div class="pricing-plan-card" data-plan="monthly" data-amount="49" data-title="Monthly Plan">
                     <div class="plan-duration">Monthly</div>
@@ -467,7 +464,7 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
             </button>
 
             <div class="pro-secure-guarantee">
-                <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> Powered by Razorpay • 100% Secure UPI / Card
+                <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> 100% Secure UPI / Card Checkout
             </div>
         </div>
     `;
