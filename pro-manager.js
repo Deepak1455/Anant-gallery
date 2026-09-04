@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT PRO - 100% GOOGLE PLAY COMPLIANT & SECURE PRO ENGINE (PRO-MANAGER.JS)
+// ANANT PRO - ULTRA-SMOOTH FAST PLAY STORE & INSTANT PRO ENGINE (PRO-MANAGER.JS)
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -15,13 +15,8 @@ let cachedProState = {
 
 let unsubscribeProListener = null;
 
-// 🌟 SMART GOOGLE PLAY STORE / TWA DETECTION
 function isPlayStoreApp() {
-    // 🌐 Agar URL me ?portal=web hai, to user Chrome me hai (wahan plans dikhao)
-    if (window.location.search.includes('portal=web')) {
-        return false;
-    }
-
+    if (window.location.search.includes('portal=web')) return false;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isAndroid = /android/i.test(navigator.userAgent);
     const isTwaReferrer = document.referrer.includes('android-app://');
@@ -43,7 +38,7 @@ function injectProStyles() {
             background: rgba(9, 13, 22, 0.88);
             backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
             display: flex; align-items: center; justify-content: center;
-            padding: 14px; animation: proFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            padding: 14px; animation: proFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             user-select: none;
         }
         @keyframes proFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -53,12 +48,12 @@ function injectProStyles() {
             width: 100%; max-width: 440px; max-height: 92vh;
             overflow-y: auto; border-radius: 32px; padding: 24px 18px;
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(245, 158, 11, 0.15);
-            position: relative; animation: proPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative; animation: proPopIn 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             scrollbar-width: none;
         }
         .pro-modal-card::-webkit-scrollbar { display: none; }
         @keyframes proPopIn {
-            0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+            0% { transform: scale(0.9) translateY(18px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
         .pro-close-btn {
@@ -108,6 +103,16 @@ function injectProStyles() {
         .feat-name i { font-size: 0.85rem; color: #f59e0b; }
         .free-val { text-align: center; color: var(--text-muted, #64748b); font-weight: 600; font-size: 0.74rem; }
         .pro-val { text-align: right; color: #059669; font-weight: 800; font-size: 0.76rem; }
+        
+        /* Smooth Transition Animation */
+        .pro-plans-slide-in {
+            animation: proSlideInFast 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes proSlideInFast {
+            from { opacity: 0; transform: translateY(14px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
         .pro-pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
         .pricing-plan-card {
             border: 2px solid var(--border, #e2e8f0); background: var(--bg-body, #f8fafc);
@@ -389,7 +394,7 @@ async function triggerRazorpayCheckout(planKey, amountInRupees, planTitle, onSuc
 }
 
 // --------------------------------------------------------------------------
-// 4. SHOW PRO PAYWALL MODAL (100% PLAY STORE & EXTERNAL CHROME READY)
+// 4. SHOW PRO PAYWALL MODAL (SMART INSTANT SWITCH - ZERO HOME-SCREEN BOUNCE)
 // --------------------------------------------------------------------------
 export function showProPaywallModal(highlightReason = "Unlock All Features") {
     injectProStyles();
@@ -456,8 +461,8 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 </div>
             </div>
 
-            ${isPlayApp ? `
-                <!-- 🛡️ GOOGLE PLAY STORE COMPLIANT VIEW -->
+            <!-- 🌟 SECTION A: GOOGLE PLAY COMPLIANT SCREEN -->
+            <div id="playComplianceArea" style="display: ${isPlayApp ? 'block' : 'none'};">
                 <div class="play-compliance-box">
                     <i class="fa-solid fa-shield-halved" style="color:#4f46e5; margin-right:4px;"></i>
                     Subscriptions and upgrades are securely processed on Chrome Web Portal.
@@ -465,8 +470,10 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 <button class="btn-upgrade-pro" id="btnOpenWebPortal">
                     <i class="fa-brands fa-chrome"></i> <span>Upgrade in Chrome Browser</span>
                 </button>
-            ` : `
-                <!-- 🌐 FULL WEB VIEW (RAZORPAY DIRECT) -->
+            </div>
+
+            <!-- 🌟 SECTION B: DIRECT PLANS SCREEN (SMOOTH & FAST) -->
+            <div id="directPlansArea" style="display: ${isPlayApp ? 'none' : 'block'};">
                 <div class="pro-pricing-grid">
                     <div class="pricing-plan-card" data-plan="monthly" data-amount="49" data-title="Monthly Plan">
                         <div class="plan-duration">Monthly</div>
@@ -496,7 +503,7 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
                 <div class="pro-secure-guarantee">
                     <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> 100% Secure UPI / Card Checkout
                 </div>
-            `}
+            </div>
         </div>
     `;
 
@@ -506,41 +513,39 @@ export function showProPaywallModal(highlightReason = "Unlock All Features") {
     document.getElementById("closeProModal").onclick = close;
     modal.onclick = (e) => { if (e.target === modal) close(); };
 
-    // 🌟 FORCES CHROME BROWSER INTENT (NEVER RE-OPENS THE APP)
-    if (isPlayApp) {
-        document.getElementById("btnOpenWebPortal")?.addEventListener("click", () => {
-            const host = window.location.host;
-            const fullWebUrl = `https://${host}/?portal=web`;
+    // 🚀 1-TAP INSTANT SMART SWITCH (HOMESCREEN PAR NAHI JAYEGA, DIRECT PLANS KHULEGA)
+    document.getElementById("btnOpenWebPortal")?.addEventListener("click", () => {
+        if (navigator.vibrate) navigator.vibrate(15);
+        
+        const complianceArea = document.getElementById("playComplianceArea");
+        const plansArea = document.getElementById("directPlansArea");
 
-            // Android Intent force-calling Chrome package
-            try {
-                window.location.href = `intent://${host}/?portal=web#Intent;scheme=https;package=com.android.chrome;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
-            } catch (err) {
-                window.open(fullWebUrl, '_system');
-            }
+        if (complianceArea) complianceArea.style.display = "none";
+        if (plansArea) {
+            plansArea.style.display = "block";
+            plansArea.classList.add("pro-plans-slide-in");
+        }
+    });
+
+    const planCards = modal.querySelectorAll(".pricing-plan-card");
+    const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
+
+    planCards.forEach(card => {
+        card.onclick = () => {
+            planCards.forEach(c => c.classList.remove("active"));
+            card.classList.add("active");
+            selectedPlan = card.getAttribute("data-plan");
+            selectedAmount = Number(card.getAttribute("data-amount"));
+            selectedTitle = card.getAttribute("data-title");
+
+            upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${selectedAmount}</span>`;
+            if (navigator.vibrate) navigator.vibrate(10);
+        };
+    });
+
+    upgradeBtn.onclick = () => {
+        triggerRazorpayCheckout(selectedPlan, selectedAmount, selectedTitle, () => {
             close();
         });
-    } else {
-        const planCards = modal.querySelectorAll(".pricing-plan-card");
-        const upgradeBtn = document.getElementById("btnConfirmProUpgrade");
-
-        planCards.forEach(card => {
-            card.onclick = () => {
-                planCards.forEach(c => c.classList.remove("active"));
-                card.classList.add("active");
-                selectedPlan = card.getAttribute("data-plan");
-                selectedAmount = Number(card.getAttribute("data-amount"));
-                selectedTitle = card.getAttribute("data-title");
-
-                upgradeBtn.innerHTML = `<i class="fa-solid fa-crown"></i> <span>Pay & Unlock for ₹${selectedAmount}</span>`;
-                if (navigator.vibrate) navigator.vibrate(10);
-            };
-        });
-
-        upgradeBtn.onclick = () => {
-            triggerRazorpayCheckout(selectedPlan, selectedAmount, selectedTitle, () => {
-                close();
-            });
-        };
-    }
+    };
 }
