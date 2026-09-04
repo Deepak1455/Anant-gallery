@@ -62,7 +62,7 @@ import { uploadPhotoToTelegram, uploadBatchPhotos } from "./telegram-photo.js";
 import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
-import { initProManager, showProPaywallModal, isProUser, guardProFeature } from "./pro-manager.js";
+import { initProManager, showProPaywallModal, isProUser, guardProFeature, setPlayStoreReviewMode } from "./pro-manager.js";
 
 // 🌟 3 SUPER ADMIN EMAILS
 const SUPER_ADMIN_EMAILS = [
@@ -183,7 +183,10 @@ function setupGlobalAdminListener() {
         if (!snap.exists()) return;
         const config = snap.data();
 
-        // 1. Maintenance Mode
+        // 🛡️ 1. Realtime Play Store Review Mode Sync
+        setPlayStoreReviewMode(config.playStoreReviewMode !== false);
+
+        // 2. Maintenance Mode
         let maintOverlay = document.getElementById("appMaintenanceOverlay");
         if (config.maintenanceMode) {
             if (!maintOverlay) {
@@ -211,10 +214,10 @@ function setupGlobalAdminListener() {
             maintOverlay.remove();
         }
 
-        // 2. Upload Kill-Switch
+        // 3. Upload Kill-Switch
         isUploadAllowedGlobally = config.allowUploads !== false;
 
-        // 3. Global Broadcast Banner
+        // 4. Global Broadcast Banner
         let banner = document.getElementById("adminBroadcastBanner");
         if (config.broadcastNotice && config.broadcastNotice.trim()) {
             if (!banner) {
@@ -397,7 +400,7 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 🌟 6. SMART & FAST AUTH CONTROLLER (GOOGLE SIGN-IN & 30s COOLDOWN RESET)
+// 6. AUTH CONTROLLER (GOOGLE SIGN-IN & 30s COOLDOWN RESET)
 // --------------------------------------------------------------------------
 let isLogin = true;
 let isResetCooldown = false;
@@ -421,7 +424,7 @@ if (toggleAuthBtn) {
     };
 }
 
-// 🌟 SMART FORGOT PASSWORD (DIRECT INBOX DELIVERY & 30s COOLDOWN)
+// 🌟 SMART FORGOT PASSWORD
 if (forgotPassBtn) {
     forgotPassBtn.onclick = async () => {
         if (isResetCooldown) {
@@ -443,7 +446,6 @@ if (forgotPassBtn) {
             
             showToast("✅ Password reset link sent directly to your Inbox!");
             
-            // 30 Seconds Anti-Spam Protection Timer
             isResetCooldown = true;
             let cooldownSeconds = 30;
             const timer = setInterval(() => {
@@ -509,7 +511,6 @@ async function handleAuth() {
     }
 }
 
-// 🌟 ULTRA-SMOOTH GOOGLE SIGN-IN (HAPTIC + FAST CACHE)
 async function handleGoogleAuth() {
     if (googleAuthBtn) {
         googleAuthBtn.disabled = true;
@@ -547,7 +548,7 @@ if (passInput) passInput.onkeydown = (e) => { if (e.key === 'Enter') handleAuth(
 if (emailInput) emailInput.onkeydown = (e) => { if (e.key === 'Enter' && passInput) passInput.focus(); };
 
 // --------------------------------------------------------------------------
-// 🌟 7. AUTH STATE CHANGED (AUTO USER SYNC, PRO MANAGER & SIDEBAR)
+// 7. AUTH STATE CHANGED
 // --------------------------------------------------------------------------
 onAuthStateChanged(auth, async (user) => {
     hideSplashScreen();
@@ -562,13 +563,8 @@ onAuthStateChanged(auth, async (user) => {
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
         
-        // Auto-sync profile to Firestore users collection
         await syncUserToFirestore(user);
-
-        // 👑 1. INITIALIZE REALTIME PRO MANAGER
         initProManager(user);
-
-        // 🌟 2. SETUP SIDEBAR BADGES
         setupSidebarLinks(user);
 
         setupGlobalAdminListener();
@@ -589,7 +585,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 🌟 DYNAMICALLY INJECT PRO UPGRADE & ADMIN LINK IN SIDEBAR
 function setupSidebarLinks(user) {
     const existingPro = document.getElementById('sidebarProBadge');
     if (existingPro) existingPro.remove();
@@ -632,7 +627,6 @@ function setupSidebarLinks(user) {
     }
 }
 
-// 🌟 Realtime Pro Event Listener for Sidebar
 window.addEventListener('anant_pro_updated', () => {
     if (currentUser) {
         setupSidebarLinks(currentUser);
@@ -824,7 +818,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
 });
 
 // --------------------------------------------------------------------------
-// 10. GALLERY DATA STREAM (HIGH PERFORMANCE WITH 120ms DEBOUNCE)
+// 10. GALLERY DATA STREAM
 // --------------------------------------------------------------------------
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
@@ -1075,7 +1069,7 @@ function multiDeletePerm() {
 }
 
 // --------------------------------------------------------------------------
-// 12. FILE UPLOAD ENGINE (AUTO PRO BATCH & QUALITY ROUTER)
+// 12. FILE UPLOAD ENGINE
 // --------------------------------------------------------------------------
 const fileInputEl = document.getElementById('fileInput');
 if (fileInputEl) {
