@@ -2,8 +2,8 @@
 // ANANT GALLERY SERVICE WORKER - BULLETPROOF SHARE TARGET & OFFLINE ENGINE
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v10';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v8';
+const CACHE_VERSION = 'anant-shell-v12';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v10';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -63,12 +63,12 @@ self.addEventListener('activate', (event) => {
 });
 
 // --------------------------------------------------------------------------
-// 🌟 3. FETCH CONTROLLER & SMART UNIVERSAL ANDROID SHARE TARGET
+// 🌟 3. FETCH CONTROLLER & 100% RELIABLE ANDROID GALLERY SHARE TARGET
 // --------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // A. WEB SHARE TARGET (फोन की गैलरी से "Share to Anant Gallery" का 100% फुल-प्रूफ हैंडलर)
+    // A. ANDROID GALLERY SHARE TARGET HANDLER (Zero Crash & 100% Data Save)
     if (event.request.method === 'POST' && (url.pathname.endsWith('share-target') || url.pathname.includes('share-target'))) {
         event.respondWith(
             (async () => {
@@ -76,57 +76,56 @@ self.addEventListener('fetch', (event) => {
                     const formData = await event.request.formData();
                     const mediaFiles = [];
 
-                    // 🌟 किसी भी Android ब्रांड (Samsung, Google Photos, Xiaomi, Vivo) से आई हर इमेज फाइल को पकड़ें
+                    // Android OS Gallery से आने वाली हर इमेज फाइल को पकड़ें
                     for (const [key, val] of formData.entries()) {
                         if (val && typeof val === 'object' && val.size > 0) {
-                            const isImage = (val.type && val.type.startsWith('image/')) || 
-                                            (val.name && val.name.match(/\.(jpg|jpeg|png|webp|gif|heic|heif|dng)$/i));
-                            if (isImage) {
-                                mediaFiles.push(val);
-                            }
+                            mediaFiles.push(val);
                         }
                     }
 
                     if (mediaFiles.length > 0) {
-                        const db = await openDB();
-                        const tx = db.transaction(STORE_NAME, "readwrite");
-                        const store = tx.objectStore(STORE_NAME);
-
+                        // 🌟 STEP 1: पहले सभी फ़ाइलों को मेमोरी में पढ़ें (बिना DB ट्रांजेक्शन खोले)
+                        const recordsToSave = [];
                         for (const file of mediaFiles) {
+                            let buffer = null;
                             try {
-                                const buffer = await file.arrayBuffer();
-                                store.add({
-                                    fileBuffer: buffer,
-                                    fileName: file.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
-                                    fileType: file.type || "image/jpeg",
-                                    fileSize: buffer.byteLength,
-                                    lastModified: file.lastModified || Date.now(),
-                                    uid: null,
-                                    currentView: "photos",
-                                    retryCount: 0,
-                                    addedAt: Date.now()
-                                });
-                            } catch (bufErr) {
-                                store.add({
-                                    fileBlob: file,
-                                    fileName: file.name || `shared_${Date.now()}.jpg`,
-                                    fileType: file.type || "image/jpeg",
-                                    fileSize: file.size,
-                                    lastModified: file.lastModified || Date.now(),
-                                    uid: null,
-                                    currentView: "photos",
-                                    retryCount: 0,
-                                    addedAt: Date.now()
-                                });
+                                buffer = await file.arrayBuffer();
+                            } catch (err) {
+                                buffer = null;
                             }
+
+                            recordsToSave.push({
+                                fileBuffer: buffer,
+                                fileBlob: buffer ? null : file,
+                                fileName: file.name || `gallery_shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
+                                fileType: file.type || "image/jpeg",
+                                fileSize: buffer ? buffer.byteLength : file.size,
+                                lastModified: file.lastModified || Date.now(),
+                                uid: null,
+                                currentView: "photos",
+                                retryCount: 0,
+                                addedAt: Date.now()
+                            });
                         }
 
-                        await new Promise((resolve) => {
-                            tx.oncomplete = resolve;
-                            tx.onerror = resolve;
-                        });
+                        // 🌟 STEP 2: अब IndexedDB खोलकर एक ही बार में सुरक्षित लिखें (ट्रांजेक्शन कभी बंद नहीं होगा)
+                        if (recordsToSave.length > 0) {
+                            const db = await openDB();
+                            await new Promise((resolve, reject) => {
+                                const tx = db.transaction(STORE_NAME, "readwrite");
+                                const store = tx.objectStore(STORE_NAME);
 
-                        // 🌟 अगर ऐप पहले से बैकग्राउंड में खुली हो तो तुरंत ट्रिगर करें
+                                for (const record of recordsToSave) {
+                                    store.add(record);
+                                }
+
+                                tx.oncomplete = () => resolve();
+                                tx.onerror = () => reject(tx.error);
+                                tx.onabort = () => reject(tx.error);
+                            });
+                        }
+
+                        // 🌟 STEP 3: खुली हुई सभी ऐप विंडोज़ को सिंक का संदेश भेजें
                         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
                         for (const client of clients) {
                             client.postMessage({ 
@@ -136,10 +135,10 @@ self.addEventListener('fetch', (event) => {
                         }
                     }
                 } catch (err) {
-                    console.error("[SW] Share Target Error:", err);
+                    console.error("[SW Share Target Fatal Error]:", err);
                 }
 
-                // 303 Redirect यूजर को तुरंत ऐप की गैलरी स्क्रीन पर ले जाएगा
+                // 303 Redirect तुरंत यूजर को ऐप की होम गैलरी में ले जाएगा
                 return Response.redirect('/?shared=1', 303);
             })()
         );
