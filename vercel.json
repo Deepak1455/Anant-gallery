@@ -5,10 +5,6 @@
       "destination": "https://my-photo-d96e9.firebaseapp.com/__/auth/:path*"
     },
     {
-      "source": "/share-target",
-      "destination": "/api/upload"
-    },
-    {
       "source": "/.well-known/assetlinks.json",
       "destination": "/assetlinks.json"
     }
