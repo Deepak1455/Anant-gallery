@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - BULLETPROOF OFFLINE & SHARE TARGET ENGINE
+// ANANT GALLERY SERVICE WORKER - BULLETPROOF SHARE TARGET & OFFLINE ENGINE
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v7';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v5';
+const CACHE_VERSION = 'anant-shell-v8';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v6';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -62,19 +62,28 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// 3. FETCH CONTROLLER & WEB SHARE TARGET
+// --------------------------------------------------------------------------
+// 🌟 3. FETCH CONTROLLER & SMART UNIVERSAL SHARE TARGET
+// --------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // 🌟 A. WEB SHARE TARGET (फोन की गैलरी से "Share to Anant Gallery" वाला हैंडलर)
+    // A. WEB SHARE TARGET (फोन की गैलरी से "Share to Anant Gallery" का फुल-प्रूफ हैंडलर)
     if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
         event.respondWith(
             (async () => {
                 try {
                     const formData = await event.request.formData();
-                    const mediaFiles = formData.getAll('photos');
+                    const mediaFiles = [];
 
-                    if (mediaFiles && mediaFiles.length > 0) {
+                    // 🌟 किसी भी नाम (photos, file, image आदि) से आई हर इमेज फाइल को पकड़ें
+                    for (const [key, val] of formData.entries()) {
+                        if (val && typeof val === 'object' && val.size > 0) {
+                            mediaFiles.push(val);
+                        }
+                    }
+
+                    if (mediaFiles.length > 0) {
                         const db = await openDB();
                         const tx = db.transaction(STORE_NAME, "readwrite");
                         const store = tx.objectStore(STORE_NAME);
@@ -82,19 +91,18 @@ self.addEventListener('fetch', (event) => {
                         for (const file of mediaFiles) {
                             try {
                                 const buffer = await file.arrayBuffer();
-                                const cleanBlob = new Blob([buffer], { type: file.type || "image/jpeg" });
                                 store.add({
-                                    fileBlob: cleanBlob,
+                                    fileBuffer: buffer,
                                     fileName: file.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
                                     fileType: file.type || "image/jpeg",
-                                    fileSize: cleanBlob.size || file.size,
+                                    fileSize: buffer.byteLength,
                                     lastModified: file.lastModified || Date.now(),
                                     uid: null,
                                     currentView: "photos",
                                     retryCount: 0,
                                     addedAt: Date.now()
                                 });
-                            } catch (e) {
+                            } catch (bufErr) {
                                 store.add({
                                     fileBlob: file,
                                     fileName: file.name || `shared_${Date.now()}.jpg`,
@@ -113,6 +121,12 @@ self.addEventListener('fetch', (event) => {
                             tx.oncomplete = resolve;
                             tx.onerror = resolve;
                         });
+
+                        // 🌟 अगर ऐप पहले से बैकग्राउंड में खुली हो तो तुरंत ट्रिगर करें
+                        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+                        for (const client of clients) {
+                            client.postMessage({ action: 'trigger-sync' });
+                        }
                     }
                 } catch (err) {
                     console.error("[SW] Share Target Error:", err);
