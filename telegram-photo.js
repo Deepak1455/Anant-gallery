@@ -1,5 +1,5 @@
 // ==========================================================================
-// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (PRO UNLIMITED & FREE 15-LIMIT)
+// UNLIMITED ANANT CLOUD PHOTO UPLOAD MODULE (SMART, SMOOTH & ULTRA-FAST)
 // ==========================================================================
 import { db } from "./firebase-config.js";
 import { 
@@ -9,16 +9,12 @@ import {
     query,
     where,
     getDocs,
-    writeBatch,
     doc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { addToOfflineQueue } from "./offline-sync.js";
 import { isProUser, guardProFeature } from "./pro-manager.js";
 
-// 🌟 SECURE PROXY ENDPOINT
 const UPLOAD_API_ENDPOINT = "/api/upload";
-
-// 🌟 FREE TIER LIMIT (अधिकतम 15 फ़ोटो एक साथ)
 const FREE_BATCH_LIMIT = 15;
 
 // --------------------------------------------------------------------------
@@ -32,21 +28,21 @@ const photoCSS = `
         transform: translate3d(-50%, -120px, 0);
         width: 92%;
         max-width: 400px;
-        background: rgba(15, 23, 42, 0.94);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         color: #ffffff;
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 20px;
         padding: 12px 18px;
-        box-shadow: 0 14px 35px rgba(0, 0, 0, 0.35);
-        z-index: 9999;
+        box-shadow: 0 14px 35px rgba(0, 0, 0, 0.4);
+        z-index: 99999;
         display: flex;
         flex-direction: column;
         gap: 8px;
         opacity: 0;
         pointer-events: none;
-        transition: transform 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
         will-change: transform, opacity;
         user-select: none;
     }
@@ -132,9 +128,6 @@ const photoCSS = `
     }
 })();
 
-// --------------------------------------------------------------------------
-// 2. HELPER: EXTRACT USER METADATA (FOR ADMIN PANEL)
-// --------------------------------------------------------------------------
 function getUserMeta(user) {
     if (!user) return { userName: "Anonymous", userEmail: "cloud@user" };
     const name = user.displayName || (user.email ? user.email.split('@')[0] : "User");
@@ -142,9 +135,6 @@ function getUserMeta(user) {
     return { userName: name, userEmail: email };
 }
 
-// --------------------------------------------------------------------------
-// 3. PROGRESS BAR CONTROLLER
-// --------------------------------------------------------------------------
 function getTopProgressBar() {
     let topBar = document.getElementById("photoTopProgressBar");
     if (!topBar) {
@@ -157,7 +147,7 @@ function getTopProgressBar() {
                     <div class="photo-topbar-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
                     <div class="photo-topbar-text">
                         <span class="photo-topbar-title" id="photoUploadTitle">Anant Cloud Backup</span>
-                        <span class="photo-topbar-sub" id="photoUploadStatus">Optimizing HD photos...</span>
+                        <span class="photo-topbar-sub" id="photoUploadStatus">Optimizing photos...</span>
                     </div>
                 </div>
                 <div class="photo-topbar-percent" id="photoPercentText">0%</div>
@@ -199,21 +189,19 @@ function hideProgressModal() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 4. SMART COMPRESSION (Pro = Original 4K/RAW, Free = HD 1080p Smart Compression)
+// 🌟 2. SMART COMPRESSION (VERCEL 4.5MB LIMIT SAFE & ULTRA-CRISP QUALITY)
 // --------------------------------------------------------------------------
-async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
-    // 👑 Anant Pro: Zero Compression, Original Quality Backed up!
-    if (isProUser()) {
-        return file;
-    }
+async function smartCompressImage(file) {
+    const isPro = isProUser();
+    const maxDimension = isPro ? 3840 : 2048; // Pro: 4K, Free: 2K HD
+    const quality = isPro ? 0.90 : 0.82;
 
-    // 🆓 Free: If already small web image, don't recompress
-    if (file.size <= 350 * 1024 && (file.type === "image/jpeg" || file.type === "image/webp")) {
+    // अगर फाइल 2.5MB से कम है और सामान्य फॉर्मेट में है, तो कंप्रेस न करें
+    if (file.size <= 2.5 * 1024 * 1024 && (file.type === "image/jpeg" || file.type === "image/webp" || file.type === "image/png")) {
         return file;
     }
 
     try {
-        // Fast Method 1: Hardware-Accelerated createImageBitmap
         if (typeof createImageBitmap === 'function') {
             const bitmap = await createImageBitmap(file);
             let { width, height } = bitmap;
@@ -238,13 +226,12 @@ async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
             bitmap.close();
 
             const compressedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-            if (compressedBlob && compressedBlob.size < file.size) {
+            if (compressedBlob && compressedBlob.size <= 3.8 * 1024 * 1024) {
                 return compressedBlob;
             }
         }
     } catch (e) {}
 
-    // Method 2: Standard Image Object Fallback
     return new Promise((resolve) => {
         const url = URL.createObjectURL(file);
         const img = new Image();
@@ -271,7 +258,7 @@ async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
             ctx.drawImage(img, 0, 0, width, height);
 
             canvas.toBlob((blob) => {
-                resolve((blob && blob.size < file.size) ? blob : file);
+                resolve((blob && blob.size <= 3.8 * 1024 * 1024) ? blob : file);
             }, 'image/jpeg', quality);
         };
         img.onerror = () => {
@@ -282,9 +269,6 @@ async function smartCompressImage(file, maxDimension = 2048, quality = 0.85) {
     });
 }
 
-// --------------------------------------------------------------------------
-// 5. FAST FILE HASH & DUPLICATE CHECK
-// --------------------------------------------------------------------------
 export async function calculateFileHash(file) {
     const safeName = (file.name || 'photo').replace(/[^a-zA-Z0-9]/g, '');
     return `hash_${file.size}_${file.lastModified || 0}_${safeName}`;
@@ -341,105 +325,13 @@ export async function batchFilterDuplicates(files, currentUser) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 6. SENDMEDIAGROUP CHUNK UPLOAD (UP TO 10 PHOTOS IN 1 REQUEST)
-// --------------------------------------------------------------------------
-async function uploadMediaGroupChunk(chunkFiles, currentUser, currentView, onProgress) {
-    const compressionPromises = chunkFiles.map(file => smartCompressImage(file));
-    const compressedBlobs = await Promise.all(compressionPromises);
-
-    const hashPromises = chunkFiles.map(file => calculateFileHash(file));
-    const fileHashes = await Promise.all(hashPromises);
-
-    const formData = new FormData();
-    compressedBlobs.forEach((blob, idx) => {
-        const originalName = chunkFiles[idx].name || `photo_${idx}.jpg`;
-        formData.append('photos', blob, originalName);
-    });
-
-    const response = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable && onProgress) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                onProgress(percent);
-            }
-        };
-
-        xhr.onload = () => {
-            try {
-                const resJson = JSON.parse(xhr.responseText);
-                if (xhr.status === 200 && resJson.ok) {
-                    resolve(resJson);
-                } else {
-                    reject(new Error(resJson.error || `Upload failed (${xhr.status})`));
-                }
-            } catch (err) {
-                reject(new Error("Server returned invalid response"));
-            }
-        };
-
-        xhr.onerror = () => reject(new Error("Network connection error"));
-        xhr.open("POST", UPLOAD_API_ENDPOINT);
-        xhr.send(formData);
-    });
-
-    const { userName, userEmail } = getUserMeta(currentUser);
-
-    if (response.batch && Array.isArray(response.results)) {
-        const batch = writeBatch(db);
-
-        response.results.forEach((item, idx) => {
-            const originalFile = chunkFiles[idx] || {};
-            const docRef = doc(collection(db, "user_photos"));
-
-            batch.set(docRef, {
-                uid: currentUser.uid,
-                userName: userName,
-                userEmail: userEmail,
-                image: item.imageUrl,
-                fileId: item.fileId,
-                fileHash: fileHashes[idx],
-                fileSize: originalFile.size || 0,
-                createdAt: serverTimestamp(),
-                isFavorite: currentView === 'favorites',
-                isHidden: currentView === 'hidden',
-                isDeleted: false
-            });
-        });
-
-        await batch.commit();
-        return response.results.length;
-    } else if (response.fileId) {
-        await addDoc(collection(db, "user_photos"), {
-            uid: currentUser.uid,
-            userName: userName,
-            userEmail: userEmail,
-            image: response.imageUrl,
-            fileId: response.fileId,
-            fileHash: fileHashes[0],
-            fileSize: chunkFiles[0].size || 0,
-            createdAt: serverTimestamp(),
-            isFavorite: currentView === 'favorites',
-            isHidden: currentView === 'hidden',
-            isDeleted: false
-        });
-        return 1;
-    }
-
-    return 0;
-}
-
-// --------------------------------------------------------------------------
-// 🌟 7. MASTER BATCH CONTROLLER (FREE: 15 LIMIT, PRO: UNLIMITED)
+// 🌟 3. ULTRA-FAST BATCH CONTROLLER (2-PARALLEL PIPELINE, ZERO CRASH)
 // --------------------------------------------------------------------------
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
 
-    // 🔒 1. FREE USER BATCH LIMIT GUARD (Max 15 Photos for Free, Unlimited for Pro)
     if (!isProUser() && files.length > FREE_BATCH_LIMIT) {
         guardProFeature("Upload 15+ Photos Simultaneously with Anant Pro", () => {
-            // Callback: अगर यूज़र Pro ले लेता है तो अनरिस्ट्रिक्टेड अपलोड आगे बढ़ेगा
             uploadBatchPhotos(files, currentUser, currentView, showToast);
         });
         return;
@@ -465,60 +357,42 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         showToast(`Uploading ${totalFiles} photos (${skippedCount} duplicates skipped)`);
     }
 
-    showProgressModal(`Preparing Cloud Batch...`);
+    showProgressModal(`Starting Cloud Upload...`);
 
-    const CHUNK_SIZE = 10;
-    const chunks = [];
-    for (let i = 0; i < totalFiles; i += CHUNK_SIZE) {
-        chunks.push(uniqueFiles.slice(i, i + CHUNK_SIZE));
-    }
-
-    let processedCount = 0;
+    let completedCount = 0;
     let successfulUploads = 0;
 
-    for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
-        const currentChunk = chunks[chunkIdx];
+    // 🌟 2-Parallel Stream Worker: तेज अपलोड + फोन की रैम पर शून्य लोड
+    const CONCURRENCY = 2;
+    let fileIndex = 0;
 
-        try {
-            if (currentChunk.length === 1) {
-                const result = await uploadPhotoToTelegram(currentChunk[0], currentUser, currentView, null, {
+    async function worker() {
+        while (fileIndex < totalFiles) {
+            const currentIndex = fileIndex++;
+            const file = uniqueFiles[currentIndex];
+
+            try {
+                const res = await uploadPhotoToTelegram(file, currentUser, currentView, null, {
                     isQueueSync: true,
                     skipDuplicateCheck: true
                 });
-                if (result) successfulUploads++;
-                processedCount++;
-            } else {
-                const uploadedCount = await uploadMediaGroupChunk(
-                    currentChunk, 
-                    currentUser, 
-                    currentView, 
-                    (percent) => {
-                        const basePercent = Math.round((processedCount / totalFiles) * 100);
-                        const chunkContribution = Math.round((percent / 100) * (currentChunk.length / totalFiles) * 100);
-                        const totalPercent = Math.min(99, basePercent + chunkContribution);
-                        updateProgress(totalPercent, `Uploading Photos (${processedCount + currentChunk.length}/${totalFiles})...`);
-                    }
-                );
-                successfulUploads += uploadedCount;
-                processedCount += currentChunk.length;
+                if (res) successfulUploads++;
+            } catch (err) {
+                console.warn("[Upload Error on File]:", file.name, err);
+                await addToOfflineQueue(file, currentUser.uid, currentView, null);
             }
 
-            const overallPercent = Math.round((processedCount / totalFiles) * 100);
-            updateProgress(overallPercent, `Backed up ${processedCount}/${totalFiles} photos...`);
-
-        } catch (chunkErr) {
-            console.error("[Batch Chunk Error]:", chunkErr);
-            for (const file of currentChunk) {
-                try {
-                    await uploadPhotoToTelegram(file, currentUser, currentView, null, { isQueueSync: true, skipDuplicateCheck: true });
-                    successfulUploads++;
-                } catch {
-                    await addToOfflineQueue(file, currentUser.uid, currentView, null);
-                }
-                processedCount++;
-            }
+            completedCount++;
+            const percent = Math.round((completedCount / totalFiles) * 100);
+            updateProgress(percent, `Uploaded ${completedCount}/${totalFiles} photo(s)...`);
         }
     }
+
+    const workers = [];
+    for (let i = 0; i < Math.min(CONCURRENCY, totalFiles); i++) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
 
     hideProgressModal();
 
@@ -531,7 +405,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 }
 
 // --------------------------------------------------------------------------
-// 🌟 8. SINGLE PHOTO UPLOAD ENGINE
+// 🌟 4. SINGLE PHOTO UPLOAD ENGINE (SOLID RETRY & FIRESTORE INDEX)
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
@@ -554,8 +428,9 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
             showProgressModal(isProUser() ? "Securing 4K Original Photo..." : "Optimizing photo quality...");
         }
 
+        // कंप्रेस करके साइज को हमेशा 3.8MB से नीचे रखें
         const compressedFile = await smartCompressImage(file);
-        if (!options.isQueueSync) updateProgress(30, "Securing Anant Cloud Backup...");
+        if (!options.isQueueSync) updateProgress(35, "Connecting to Cloud Storage...");
 
         const { userName, userEmail } = getUserMeta(currentUser);
 
@@ -564,8 +439,8 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
 
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable && !options.isQueueSync) {
-                    const percent = 30 + Math.round((event.loaded / event.total) * 60);
-                    updateProgress(percent, "Uploading to Telegram Cloud...");
+                    const percent = 35 + Math.round((event.loaded / event.total) * 55);
+                    updateProgress(percent, "Uploading to Cloud...");
                 }
             };
 
@@ -601,7 +476,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                             updateProgress(100, "Done!");
                             setTimeout(() => {
                                 hideProgressModal();
-                                if (showToast) showToast(isProUser() ? "4K Photo backed up in Original Quality! 👑" : "Photo backed up securely!");
+                                if (showToast) showToast("Photo backed up securely! ⚡");
                             }, 250);
                         }
 
