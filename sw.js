@@ -1,14 +1,13 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - ULTRA FAST CACHING, OFFLINE ENGINE & PWA SYNC
+// ANANT GALLERY SERVICE WORKER - PWABUILDER 100% OFFLINE ENGINE
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v2';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v1';
+const CACHE_VERSION = 'anant-shell-v3';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v2';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
 
-// 🌟 App Shell Precaching (Offline Support & Instant Load)
 const PRECACHE_ASSETS = [
     '/',
     '/index.html',
@@ -16,6 +15,8 @@ const PRECACHE_ASSETS = [
     '/app.js',
     '/manifest.json',
     '/loadingphoto.png',
+    '/icon-192.png',
+    '/icon-512.png',
     '/privacy.html'
 ];
 
@@ -33,22 +34,16 @@ function openDB() {
     });
 }
 
-// --------------------------------------------------------------------------
-// 1. INSTALL LIFECYCLE (Precaching App Shell)
-// --------------------------------------------------------------------------
+// 1. INSTALL
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_VERSION).then((cache) => {
-            return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-                console.warn('[SW] Precache soft-warning:', err);
-            });
+            return cache.addAll(PRECACHE_ASSETS);
         }).then(() => self.skipWaiting())
     );
 });
 
-// --------------------------------------------------------------------------
-// 2. ACTIVATE LIFECYCLE (Cache Cleanup & Immediate Control)
-// --------------------------------------------------------------------------
+// 2. ACTIVATE
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
@@ -63,13 +58,11 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// --------------------------------------------------------------------------
-// 3. FETCH CONTROLLER (SMART CACHING + OFFLINE FALLBACK + SHARE TARGET)
-// --------------------------------------------------------------------------
+// 3. FETCH (GUARANTEED OFFLINE SUPPORT FOR PWABUILDER)
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // 🚀 A. WEB SHARE TARGET HANDLER (Mobile Direct Gallery Share)
+    // A. Web Share Target
     if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
         event.respondWith(
             (async () => {
@@ -104,14 +97,25 @@ self.addEventListener('fetch', (event) => {
                 } catch (err) {
                     console.error("[SW Share Target Error]:", err);
                 }
-
                 return Response.redirect('/', 303);
             })()
         );
         return;
     }
 
-    // 🚀 B. SMART CACHE-FIRST FOR IMAGES (Zero Extra Calls to Cloudflare)
+    // B. Navigation Fallback (Offline Proof)
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request).catch(async () => {
+                const cache = await caches.open(CACHE_VERSION);
+                const cachedIndex = await cache.match('/index.html') || await cache.match('/');
+                return cachedIndex || new Response('Offline', { status: 200, headers: { 'Content-Type': 'text/html' } });
+            })
+        );
+        return;
+    }
+
+    // C. Images Cache
     const isImageFetch = 
         event.request.method === 'GET' && 
         (url.hostname.includes('workers.dev') || url.pathname.startsWith('/api/upload'));
@@ -120,9 +124,7 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
                 const cachedResponse = await cache.match(event.request);
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
+                if (cachedResponse) return cachedResponse;
 
                 try {
                     const networkResponse = await fetch(event.request);
@@ -131,18 +133,18 @@ self.addEventListener('fetch', (event) => {
                     }
                     return networkResponse;
                 } catch (err) {
-                    return cachedResponse || new Response('Offline Image', { status: 503 });
+                    return cachedResponse || new Response('Offline', { status: 503 });
                 }
             })
         );
         return;
     }
 
-    // 🚀 C. STALE-WHILE-REVALIDATE FOR APP SHELL & OFFLINE NAVIGATION
+    // D. Static Assets Cache First
     if (event.request.method === 'GET') {
         event.respondWith(
             caches.match(event.request).then((cachedResponse) => {
-                const fetchPromise = fetch(event.request).then((networkResponse) => {
+                return cachedResponse || fetch(event.request).then((networkResponse) => {
                     if (networkResponse && networkResponse.status === 200 && event.request.url.startsWith(self.location.origin)) {
                         const responseToCache = networkResponse.clone();
                         caches.open(CACHE_VERSION).then((cache) => {
@@ -150,29 +152,18 @@ self.addEventListener('fetch', (event) => {
                         });
                     }
                     return networkResponse;
-                }).catch(() => {
-                    // अगर यूजर ऑफलाइन है और नया पेज लोड कर रहा है
-                    if (event.request.mode === 'navigate') {
-                        return caches.match('/index.html');
-                    }
                 });
-
-                return cachedResponse || fetchPromise;
             })
         );
     }
 });
 
-// --------------------------------------------------------------------------
-// 4. BACKGROUND SYNC & PERIODIC SYNC (PWABUILDER GREEN BADGES)
-// --------------------------------------------------------------------------
+// 4. BACKGROUND SYNC & PUSH
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-photos') {
         event.waitUntil(
             self.clients.matchAll().then((clients) => {
-                clients.forEach((client) => {
-                    client.postMessage({ action: 'trigger-sync' });
-                });
+                clients.forEach(client => client.postMessage({ action: 'trigger-sync' }));
             })
         );
     }
@@ -182,44 +173,4 @@ self.addEventListener('periodicsync', (event) => {
     if (event.tag === 'check-cloud-updates') {
         event.waitUntil(Promise.resolve());
     }
-});
-
-// --------------------------------------------------------------------------
-// 5. PUSH NOTIFICATIONS HANDLER
-// --------------------------------------------------------------------------
-self.addEventListener('push', (event) => {
-    if (!event.data) return;
-    try {
-        const data = event.data.json();
-        const options = {
-            body: data.body || "New memories backed up to Anant Cloud!",
-            icon: "/loadingphoto.png",
-            badge: "/loadingphoto.png",
-            vibrate: [100, 50, 100],
-            data: { url: data.url || "/" }
-        };
-        event.waitUntil(
-            self.registration.showNotification(data.title || "Anant Gallery", options)
-        );
-    } catch (e) {
-        const text = event.data.text();
-        event.waitUntil(
-            self.registration.showNotification("Anant Gallery", {
-                body: text,
-                icon: "/loadingphoto.png"
-            })
-        );
-    }
-});
-
-self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            if (clientList.length > 0) {
-                return clientList[0].focus();
-            }
-            return clients.openWindow(event.notification.data?.url || '/');
-        })
-    );
 });
