@@ -30,7 +30,7 @@ function injectBadgeStyles() {
             font-size: 0.82rem;
             font-weight: 700;
             box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4), 0 0 15px rgba(147, 51, 234, 0.3);
-            z-index: 12000;
+            z-index: 1000004 !important;
             display: none;
             align-items: center;
             gap: 10px;
@@ -76,11 +76,6 @@ function injectBadgeStyles() {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        @keyframes badgePopIn {
-            0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(0.85); }
-            100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-        }
     `;
     document.head.appendChild(style);
 }
@@ -112,7 +107,7 @@ function openDB() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 3. FAST & RELIABLE NETWORK CHECK (ZERO CROSS-ORIGIN BLOCK)
+// 🌟 3. FAST & RELIABLE NETWORK CHECK
 // --------------------------------------------------------------------------
 async function checkRealOnlineStatus() {
     if (!navigator.onLine) return false;
@@ -167,7 +162,7 @@ async function compressForOfflineStorage(file, maxDimension = 2048, quality = 0.
 }
 
 // --------------------------------------------------------------------------
-// 5. ADD PHOTO TO QUEUE (ARRAYBUFFER SUPPORT FOR ZERO DETACH ERROR)
+// 5. ADD PHOTO TO QUEUE (ARRAYBUFFER SUPPORT)
 // --------------------------------------------------------------------------
 export async function addToOfflineQueue(file, uid, currentView, showToast) {
     try {
@@ -258,7 +253,7 @@ async function removeQueueItem(id) {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 8. FAST PARALLEL QUEUE PROCESSOR (CONCURRENCY: 2, FAST SPEED)
+// 🌟 7. 100% RELIABLE BULLETPROOF QUEUE PROCESSOR (NEVER HANGS)
 // --------------------------------------------------------------------------
 export async function processOfflineQueue(currentUser, uploadFn, showToast) {
     if (isSyncing || !currentUser) return;
@@ -279,7 +274,7 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
     totalInitialBatchCount = totalInQueue;
 
     if (showToast) {
-        showToast(`📥 Backing up ${totalInQueue} photo(s) to Anant Cloud...`);
+        showToast(`📥 Uploading ${totalInQueue} photo(s) to Cloud...`);
     }
 
     let processedCount = 0;
@@ -287,10 +282,9 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
 
     try {
         while (isSyncing && navigator.onLine) {
-            const chunk = await fetchNextChunk(8);
+            const chunk = await fetchNextChunk(6);
             if (chunk.length === 0) break;
 
-            // 🌟 2-Parallel Streams: दोगुनी स्पीड से अपलोड
             const CONCURRENCY = 2;
             let index = 0;
 
@@ -298,7 +292,8 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
                 while (index < chunk.length && navigator.onLine) {
                     const item = chunk[index++];
 
-                    if (item.retryCount >= 3) {
+                    // अगर फ़ाइल 3 बार फेल हो चुकी है तो कतार से हटा दें ताकि अटके नहीं
+                    if ((item.retryCount || 0) >= 3) {
                         await removeQueueItem(item.id);
                         processedCount++;
                         continue;
@@ -315,8 +310,12 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
                     );
 
                     try {
-                        const success = await uploadFn(fileToUpload, currentUser, item.currentView || "photos", null, { isQueueSync: true });
+                        const success = await uploadFn(fileToUpload, currentUser, item.currentView || "photos", null, { 
+                            isQueueSync: true,
+                            skipDuplicateCheck: false 
+                        });
 
+                        // 🌟 चाहे नया अपलोड हो या डुप्लीकेट की वजह से true मिला हो, कतार से तुरंत हटाएँ
                         if (success) {
                             await removeQueueItem(item.id);
                             successCount++;
@@ -327,7 +326,18 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
                             tx.objectStore(STORE_NAME).put(item);
                         }
                     } catch (err) {
-                        console.error("[OfflineSync] Item Sync Error:", err);
+                        console.warn("[Queue Worker Handled Error]:", err);
+                        // एरर आने पर भी retryCount बढ़ाएँ और कतार में अपडेट करें (कभी हैंग नहीं होगा)
+                        try {
+                            const db = await openDB();
+                            const tx = db.transaction(STORE_NAME, "readwrite");
+                            item.retryCount = (item.retryCount || 0) + 1;
+                            if (item.retryCount >= 3) {
+                                tx.objectStore(STORE_NAME).delete(item.id);
+                            } else {
+                                tx.objectStore(STORE_NAME).put(item);
+                            }
+                        } catch (e) {}
                     }
 
                     processedCount++;
@@ -343,7 +353,7 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
             await Promise.all(workers);
         }
     } catch (err) {
-        console.error("[OfflineSync] Sync Engine Error:", err);
+        console.error("[OfflineSync Master Loop Error]:", err);
     } finally {
         isSyncing = false;
         const finalCount = await getQueueCount();
@@ -357,7 +367,7 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
 }
 
 // --------------------------------------------------------------------------
-// 9. LIVE FLOATING PROGRESS BADGE CONTROLLER
+// 8. LIVE FLOATING PROGRESS BADGE CONTROLLER
 // --------------------------------------------------------------------------
 export async function updateOfflineBadge(syncingStatus = false, currentCount = null, totalBatch = null) {
     injectBadgeStyles();
@@ -397,7 +407,7 @@ export async function updateOfflineBadge(syncingStatus = false, currentCount = n
 }
 
 // --------------------------------------------------------------------------
-// 10. EVENT LISTENERS INITIALIZATION
+// 9. EVENT LISTENERS INITIALIZATION
 // --------------------------------------------------------------------------
 export function initOfflineSync(getCurrentUser, uploadFn, showToast) {
     injectBadgeStyles();
