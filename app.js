@@ -997,57 +997,37 @@ if (fileInputEl) {
         e.target.value = '';
     });
 }
-
 // --------------------------------------------------------------------------
 // 🌟 11. ANDROID GALLERY SHARE-TARGET RECEIVER & INSTANT SYNC ENGINE
 // --------------------------------------------------------------------------
-let isSharedIncoming = window.location.search.includes('shared=1');
-
 function checkIncomingSharedPhotos() {
-    if (!isSharedIncoming) return;
+    const isShared = window.location.search.includes('shared=1');
+    if (!isShared) return;
 
-    // जब तक Firebase User Login नहीं हो जाता, तब तक इंतज़ार करें
-    const waitForAuthAndUpload = () => {
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    const triggerUpload = () => {
         if (currentUser) {
-            isSharedIncoming = false;
-            window.history.replaceState({}, document.title, window.location.pathname);
-            showToast("📥 Photos received from Gallery! Starting Cloud Backup...");
-
+            showToast("📥 Gallery photo received! Starting Cloud Upload... ⚡");
             setTimeout(() => {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-            }, 600);
+            }, 300);
         } else {
-            setTimeout(waitForAuthAndUpload, 300);
+            setTimeout(triggerUpload, 200);
         }
     };
 
-    waitForAuthAndUpload();
+    triggerUpload();
 }
 
-// सर्विस वर्कर का इंस्टेंट मैसेज पकड़ें
+// सर्विस वर्कर का इंस्टेंट ट्रिगर
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync') {
-            const triggerSync = () => {
-                if (currentUser) {
-                    const count = event.data.sharedCount || "";
-                    showToast(`📥 ${count ? count + ' ' : ''}Photos received from Gallery! Uploading...`);
-                    processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-                } else {
-                    setTimeout(triggerSync, 400);
-                }
-            };
-            triggerSync();
+            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) received from Gallery! Uploading...`);
+            if (currentUser) {
+                processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
+            }
         }
     });
 }
-
-// जब ऐप को मिनिमाइज़ से दोबारा खोला जाए
-window.addEventListener('focus', () => {
-    if (currentUser) {
-        processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-    }
-});
-
-// ऑटो-चेक चलाएं
-checkIncomingSharedPhotos();
