@@ -2,8 +2,8 @@
 // ANANT GALLERY SERVICE WORKER - PWABUILDER 100% OFFLINE ENGINE
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v3';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v2';
+const CACHE_VERSION = 'anant-shell-v4';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v3';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -58,7 +58,7 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// 3. FETCH (GUARANTEED OFFLINE SUPPORT FOR PWABUILDER)
+// 3. FETCH (GUARANTEED OFFLINE FALLBACK FOR PWABUILDER AUDIT)
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
@@ -103,14 +103,26 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // B. Navigation Fallback (Offline Proof)
+    // B. Navigation Fallback (PWABuilder Offline Test Match)
     if (event.request.mode === 'navigate') {
         event.respondWith(
-            fetch(event.request).catch(async () => {
-                const cache = await caches.open(CACHE_VERSION);
-                const cachedIndex = await cache.match('/index.html') || await cache.match('/');
-                return cachedIndex || new Response('Offline', { status: 200, headers: { 'Content-Type': 'text/html' } });
-            })
+            (async () => {
+                try {
+                    const networkResponse = await fetch(event.request);
+                    if (networkResponse && networkResponse.status === 200) {
+                        const cache = await caches.open(CACHE_VERSION);
+                        cache.put(event.request, networkResponse.clone());
+                    }
+                    return networkResponse;
+                } catch (error) {
+                    const cache = await caches.open(CACHE_VERSION);
+                    const cachedResponse = await cache.match('/index.html') || await cache.match('/');
+                    return cachedResponse || new Response('<!DOCTYPE html><html><body>Offline</body></html>', {
+                        status: 200,
+                        headers: { 'Content-Type': 'text/html' }
+                    });
+                }
+            })()
         );
         return;
     }
@@ -133,7 +145,7 @@ self.addEventListener('fetch', (event) => {
                     }
                     return networkResponse;
                 } catch (err) {
-                    return cachedResponse || new Response('Offline', { status: 503 });
+                    return cachedResponse || new Response('Offline Image', { status: 503 });
                 }
             })
         );
@@ -158,7 +170,7 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-// 4. BACKGROUND SYNC & PUSH
+// 4. BACKGROUND SYNC & PUSH NOTIFICATIONS
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-photos') {
         event.waitUntil(
@@ -173,4 +185,38 @@ self.addEventListener('periodicsync', (event) => {
     if (event.tag === 'check-cloud-updates') {
         event.waitUntil(Promise.resolve());
     }
+});
+
+self.addEventListener('push', (event) => {
+    if (!event.data) return;
+    try {
+        const data = event.data.json();
+        const options = {
+            body: data.body || "New memories backed up to Anant Cloud!",
+            icon: "/icon-192.png",
+            badge: "/icon-192.png",
+            vibrate: [100, 50, 100],
+            data: { url: data.url || "/" }
+        };
+        event.waitUntil(
+            self.registration.showNotification(data.title || "Anant Gallery", options)
+        );
+    } catch (e) {
+        event.waitUntil(
+            self.registration.showNotification("Anant Gallery", {
+                body: event.data.text(),
+                icon: "/icon-192.png"
+            })
+        );
+    }
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            if (clientList.length > 0) return clientList[0].focus();
+            return clients.openWindow(event.notification.data?.url || '/');
+        })
+    );
 });
