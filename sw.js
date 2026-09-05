@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - BULLETPROOF SINGLE-WINDOW & TWA SHARE TARGET
+// ANANT GALLERY SERVICE WORKER - ANDROID STREAMING SHARE ENGINE v22
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v21';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v21';
+const CACHE_VERSION = 'anant-shell-v22';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v22';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -34,20 +34,16 @@ function openDB() {
     });
 }
 
-// 1. INSTALL
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_VERSION).then(async (cache) => {
             for (const asset of PRECACHE_ASSETS) {
-                try {
-                    await cache.add(asset);
-                } catch (e) {}
+                try { await cache.add(asset); } catch (e) {}
             }
         }).then(() => self.skipWaiting())
     );
 });
 
-// 2. ACTIVATE & CLEANUP OLD CACHES
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
@@ -62,199 +58,90 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// --------------------------------------------------------------------------
-// 🌟 3. BULLETPROOF ANDROID GALLERY SHARE TARGET HANDLER (APK & CHROME COMPLIANT)
-// --------------------------------------------------------------------------
+// 🌟 100% BULLETPROOF ANDROID SHARE INTERCEPTOR
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // A. ANDROID GALLERY SHARE TARGET HANDLER
-    if (event.request.method === 'POST' && (url.pathname === '/share-target' || url.pathname.includes('share-target'))) {
+    if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
         event.respondWith(
             (async () => {
                 try {
                     const formData = await event.request.formData();
-                    const mediaFiles = [];
+                    const recordsToSave = [];
 
-                    // Android Phone Gallery से आ रही सभी इमेज फ़ाइलें निकालें
                     for (const [key, val] of formData.entries()) {
-                        if (val && typeof val === 'object' && val.size > 0) {
-                            mediaFiles.push(val);
+                        // किसी भी प्रकार की इमेज फ़ाइल को पकड़ें (size चेक किए बिना)
+                        if (val && (typeof val === 'object' || val instanceof Blob)) {
+                            let buffer = null;
+                            try {
+                                // Android Stream को सुरक्षित ArrayBuffer में बदलें
+                                buffer = await new Response(val).arrayBuffer();
+                            } catch (e) {
+                                try { buffer = await val.arrayBuffer(); } catch (err) {}
+                            }
+
+                            if (buffer && buffer.byteLength > 0) {
+                                recordsToSave.push({
+                                    fileBuffer: buffer,
+                                    fileName: val.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
+                                    fileType: val.type || "image/jpeg",
+                                    fileSize: buffer.byteLength,
+                                    lastModified: Date.now(),
+                                    uid: null,
+                                    currentView: "photos",
+                                    retryCount: 0,
+                                    addedAt: Date.now()
+                                });
+                            }
                         }
                     }
 
-                    if (mediaFiles.length > 0) {
-                        // 1. फ़ाइलों को सुरक्षित मेमोरी में पढ़ें
-                        const recordsToSave = [];
-                        for (const file of mediaFiles) {
-                            let buffer = null;
-                            try {
-                                buffer = await file.arrayBuffer();
-                            } catch (err) {
-                                buffer = null;
-                            }
+                    // IndexedDB में तुरंत सेव करें
+                    if (recordsToSave.length > 0) {
+                        const db = await openDB();
+                        await new Promise((resolve, reject) => {
+                            const tx = db.transaction(STORE_NAME, "readwrite");
+                            const store = tx.objectStore(STORE_NAME);
+                            for (const r of recordsToSave) store.add(r);
+                            tx.oncomplete = () => resolve();
+                            tx.onerror = () => reject(tx.error);
+                        });
 
-                            recordsToSave.push({
-                                fileBuffer: buffer,
-                                fileBlob: buffer ? null : file,
-                                fileName: file.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
-                                fileType: file.type || "image/jpeg",
-                                fileSize: buffer ? buffer.byteLength : file.size,
-                                lastModified: file.lastModified || Date.now(),
-                                uid: null,
-                                currentView: "photos",
-                                retryCount: 0,
-                                addedAt: Date.now()
-                            });
-                        }
-
-                        // 2. IndexedDB में बिना अटके सुरक्षित लिखें
-                        if (recordsToSave.length > 0) {
-                            const db = await openDB();
-                            await new Promise((resolve, reject) => {
-                                const tx = db.transaction(STORE_NAME, "readwrite");
-                                const store = tx.objectStore(STORE_NAME);
-
-                                for (const record of recordsToSave) {
-                                    store.add(record);
-                                }
-
-                                tx.oncomplete = () => resolve();
-                                tx.onerror = () => reject(tx.error);
-                                tx.onabort = () => reject(tx.error);
-                            });
-                        }
-
-                        // 3. अगर ऐप पहले से खुली है तो उसी पर फ़ोकस कराएं
+                        // खुली हुई स्क्रीन को तुरंत अपलोड करने का आदेश दें
                         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-                        const openAppClient = clients.find(c => c.url.includes(self.location.origin) && !c.url.includes('share-target'));
-
-                        if (openAppClient) {
-                            if ('focus' in openAppClient) {
-                                await openAppClient.focus();
-                            }
-                            openAppClient.postMessage({ 
-                                action: 'trigger-sync',
-                                sharedCount: mediaFiles.length 
-                            });
+                        const openApp = clients.find(c => c.url.includes(self.location.origin) && !c.url.includes('share-target'));
+                        if (openApp) {
+                            openApp.postMessage({ action: 'trigger-sync', sharedCount: recordsToSave.length });
                         }
                     }
                 } catch (err) {
-                    console.error("[SW Share Target Error Handled]:", err);
+                    console.error("[SW Share Target Error]:", err);
                 }
 
-                // 🌟 जादुई सुधार: फर्जी HTML window.close() हटाकर सीधा HTTP 303 Redirect
-                // इससे Android APK तुरंत गैलरी लोड कर लेता है और कभी खाली डुप्लीकेट विंडो नहीं बनती!
+                // Android TWA को तुरंत मुख्य गैलरी पेज पर भेजें
                 return Response.redirect('/?shared=1', 303);
             })()
         );
         return;
     }
 
-    // B. Navigation & HTML Offline Fallback
+    // सामान्य नेविगेशन
     if (event.request.mode === 'navigate' || (event.request.method === 'GET' && event.request.headers.get('accept')?.includes('text/html'))) {
         event.respondWith(
             fetch(event.request).catch(async () => {
                 const cache = await caches.open(CACHE_VERSION);
-                return (await cache.match('/index.html')) || (await cache.match('/')) || new Response(
-                    '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Anant Gallery</title></head><body style="background:#090d16; color:#fff; display:flex; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; text-align:center;"><div><h2>You are offline</h2><p>Please check your connection.</p></div></body></html>',
-                    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-                );
+                return (await cache.match('/index.html')) || (await cache.match('/'));
             })
         );
         return;
     }
 
-    // C. Images Cache
-    const isImageFetch = 
-        event.request.method === 'GET' && 
-        (url.hostname.includes('workers.dev') || url.pathname.startsWith('/api/upload'));
-
-    if (isImageFetch) {
-        event.respondWith(
-            caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
-                const cachedResponse = await cache.match(event.request);
-                if (cachedResponse) return cachedResponse;
-
-                try {
-                    const networkResponse = await fetch(event.request);
-                    if (networkResponse && networkResponse.status === 200) {
-                        cache.put(event.request, networkResponse.clone());
-                    }
-                    return networkResponse;
-                } catch (err) {
-                    return cachedResponse || new Response('Offline Image', { status: 503 });
-                }
-            })
-        );
-        return;
-    }
-
-    // D. Static Assets Cache
+    // इमेज और बाकी फाइल्स
     if (event.request.method === 'GET') {
         event.respondWith(
             caches.match(event.request).then((cachedResponse) => {
-                return cachedResponse || fetch(event.request).then((networkResponse) => {
-                    if (networkResponse && networkResponse.status === 200 && event.request.url.startsWith(self.location.origin)) {
-                        const responseToCache = networkResponse.clone();
-                        caches.open(CACHE_VERSION).then((cache) => {
-                            cache.put(event.request, responseToCache);
-                        });
-                    }
-                    return networkResponse;
-                });
+                return cachedResponse || fetch(event.request);
             })
         );
     }
-});
-
-// 4. SYNC & PUSH
-self.addEventListener('sync', (event) => {
-    if (event.tag === 'sync-photos') {
-        event.waitUntil(
-            self.clients.matchAll().then((clients) => {
-                clients.forEach(client => client.postMessage({ action: 'trigger-sync' }));
-            })
-        );
-    }
-});
-
-self.addEventListener('periodicsync', (event) => {
-    if (event.tag === 'check-cloud-updates') {
-        event.waitUntil(Promise.resolve());
-    }
-});
-
-self.addEventListener('push', (event) => {
-    if (!event.data) return;
-    try {
-        const data = event.data.json();
-        const options = {
-            body: data.body || "New memories backed up to Anant Cloud!",
-            icon: "/icon-192.png",
-            badge: "/icon-192.png",
-            vibrate: [100, 50, 100],
-            data: { url: data.url || "/" }
-        };
-        event.waitUntil(
-            self.registration.showNotification(data.title || "Anant Gallery", options)
-        );
-    } catch (e) {
-        event.waitUntil(
-            self.registration.showNotification("Anant Gallery", {
-                body: event.data.text(),
-                icon: "/icon-192.png"
-            })
-        );
-    }
-});
-
-self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            if (clientList.length > 0) return clientList[0].focus();
-            return clients.openWindow(event.notification.data?.url || '/');
-        })
-    );
 });
