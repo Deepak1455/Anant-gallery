@@ -1070,6 +1070,7 @@ function multiDeletePerm() {
     });
 }
 
+// --------------------------------------------------------------------------
 // 🌟 SMART SHARE-TARGET RECEIVER & FILE UPLOAD ENGINE
 // --------------------------------------------------------------------------
 function getOrCreateFileInput() {
@@ -1115,17 +1116,23 @@ function checkIncomingSharedPhotos() {
     if (window.location.search.includes('shared=1')) {
         window.history.replaceState({}, document.title, window.location.pathname);
         showToast("📥 Photos received from Gallery! Starting Cloud Backup...");
-        if (currentUser) {
-            setTimeout(() => {
+        
+        const trySync = () => {
+            if (currentUser) {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-            }, 500);
-        }
+            } else {
+                setTimeout(trySync, 800);
+            }
+        };
+        setTimeout(trySync, 400);
     }
 }
 
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync' && currentUser) {
+            const count = event.data.sharedCount || "";
+            showToast(`📥 ${count ? count + ' ' : ''}Photos received from Gallery! Uploading...`);
             processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
         }
     });
