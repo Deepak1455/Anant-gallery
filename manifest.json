@@ -17,7 +17,11 @@
   "orientation": "portrait",
   "background_color": "#090d16",
   "theme_color": "#000000",
-  "categories": ["photos", "productivity", "utilities"],
+  "categories": [
+    "photos",
+    "productivity",
+    "utilities"
+  ],
   "launch_handler": {
     "client_mode": "auto"
   },
@@ -67,21 +71,36 @@
       "short_name": "Albums",
       "description": "View albums and collections",
       "url": "/?view=albums",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Favorites",
       "short_name": "Favorites",
       "description": "View favorite photos",
       "url": "/?view=favorites",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Private Vault",
       "short_name": "Vault",
       "description": "Secure private locked photos",
       "url": "/?view=hidden",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
   "share_target": {
@@ -89,12 +108,34 @@
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
-      "title": "name",
-      "text": "description",
+      "title": "title",
+      "text": "text",
       "files": [
         {
           "name": "photos",
-          "accept": ["image/*"]
+          "accept": [
+            "image/*",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".gif",
+            ".heic",
+            ".heif",
+            ".dng"
+          ]
+        },
+        {
+          "name": "media",
+          "accept": [
+            "image/*"
+          ]
+        },
+        {
+          "name": "files",
+          "accept": [
+            "image/*"
+          ]
         }
       ]
     }
@@ -103,7 +144,16 @@
     {
       "action": "/",
       "accept": {
-        "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic"]
+        "image/*": [
+          ".jpg",
+          ".jpeg",
+          ".png",
+          ".webp",
+          ".gif",
+          ".heic",
+          ".heif",
+          ".dng"
+        ]
       }
     }
   ],
