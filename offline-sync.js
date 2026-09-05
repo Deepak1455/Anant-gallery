@@ -1,5 +1,5 @@
 // ==========================================================================
-// ULTRA-SCALABLE OFFLINE SYNC ENGINE (HIGH PERFORMANCE & ZERO RAM CRASH)
+// ULTRA-SCALABLE OFFLINE SYNC ENGINE (SMART, SMOOTH & ULTRA-FAST 60FPS)
 // ==========================================================================
 
 const DB_NAME = "GalleryOfflineDB";
@@ -23,20 +23,20 @@ function injectBadgeStyles() {
             position: fixed;
             bottom: 25px;
             right: 20px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
             color: #ffffff;
             padding: 10px 18px;
             border-radius: 30px;
             font-size: 0.82rem;
             font-weight: 700;
-            box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4), 0 0 15px rgba(245, 158, 11, 0.2);
-            z-index: 1200;
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4), 0 0 15px rgba(147, 51, 234, 0.3);
+            z-index: 12000;
             display: none;
             align-items: center;
             gap: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
             transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
             will-change: transform, opacity;
             user-select: none;
@@ -44,8 +44,8 @@ function injectBadgeStyles() {
         }
 
         #offlineQueueBadge.syncing {
-            background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
-            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4), 0 0 15px rgba(147, 51, 234, 0.3);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
             border-color: rgba(255, 255, 255, 0.35);
         }
 
@@ -112,33 +112,27 @@ function openDB() {
 }
 
 // --------------------------------------------------------------------------
-// 3. SMART ACTIVE NETWORK CHECK
+// 🌟 3. FAST & RELIABLE NETWORK CHECK (ZERO CROSS-ORIGIN BLOCK)
 // --------------------------------------------------------------------------
 async function checkRealOnlineStatus() {
     if (!navigator.onLine) return false;
     try {
-        await fetch("https://www.google.com/favicon.ico", {
-            method: "HEAD",
-            mode: "no-cors",
-            cache: "no-store"
-        });
-        return true;
+        const res = await fetch("/loadingphoto.png", { method: "HEAD", cache: "no-store" });
+        return res.ok;
     } catch {
-        return false;
+        return navigator.onLine;
     }
 }
 
 // --------------------------------------------------------------------------
-// 🌟 4. ULTRA-FAST & LIGHTWEIGHT PRE-COMPRESSION (PREVENTS STORAGE OVERFLOW)
+// 🌟 4. ULTRA-FAST MEMORY-SAFE COMPRESSION
 // --------------------------------------------------------------------------
 async function compressForOfflineStorage(file, maxDimension = 2048, quality = 0.85) {
-    // If file is already small (<400KB) and JPEG/WEBP, store directly
     if (file.size <= 400 * 1024 && (file.type === "image/jpeg" || file.type === "image/webp")) {
         return file;
     }
 
     try {
-        // Fast Method 1: createImageBitmap (Hardware accelerated, zero memory spike)
         if (typeof createImageBitmap === 'function') {
             const bitmap = await createImageBitmap(file);
             let { width, height } = bitmap;
@@ -160,79 +154,37 @@ async function compressForOfflineStorage(file, maxDimension = 2048, quality = 0.
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(bitmap, 0, 0, width, height);
-            bitmap.close(); // Clean up GPU memory immediately
+            bitmap.close();
 
             const compressedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
             if (compressedBlob && compressedBlob.size < file.size) {
                 return compressedBlob;
             }
         }
-    } catch (e) {
-        // Fallback to Image Object
-    }
+    } catch (e) {}
 
-    // Method 2: Standard Image Object with ObjectURL
-    return new Promise((resolve) => {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            let { width, height } = img;
-
-            if (width > maxDimension || height > maxDimension) {
-                if (width > height) {
-                    height = Math.round((height * maxDimension) / width);
-                    width = maxDimension;
-                } else {
-                    width = Math.round((width * maxDimension) / height);
-                    height = maxDimension;
-                }
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0, width, height);
-
-            canvas.toBlob((blob) => {
-                if (blob && blob.size < file.size) {
-                    resolve(blob);
-                } else {
-                    resolve(file);
-                }
-            }, 'image/jpeg', quality);
-        };
-        img.onerror = () => {
-            URL.revokeObjectURL(url);
-            resolve(file);
-        };
-        img.src = url;
-    });
+    return file;
 }
 
 // --------------------------------------------------------------------------
-// 5. ADD PHOTO TO QUEUE (SMART COMPRESSED FOR ULTRA-LOW RAM USAGE)
+// 5. ADD PHOTO TO QUEUE (ARRAYBUFFER SUPPORT FOR ZERO DETACH ERROR)
 // --------------------------------------------------------------------------
 export async function addToOfflineQueue(file, uid, currentView, showToast) {
     try {
         injectBadgeStyles();
-
-        // 🌟 IndexedDB में सेव करने से पहले स्मार्ट कैनवस प्री-कंप्रेशन
         const readyBlob = await compressForOfflineStorage(file);
+        const buffer = await readyBlob.arrayBuffer();
 
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
 
         const item = {
-            fileBlob: readyBlob,
-            fileName: file.name,
+            fileBuffer: buffer,
+            fileName: file.name || `photo_${Date.now()}.jpg`,
             fileType: readyBlob.type || "image/jpeg",
-            fileSize: readyBlob.size,
-            lastModified: file.lastModified || Date.now(), // 🌟 सुरक्षित Timestamp
+            fileSize: buffer.byteLength,
+            lastModified: file.lastModified || Date.now(),
             uid: uid,
             currentView: currentView || "photos",
             retryCount: 0,
@@ -243,7 +195,7 @@ export async function addToOfflineQueue(file, uid, currentView, showToast) {
 
         tx.oncomplete = () => {
             if (showToast) {
-                showToast("Offline: Photo saved to queue! Will auto-upload when online.");
+                showToast("📥 Photo saved! Will upload automatically.");
             }
             updateOfflineBadge();
         };
@@ -271,9 +223,6 @@ export async function getQueueCount() {
     }
 }
 
-// --------------------------------------------------------------------------
-// 7. STREAMED BATCH FETCHER (FETCHES IN CHUNKS OF 10 FOR HIGH MEMORY SAFETY)
-// --------------------------------------------------------------------------
 async function fetchNextChunk(limit = 10) {
     try {
         const db = await openDB();
@@ -296,24 +245,20 @@ async function fetchNextChunk(limit = 10) {
             req.onerror = () => resolve([]);
         });
     } catch (err) {
-        console.error("[OfflineSync] Cursor Fetch Error:", err);
         return [];
     }
 }
 
-// Delete item after successful sync
 async function removeQueueItem(id) {
     try {
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
         tx.objectStore(STORE_NAME).delete(id);
-    } catch (err) {
-        console.error("[OfflineSync] Delete Item Error:", err);
-    }
+    } catch (err) {}
 }
 
 // --------------------------------------------------------------------------
-// 8. HIGH-PERFORMANCE QUEUE PROCESSOR
+// 🌟 8. FAST PARALLEL QUEUE PROCESSOR (CONCURRENCY: 2, FAST SPEED)
 // --------------------------------------------------------------------------
 export async function processOfflineQueue(currentUser, uploadFn, showToast) {
     if (isSyncing || !currentUser) return;
@@ -334,7 +279,7 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
     totalInitialBatchCount = totalInQueue;
 
     if (showToast) {
-        showToast(`Online! Syncing ${totalInQueue} offline photo(s) to cloud...`);
+        showToast(`📥 Backing up ${totalInQueue} photo(s) to Anant Cloud...`);
     }
 
     let processedCount = 0;
@@ -342,58 +287,60 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
 
     try {
         while (isSyncing && navigator.onLine) {
-            const chunk = await fetchNextChunk(10);
+            const chunk = await fetchNextChunk(8);
             if (chunk.length === 0) break;
 
-            for (const item of chunk) {
-                if (!navigator.onLine) {
-                    if (showToast) showToast("Connection lost. Sync paused.");
-                    isSyncing = false;
-                    break;
-                }
+            // 🌟 2-Parallel Streams: दोगुनी स्पीड से अपलोड
+            const CONCURRENCY = 2;
+            let index = 0;
 
-                // Skip corrupted items with 3+ failures
-                if (item.retryCount >= 3) {
-                    await removeQueueItem(item.id);
-                    processedCount++;
-                    continue;
-                }
+            async function worker() {
+                while (index < chunk.length && navigator.onLine) {
+                    const item = chunk[index++];
 
-                // 🌟 ओरिजिनल lastModified के साथ File बनाएँ
-                const fileToUpload = new File(
-                    [item.fileBlob],
-                    item.fileName || "photo.jpg",
-                    { 
-                        type: item.fileType || "image/jpeg",
-                        lastModified: item.lastModified || Date.now()
-                    }
-                );
-
-                try {
-                    const success = await uploadFn(fileToUpload, currentUser, item.currentView, null, { isQueueSync: true });
-
-                    if (success) {
+                    if (item.retryCount >= 3) {
                         await removeQueueItem(item.id);
-                        successCount++;
-                    } else {
-                        const db = await openDB();
-                        const tx = db.transaction(STORE_NAME, "readwrite");
-                        item.retryCount = (item.retryCount || 0) + 1;
-                        tx.objectStore(STORE_NAME).put(item);
+                        processedCount++;
+                        continue;
                     }
-                } catch (err) {
-                    console.error("[OfflineSync] Item Sync Error:", item.id, err);
+
+                    const rawData = item.fileBuffer ? new Uint8Array(item.fileBuffer) : (item.fileBlob || []);
+                    const fileToUpload = new File(
+                        [rawData],
+                        item.fileName || `photo_${Date.now()}.jpg`,
+                        { 
+                            type: item.fileType || "image/jpeg",
+                            lastModified: item.lastModified || Date.now()
+                        }
+                    );
+
+                    try {
+                        const success = await uploadFn(fileToUpload, currentUser, item.currentView || "photos", null, { isQueueSync: true });
+
+                        if (success) {
+                            await removeQueueItem(item.id);
+                            successCount++;
+                        } else {
+                            const db = await openDB();
+                            const tx = db.transaction(STORE_NAME, "readwrite");
+                            item.retryCount = (item.retryCount || 0) + 1;
+                            tx.objectStore(STORE_NAME).put(item);
+                        }
+                    } catch (err) {
+                        console.error("[OfflineSync] Item Sync Error:", err);
+                    }
+
+                    processedCount++;
+                    const remaining = Math.max(0, totalInQueue - processedCount);
+                    updateOfflineBadge(true, remaining, totalInitialBatchCount);
                 }
-
-                processedCount++;
-                const remaining = Math.max(0, totalInQueue - processedCount);
-                
-                // Live UI Progress Update
-                updateOfflineBadge(true, remaining, totalInitialBatchCount);
-
-                // Throttling to prevent API rate limits
-                await new Promise(res => setTimeout(res, 250));
             }
+
+            const workers = [];
+            for (let i = 0; i < Math.min(CONCURRENCY, chunk.length); i++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
         }
     } catch (err) {
         console.error("[OfflineSync] Sync Engine Error:", err);
@@ -404,7 +351,7 @@ export async function processOfflineQueue(currentUser, uploadFn, showToast) {
 
         if (successCount > 0 && showToast) {
             if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
-            showToast(`Auto-synced ${successCount} photo(s) to Anant Cloud!`);
+            showToast(`Uploaded ${successCount} photo(s) to Anant Cloud! ⚡`);
         }
     }
 }
@@ -440,17 +387,12 @@ export async function updateOfflineBadge(syncingStatus = false, currentCount = n
             `;
         } else {
             badge.className = "";
-            badge.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> ${count} Queued Offline`;
+            badge.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> ${count} Queued`;
         }
 
         badge.style.display = "flex";
-        badge.style.animation = "badgePopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards";
     } else if (badge) {
-        badge.style.opacity = "0";
-        badge.style.transform = "translate3d(0, 20px, 0) scale(0.85)";
-        setTimeout(() => {
-            if (badge) badge.style.display = "none";
-        }, 280);
+        badge.style.display = "none";
     }
 }
 
@@ -467,29 +409,13 @@ export function initOfflineSync(getCurrentUser, uploadFn, showToast) {
             if (user) {
                 processOfflineQueue(user, uploadFn, showToast);
             }
-        }, 1000);
+        }, 600);
     };
 
-    window.addEventListener("online", () => {
-        if (showToast) showToast("Network connected! Preparing background sync...");
-        triggerSync();
-    });
-
-    window.addEventListener("offline", () => {
-        if (showToast) showToast("You are offline. Photos will be saved to queue!");
-        updateOfflineBadge(false);
-    });
-
+    window.addEventListener("online", triggerSync);
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden && navigator.onLine) {
-            triggerSync();
-        }
+        if (!document.hidden && navigator.onLine) triggerSync();
     });
 
-    setTimeout(() => {
-        updateOfflineBadge(false);
-        if (navigator.onLine) {
-            triggerSync();
-        }
-    }, 1500);
+    setTimeout(triggerSync, 1000);
 }
