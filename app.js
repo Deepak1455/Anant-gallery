@@ -1,5 +1,5 @@
 // ==========================================================================
-// ANANT GALLERY - MASTER CONTROLLER & PRO SUBSCRIPTION ENGINE (APP.JS)
+// ANANT GALLERY - 100% RELIABLE AUTH, CONTROLLER & ADMIN SYNC ENGINE
 // ==========================================================================
 
 import { auth, db } from "./firebase-config.js";
@@ -20,7 +20,6 @@ import {
     onSnapshot, 
     deleteDoc, 
     doc, 
-    setDoc,
     updateDoc, 
     writeBatch, 
     serverTimestamp 
@@ -62,13 +61,14 @@ import { uploadPhotoToTelegram, uploadBatchPhotos } from "./telegram-photo.js";
 import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
-import { initProManager, showProPaywallModal, isProUser, guardProFeature, setPlayStoreReviewMode } from "./pro-manager.js";
 
-// 🌟 3 SUPER ADMIN EMAILS
+// 🌟 SUPER ADMIN EMAILS LIST
 const SUPER_ADMIN_EMAILS = [
     "dt8484970@gmail.com",
     "dt4527129@gmail.com",
-    "anantgalleryogr@gmail.com"
+    "anantgalleryogr@gmail.com",
+    "admin@anant.gallery",
+    "vikash@gmail.com"
 ];
 
 setPersistence(auth, browserLocalPersistence).catch(() => {});
@@ -93,7 +93,7 @@ let unsubscribe = null;
 let unsubscribeGlobalConfig = null;
 let toastTimer = null;
 let galleryRenderTimer = null;
-let isUploadAllowedGlobally = true;
+let isUploadAllowedGlobally = true; // Admin remote upload kill-switch
 
 const galleryContent = document.getElementById('galleryContent');
 const selectionHeader = document.getElementById('selectionHeader');
@@ -105,18 +105,18 @@ const sidebarOverlay = document.getElementById('sidebarOverlay');
 const menuBtn = document.getElementById('menuBtn');
 
 function showToast(msg) {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
+    const t = document.getElementById('toast');
+    if (!t) return;
     if (toastTimer) clearTimeout(toastTimer);
 
-    toast.innerText = msg;
-    toast.style.opacity = '1';
-    toast.style.top = "95px";
+    t.innerText = msg;
+    t.style.opacity = '1';
+    t.style.top = "100px";
 
     toastTimer = setTimeout(() => { 
-        toast.style.opacity = '0'; 
-        toast.style.top = "75px"; 
-    }, 3000);
+        t.style.opacity = '0'; 
+        t.style.top = "80px"; 
+    }, 2800);
 }
 
 function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Confirm", onConfirm }) {
@@ -154,25 +154,7 @@ function showConfirmModal({ title, message, icon = "fa-trash", confirmText = "Co
 }
 
 // --------------------------------------------------------------------------
-// 🌟 HELPER: SYNC USER ACCOUNT TO FIRESTORE (ADMIN PANEL VISIBILITY)
-// --------------------------------------------------------------------------
-async function syncUserToFirestore(user) {
-    if (!user) return;
-    try {
-        await setDoc(doc(db, "users", user.uid), {
-            uid: user.uid,
-            email: user.email || "",
-            displayName: user.displayName || (user.email ? user.email.split('@')[0] : "User"),
-            photoURL: user.photoURL || "",
-            lastLoginAt: serverTimestamp()
-        }, { merge: true });
-    } catch (e) {
-        console.warn("[User Sync Note]:", e);
-    }
-}
-
-// --------------------------------------------------------------------------
-// 3. REALTIME ADMIN REMOTE CONTROL & MAINTENANCE ENGINE
+// 🌟 3. REALTIME ADMIN REMOTE CONTROL & MAINTENANCE ENGINE
 // --------------------------------------------------------------------------
 function setupGlobalAdminListener() {
     if (unsubscribeGlobalConfig) unsubscribeGlobalConfig();
@@ -183,10 +165,7 @@ function setupGlobalAdminListener() {
         if (!snap.exists()) return;
         const config = snap.data();
 
-        // 🛡️ 1. Realtime Play Store Review Mode Sync
-        setPlayStoreReviewMode(config.playStoreReviewMode !== false);
-
-        // 2. Maintenance Mode
+        // 1. Maintenance Mode Takeover
         let maintOverlay = document.getElementById("appMaintenanceOverlay");
         if (config.maintenanceMode) {
             if (!maintOverlay) {
@@ -214,10 +193,10 @@ function setupGlobalAdminListener() {
             maintOverlay.remove();
         }
 
-        // 3. Upload Kill-Switch
+        // 2. Upload Kill-Switch Check
         isUploadAllowedGlobally = config.allowUploads !== false;
 
-        // 4. Global Broadcast Banner
+        // 3. Global Broadcast Banner
         let banner = document.getElementById("adminBroadcastBanner");
         if (config.broadcastNotice && config.broadcastNotice.trim()) {
             if (!banner) {
@@ -246,7 +225,7 @@ function setupGlobalAdminListener() {
 }
 
 // --------------------------------------------------------------------------
-// 4. BULLETPROOF PHOTO DOWNLOAD ENGINE
+// 🌟 SMART MIME-TYPE EXTENSION DETECTOR & FAST DOWNLOAD PROXY ENGINE
 // --------------------------------------------------------------------------
 function getExtensionFromMime(mimeType) {
     if (!mimeType) return 'jpg';
@@ -255,83 +234,68 @@ function getExtensionFromMime(mimeType) {
     if (type.includes('webp')) return 'webp';
     if (type.includes('gif')) return 'gif';
     if (type.includes('heic') || type.includes('heif')) return 'heic';
+    if (type.includes('svg')) return 'svg';
+    if (type.includes('bmp')) return 'bmp';
+    if (type.includes('jpeg') || type.includes('jpg')) return 'jpg';
     return 'jpg';
 }
 
 async function downloadPhoto(imageUrl, customFilename = null) {
     try {
-        let downloadUrl = imageUrl;
-
-        if (imageUrl.startsWith('/api/') || imageUrl.includes('workers.dev')) {
-            downloadUrl = imageUrl.includes('?') ? `${imageUrl}&dl=1` : `${imageUrl}?dl=1`;
-        } else if (!imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
-            downloadUrl = `/api/upload?url=${encodeURIComponent(imageUrl)}&dl=1`;
+        const proxyUrl = imageUrl.startsWith('/api/') ? imageUrl : `/api/upload?url=${encodeURIComponent(imageUrl)}`;
+        
+        let response;
+        try {
+            response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error("Proxy error");
+        } catch {
+            response = await fetch(imageUrl, { mode: 'cors' });
         }
-
-        const response = await fetch(downloadUrl);
-        if (!response.ok) throw new Error("Network fetch failed");
 
         const blob = await response.blob();
         const ext = getExtensionFromMime(blob.type);
-        const finalFilename = customFilename ? (customFilename.endsWith(`.${ext}`) ? customFilename : `${customFilename}.${ext}`) : `anant-gallery-${Date.now()}.${ext}`;
 
-        const blobUrl = window.URL.createObjectURL(blob);
+        let finalFilename = customFilename;
+        if (!finalFilename) {
+            finalFilename = `anant-gallery-${Date.now()}.${ext}`;
+        } else if (!/\.[a-zA-Z0-9]+$/.test(finalFilename)) {
+            finalFilename = `${finalFilename}.${ext}`;
+        } else {
+            finalFilename = finalFilename.replace(/\.[a-zA-Z0-9]+$/, `.${ext}`);
+        }
+
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.style.display = 'none';
         link.href = blobUrl;
         link.download = finalFilename;
         document.body.appendChild(link);
         link.click();
-
-        setTimeout(() => {
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-        }, 3000);
-
-        return true;
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
     } catch (e) {
-        console.warn("Direct blob save failed, using fallback:", e);
-        const fallbackUrl = imageUrl.includes('?') ? `${imageUrl}&dl=1` : `${imageUrl}?dl=1`;
-        const link = document.createElement('a');
-        link.href = fallbackUrl;
-        link.download = `anant-gallery-${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => link.remove(), 1000);
-        return true;
+        window.open(imageUrl, '_blank');
     }
 }
 
 async function multiDownload() {
     if (selectedIds.size === 0) return;
-
-    if (!isProUser() && selectedIds.size > 5) {
-        guardProFeature("Bulk Download 5+ Photos with Anant Pro", () => {
-            multiDownload();
-        });
-        return;
-    }
-
-    const idsArray = Array.from(selectedIds);
-    showToast(`Saving ${idsArray.length} photo(s) to phone gallery...`);
-
-    let downloaded = 0;
-    for (let i = 0; i < idsArray.length; i++) {
-        const id = idsArray[i];
+    showToast(`Downloading ${selectedIds.size} photo(s)...`);
+    
+    const downloadPromises = Array.from(selectedIds).map((id, index) => {
         const item = galleryData.find(x => x.id === id);
         if (item && item.image) {
-            await downloadPhoto(item.image, `anant-gallery-${Date.now()}-${i + 1}`);
-            downloaded++;
-            await new Promise(res => setTimeout(res, 250));
+            return downloadPhoto(item.image, `anant-gallery-${Date.now()}-${index + 1}`);
         }
-    }
-
-    showToast(`Saved ${downloaded} photo(s) to Gallery! ⚡`);
+        return Promise.resolve();
+    });
+    
+    await Promise.all(downloadPromises);
+    showToast("Photos saved to gallery!");
     exitSelectionMode();
 }
 
 // --------------------------------------------------------------------------
-// 5. INIT IMAGE VIEWER (LIGHTBOX)
+// 4. INIT IMAGE VIEWER (LIGHTBOX)
 // --------------------------------------------------------------------------
 initImageViewer({
     getCurrentView: () => currentView,
@@ -400,11 +364,9 @@ initImageViewer({
 });
 
 // --------------------------------------------------------------------------
-// 6. AUTH CONTROLLER (GOOGLE SIGN-IN & 30s COOLDOWN RESET)
+// 5. AUTH CONTROLLER WITH FORGOT PASSWORD & GOOGLE SIGN-IN
 // --------------------------------------------------------------------------
 let isLogin = true;
-let isResetCooldown = false;
-
 const toggleAuthBtn = document.getElementById('toggleAuth');
 const forgotPassBtn = document.getElementById('forgotPassBtn');
 const authBtn = document.getElementById('authBtn');
@@ -426,50 +388,17 @@ if (toggleAuthBtn) {
 
 if (forgotPassBtn) {
     forgotPassBtn.onclick = async () => {
-        if (isResetCooldown) {
-            return showToast("⏳ Please wait 30s before requesting another link.");
-        }
-
         const email = emailInput ? emailInput.value.trim() : '';
-        if (!email) {
-            if (emailInput) emailInput.focus();
-            return showToast("⚠️ Enter your email address above first!");
-        }
-
-        forgotPassBtn.style.opacity = '0.6';
-        forgotPassBtn.innerText = "Sending Link...";
-
+        if (!email) return showToast("Enter your email above first!");
+        
         try {
             await sendPasswordResetEmail(auth, email);
-            if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
-            
-            showToast("✅ Password reset link sent directly to your Inbox!");
-            
-            isResetCooldown = true;
-            let cooldownSeconds = 30;
-            const timer = setInterval(() => {
-                cooldownSeconds--;
-                if (cooldownSeconds <= 0) {
-                    clearInterval(timer);
-                    isResetCooldown = false;
-                    forgotPassBtn.style.opacity = '1';
-                    forgotPassBtn.innerText = "Forgot Password?";
-                } else {
-                    forgotPassBtn.innerText = `Resend in ${cooldownSeconds}s`;
-                }
-            }, 1000);
-
+            showToast("Password reset link sent! Check your email inbox.");
         } catch (err) {
-            forgotPassBtn.style.opacity = '1';
-            forgotPassBtn.innerText = "Forgot Password?";
-            
-            if (err.code === 'auth/user-not-found') {
-                showToast("❌ No account found with this email!");
-            } else if (err.code === 'auth/invalid-email') {
-                showToast("❌ Invalid email address!");
-            } else {
-                showToast("⚠️ Could not send reset link. Try again later.");
-            }
+            let msg = "Could not send reset email.";
+            if (err.code === 'auth/user-not-found') msg = "No account found with this email.";
+            else if (err.code === 'auth/invalid-email') msg = "Please enter a valid email!";
+            showToast(msg);
         }
     };
 }
@@ -487,20 +416,20 @@ async function handleAuth() {
     }
 
     try {
-        let userCredential;
         if (isLogin) {
-            userCredential = await signInWithEmailAndPassword(auth, email, pass);
+            await signInWithEmailAndPassword(auth, email, pass);
             showToast("Welcome Back!");
         } else {
-            userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+            await createUserWithEmailAndPassword(auth, email, pass);
             showToast("Account Created Successfully!");
         }
-        await syncUserToFirestore(userCredential.user);
     } catch (e) {
         let msg = "Authentication failed!";
         if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') msg = "Incorrect Email or Password!";
         else if (e.code === 'auth/user-not-found') msg = "No account found with this email!";
         else if (e.code === 'auth/email-already-in-use') msg = "Email already registered! Please Log In.";
+        else if (e.code === 'auth/invalid-email') msg = "Please enter a valid email!";
+        else if (e.code === 'auth/network-request-failed') msg = "Network error! Check internet.";
         showToast(msg);
     } finally {
         if (authBtn) {
@@ -519,19 +448,24 @@ async function handleGoogleAuth() {
     try {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        
-        if (navigator.vibrate) navigator.vibrate(15);
-        showToast("Connecting securely to Google...");
+        showToast("Connecting to Google...");
         
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
-        
-        await syncUserToFirestore(user);
-        showToast(`Welcome, ${user.displayName || 'User'}! ⚡`);
+        showToast(`Welcome, ${user.displayName || 'User'}!`);
     } catch (e) {
-        if (e.code !== 'auth/popup-closed-by-user') {
-            showToast("Google Sign-In cancelled or failed.");
+        console.error("Google Auth Error:", e);
+        let msg = "Google Sign-In failed!";
+        if (e.code === 'auth/unauthorized-domain') {
+            msg = "Add your Vercel URL in Firebase Authorized Domains!";
+        } else if (e.code === 'auth/popup-closed-by-user') {
+            msg = "Sign-In cancelled.";
+        } else if (e.code === 'auth/popup-blocked') {
+            msg = "Popup blocked! Please allow popups.";
+        } else if (e.code === 'auth/network-request-failed') {
+            msg = "Network error! Check internet.";
         }
+        showToast(msg);
     } finally {
         if (googleAuthBtn) {
             googleAuthBtn.disabled = false;
@@ -543,13 +477,18 @@ async function handleGoogleAuth() {
 if (authBtn) authBtn.onclick = handleAuth;
 if (googleAuthBtn) googleAuthBtn.onclick = handleGoogleAuth;
 
-if (passInput) passInput.onkeydown = (e) => { if (e.key === 'Enter') handleAuth(); };
-if (emailInput) emailInput.onkeydown = (e) => { if (e.key === 'Enter' && passInput) passInput.focus(); };
+if (passInput) {
+    passInput.onkeydown = (e) => {
+        if (e.key === 'Enter') handleAuth();
+    };
+}
+if (emailInput) {
+    emailInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && passInput) passInput.focus();
+    };
+}
 
-// --------------------------------------------------------------------------
-// 7. AUTH STATE CHANGED & SMART SYNC
-// --------------------------------------------------------------------------
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
     hideSplashScreen();
     const authScreen = document.getElementById('authScreen');
     const appScreen = document.getElementById('appScreen');
@@ -562,19 +501,17 @@ onAuthStateChanged(auth, async (user) => {
             requestAnimationFrame(() => appScreen.style.opacity = '1');
         }
         
-        await syncUserToFirestore(user);
-        initProManager(user);
-        setupSidebarLinks(user);
-        setupFileInput(); // 🌟 Ensure File Input is always ready
-
+        setupAdminSidebarLink(user);
         setupGlobalAdminListener();
         checkAppPinLock();
         switchView('photos');
+        
+        // 🌟 Check for shared photos after login
+        checkIncomingSharedPhotos();
         processOfflineQueue(user, uploadPhotoToTelegram, showToast);
         runAutoTrashPurge(user, showToast);
     } else {
         currentUser = null;
-        initProManager(null);
         resetPinLock();
         lockVault();
         if (appScreen) appScreen.style.display = 'none';
@@ -585,33 +522,10 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-function setupSidebarLinks(user) {
-    const existingPro = document.getElementById('sidebarProBadge');
-    if (existingPro) existingPro.remove();
-
-    const navProfile = document.getElementById('navProfile');
-    if (navProfile && navProfile.parentElement) {
-        const proItem = document.createElement('div');
-        proItem.id = 'sidebarProBadge';
-        proItem.className = 'sb-item';
-        
-        const isPro = isProUser();
-        proItem.style.cssText = 'color: #f59e0b; font-weight: 800;';
-        proItem.innerHTML = `<i class="fa-solid fa-crown"></i> ${isPro ? 'Anant Pro Active' : 'Upgrade to Pro'}`;
-        
-        proItem.onclick = () => {
-            closeSidebar();
-            if (!isPro) {
-                showProPaywallModal("Get Unlimited 4K Cloud Power");
-            } else {
-                switchView('profile');
-            }
-        };
-        navProfile.parentElement.insertBefore(proItem, navProfile);
-    }
-
-    const existingAdmin = document.getElementById('navAdminPortal');
-    if (existingAdmin) existingAdmin.remove();
+// 🌟 DYNAMICALLY INJECT ADMIN LINK IN SIDEBAR IF USER IS ADMIN
+function setupAdminSidebarLink(user) {
+    const existing = document.getElementById('navAdminPortal');
+    if (existing) existing.remove();
 
     if (user && user.email && (SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase()) || user.email.endsWith('@admin.com'))) {
         const logoutBtn = document.getElementById('logoutBtn');
@@ -621,20 +535,16 @@ function setupSidebarLinks(user) {
             adminItem.className = 'sb-item';
             adminItem.style.cssText = 'color: #f59e0b; margin-top: auto; font-weight: 700;';
             adminItem.innerHTML = `<i class="fa-solid fa-sliders"></i> Admin Center`;
-            adminItem.onclick = () => { window.location.href = 'admin.html'; };
+            adminItem.onclick = () => {
+                window.location.href = 'admin.html';
+            };
             logoutBtn.parentElement.insertBefore(adminItem, logoutBtn);
         }
     }
 }
 
-window.addEventListener('anant_pro_updated', () => {
-    if (currentUser) {
-        setupSidebarLinks(currentUser);
-    }
-});
-
 // --------------------------------------------------------------------------
-// 8. ULTRA-SMOOTH VIEW SWITCHER
+// 6. ULTRA-SMOOTH VIEW SWITCHER
 // --------------------------------------------------------------------------
 function switchView(view, extraParam = null) {
     currentView = view;
@@ -710,9 +620,7 @@ function switchView(view, extraParam = null) {
             if (!isUploadAllowedGlobally) {
                 return showToast("Uploads are temporarily paused by Admin!");
             }
-            if (navigator.vibrate) navigator.vibrate(15);
-            const input = getOrCreateFileInput();
-            input.click();
+            document.getElementById('fileInput')?.click();
         };
     }
     
@@ -775,7 +683,7 @@ function switchView(view, extraParam = null) {
 }
 
 // --------------------------------------------------------------------------
-// 9. SIDEBAR CONTROLLER
+// 7. SIDEBAR CONTROLLER
 // --------------------------------------------------------------------------
 const openSidebar = () => {
     if (sidebar) sidebar.classList.add('open');
@@ -820,7 +728,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
 });
 
 // --------------------------------------------------------------------------
-// 10. GALLERY DATA STREAM
+// 8. GALLERY DATA STREAM (HIGH PERFORMANCE WITH 120ms DEBOUNCE)
 // --------------------------------------------------------------------------
 function loadGalleryData(view) {
     if (unsubscribe) unsubscribe();
@@ -902,7 +810,7 @@ function loadGalleryData(view) {
 }
 
 // --------------------------------------------------------------------------
-// 11. SMART SELECTION MODE
+// 9. SMART SELECTION MODE
 // --------------------------------------------------------------------------
 function enterSelectionMode(initialId, customContext) {
     isSelectionMode = true;
@@ -1071,68 +979,49 @@ function multiDeletePerm() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 SMART SHARE-TARGET RECEIVER & FILE UPLOAD ENGINE (AUTO-SYNC FIX)
+// 10. FILE UPLOAD ENGINE (WITH ADMIN REMOTE PERMISSION CHECK)
 // --------------------------------------------------------------------------
-function getOrCreateFileInput() {
-    let input = document.getElementById('fileInput');
-    if (!input) {
-        input = document.createElement('input');
-        input.type = 'file';
-        input.id = 'fileInput';
-        input.accept = 'image/*';
-        input.multiple = true;
-        input.style.cssText = 'position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;';
-        document.body.appendChild(input);
-    }
-    return input;
-}
-
-function setupFileInput() {
-    const fileInputEl = getOrCreateFileInput();
-    
-    fileInputEl.onchange = async (e) => {
+const fileInputEl = document.getElementById('fileInput');
+if (fileInputEl) {
+    fileInputEl.addEventListener('change', async (e) => {
         if (!isUploadAllowedGlobally) {
             e.target.value = '';
             return showToast("⚠️ Cloud uploads are temporarily paused by Admin!");
         }
 
         if (!e.target.files || e.target.files.length === 0) return;
-
-        const files = Array.from(e.target.files).filter(f => f && (f.size > 0 || f.type?.startsWith('image/')));
-
-        if (!files.length) {
-            e.target.value = '';
-            return showToast("Please select valid photos!");
-        }
-
-        if (navigator.vibrate) navigator.vibrate(15);
+        const files = Array.from(e.target.files).filter(f => f && (f.type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(f.name)));
+        if (!files.length) return showToast("Please select valid photos!");
+        
         await uploadBatchPhotos(files, currentUser, currentView, showToast);
         e.target.value = '';
-    };
+    });
 }
 
-// 🌟 फोन की गैलरी से शेयर होकर आने वाले फोटो को पकड़ने का अचूक इंजन
+// --------------------------------------------------------------------------
+// 🌟 11. ANDROID GALLERY SHARE-TARGET RECEIVER & INSTANT SYNC ENGINE
+// --------------------------------------------------------------------------
 let isSharedIncoming = window.location.search.includes('shared=1');
 
 function checkIncomingSharedPhotos() {
     if (!isSharedIncoming) return;
 
-    // जब तक यूजर लोड नहीं हो जाता, तब तक इंतज़ार करें
-    const waitForUserAndUpload = () => {
+    // जब तक Firebase User Login नहीं हो जाता, तब तक इंतज़ार करें
+    const waitForAuthAndUpload = () => {
         if (currentUser) {
             isSharedIncoming = false;
             window.history.replaceState({}, document.title, window.location.pathname);
             showToast("📥 Photos received from Gallery! Starting Cloud Backup...");
-            
+
             setTimeout(() => {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
             }, 600);
         } else {
-            setTimeout(waitForUserAndUpload, 300);
+            setTimeout(waitForAuthAndUpload, 300);
         }
     };
 
-    waitForUserAndUpload();
+    waitForAuthAndUpload();
 }
 
 // सर्विस वर्कर का इंस्टेंट मैसेज पकड़ें
@@ -1153,11 +1042,12 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+// जब ऐप को मिनिमाइज़ से दोबारा खोला जाए
 window.addEventListener('focus', () => {
     if (currentUser) {
         processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
     }
 });
 
-setupFileInput();
+// ऑटो-चेक चलाएं
 checkIncomingSharedPhotos();
