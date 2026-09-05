@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - BULLETPROOF SHARE TARGET & SINGLE-WINDOW
+// ANANT GALLERY SERVICE WORKER - BULLETPROOF SINGLE-WINDOW & TWA SHARE TARGET
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v16';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v13';
+const CACHE_VERSION = 'anant-shell-v21';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v21';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -63,20 +63,20 @@ self.addEventListener('activate', (event) => {
 });
 
 // --------------------------------------------------------------------------
-// 🌟 3. FETCH CONTROLLER & ANDROID GALLERY SHARE TARGET (AUTO-CLOSE DUPLICATE)
+// 🌟 3. BULLETPROOF ANDROID GALLERY SHARE TARGET HANDLER (APK & CHROME COMPLIANT)
 // --------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
     // A. ANDROID GALLERY SHARE TARGET HANDLER
-    if (event.request.method === 'POST' && (url.pathname.endsWith('share-target') || url.pathname.includes('share-target'))) {
+    if (event.request.method === 'POST' && (url.pathname === '/share-target' || url.pathname.includes('share-target'))) {
         event.respondWith(
             (async () => {
                 try {
                     const formData = await event.request.formData();
                     const mediaFiles = [];
 
-                    // Android OS Gallery से आने वाली हर इमेज फ़ाइल को पकड़ें
+                    // Android Phone Gallery से आ रही सभी इमेज फ़ाइलें निकालें
                     for (const [key, val] of formData.entries()) {
                         if (val && typeof val === 'object' && val.size > 0) {
                             mediaFiles.push(val);
@@ -84,7 +84,7 @@ self.addEventListener('fetch', (event) => {
                     }
 
                     if (mediaFiles.length > 0) {
-                        // 🌟 STEP 1: पहले सभी फ़ाइलों को मेमोरी में पढ़ें (बिना DB ट्रांजेक्शन खोले)
+                        // 1. फ़ाइलों को सुरक्षित मेमोरी में पढ़ें
                         const recordsToSave = [];
                         for (const file of mediaFiles) {
                             let buffer = null;
@@ -97,7 +97,7 @@ self.addEventListener('fetch', (event) => {
                             recordsToSave.push({
                                 fileBuffer: buffer,
                                 fileBlob: buffer ? null : file,
-                                fileName: file.name || `gallery_shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
+                                fileName: file.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
                                 fileType: file.type || "image/jpeg",
                                 fileSize: buffer ? buffer.byteLength : file.size,
                                 lastModified: file.lastModified || Date.now(),
@@ -108,7 +108,7 @@ self.addEventListener('fetch', (event) => {
                             });
                         }
 
-                        // 🌟 STEP 2: IndexedDB में एक साथ सुरक्षित सेव करें
+                        // 2. IndexedDB में बिना अटके सुरक्षित लिखें
                         if (recordsToSave.length > 0) {
                             const db = await openDB();
                             await new Promise((resolve, reject) => {
@@ -125,29 +125,26 @@ self.addEventListener('fetch', (event) => {
                             });
                         }
 
-                        // 🌟 STEP 3: डुप्लीकेट विंडो बंद करने और ऐप फ़ोकस करने का लॉजिक
+                        // 3. अगर ऐप पहले से खुली है तो उसी पर फ़ोकस कराएं
                         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
                         const openAppClient = clients.find(c => c.url.includes(self.location.origin) && !c.url.includes('share-target'));
 
-                        if (openAppClient && 'focus' in openAppClient) {
-                            await openAppClient.focus();
+                        if (openAppClient) {
+                            if ('focus' in openAppClient) {
+                                await openAppClient.focus();
+                            }
                             openAppClient.postMessage({ 
                                 action: 'trigger-sync',
                                 sharedCount: mediaFiles.length 
                             });
-
-                            // शेयर वाली अस्थायी विंडो को तुरंत बंद करें ताकि मल्टीटास्किंग में नए ऐप न बनें
-                            return new Response(
-                                '<!DOCTYPE html><html><head><script>window.close(); setTimeout(()=>{ window.location.replace("/?shared=1"); }, 150);</script></head><body style="background:#090d16;"></body></html>',
-                                { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-                            );
                         }
                     }
                 } catch (err) {
-                    console.error("[SW Share Target Error]:", err);
+                    console.error("[SW Share Target Error Handled]:", err);
                 }
 
-                // अगर ऐप पहले से खुली नहीं थी तो रीडायरेक्ट करके खोलें
+                // 🌟 जादुई सुधार: फर्जी HTML window.close() हटाकर सीधा HTTP 303 Redirect
+                // इससे Android APK तुरंत गैलरी लोड कर लेता है और कभी खाली डुप्लीकेट विंडो नहीं बनती!
                 return Response.redirect('/?shared=1', 303);
             })()
         );
