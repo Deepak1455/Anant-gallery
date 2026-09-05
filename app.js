@@ -424,7 +424,6 @@ if (toggleAuthBtn) {
     };
 }
 
-// 🌟 SMART FORGOT PASSWORD
 if (forgotPassBtn) {
     forgotPassBtn.onclick = async () => {
         if (isResetCooldown) {
@@ -548,7 +547,7 @@ if (passInput) passInput.onkeydown = (e) => { if (e.key === 'Enter') handleAuth(
 if (emailInput) emailInput.onkeydown = (e) => { if (e.key === 'Enter' && passInput) passInput.focus(); };
 
 // --------------------------------------------------------------------------
-// 7. AUTH STATE CHANGED
+// 7. AUTH STATE CHANGED & SMART SYNC
 // --------------------------------------------------------------------------
 onAuthStateChanged(auth, async (user) => {
     hideSplashScreen();
@@ -566,6 +565,7 @@ onAuthStateChanged(auth, async (user) => {
         await syncUserToFirestore(user);
         initProManager(user);
         setupSidebarLinks(user);
+        setupFileInput(); // 🌟 Ensure File Input is always ready
 
         setupGlobalAdminListener();
         checkAppPinLock();
@@ -710,7 +710,9 @@ function switchView(view, extraParam = null) {
             if (!isUploadAllowedGlobally) {
                 return showToast("Uploads are temporarily paused by Admin!");
             }
-            document.getElementById('fileInput')?.click();
+            if (navigator.vibrate) navigator.vibrate(15);
+            const input = getOrCreateFileInput();
+            input.click();
         };
     }
     
@@ -1069,21 +1071,60 @@ function multiDeletePerm() {
 }
 
 // --------------------------------------------------------------------------
-// 12. FILE UPLOAD ENGINE
+// 🌟 12. SMART FILE UPLOAD ENGINE (ANDROID GALLERY ZERO-REJECTION)
 // --------------------------------------------------------------------------
-const fileInputEl = document.getElementById('fileInput');
-if (fileInputEl) {
-    fileInputEl.addEventListener('change', async (e) => {
+function getOrCreateFileInput() {
+    let input = document.getElementById('fileInput');
+    if (!input) {
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'fileInput';
+        input.accept = 'image/*';
+        input.multiple = true;
+        input.style.cssText = 'position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;';
+        document.body.appendChild(input);
+    }
+    return input;
+}
+
+function setupFileInput() {
+    const fileInputEl = getOrCreateFileInput();
+    
+    fileInputEl.onchange = async (e) => {
         if (!isUploadAllowedGlobally) {
             e.target.value = '';
             return showToast("⚠️ Cloud uploads are temporarily paused by Admin!");
         }
 
         if (!e.target.files || e.target.files.length === 0) return;
-        const files = Array.from(e.target.files).filter(f => f && (f.type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(f.name)));
-        if (!files.length) return showToast("Please select valid photos!");
-        
+
+        // 🌟 ANDROID GALLERY FIX: Don't reject files if MIME is empty or custom
+        const files = Array.from(e.target.files).filter(f => f && (f.size > 0 || f.type?.startsWith('image/')));
+
+        if (!files.length) {
+            e.target.value = '';
+            return showToast("Please select valid photos!");
+        }
+
+        if (navigator.vibrate) navigator.vibrate(15);
         await uploadBatchPhotos(files, currentUser, currentView, showToast);
         e.target.value = '';
+    };
+}
+
+// 🌟 LISTEN FOR SHARED PHOTOS (Phone Gallery -> Share -> Anant Gallery)
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.action === 'trigger-sync' && currentUser) {
+            processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
+        }
     });
 }
+
+window.addEventListener('focus', () => {
+    if (currentUser) {
+        processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
+    }
+});
+
+setupFileInput();
