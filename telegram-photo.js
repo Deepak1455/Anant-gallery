@@ -35,7 +35,7 @@ const photoCSS = `
         border-radius: 22px;
         padding: 12px 18px;
         box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-        z-index: 99999;
+        z-index: 1000005 !important;
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -167,7 +167,7 @@ function getTopProgressBar() {
     return topBar;
 }
 
-function showProgressModal(statusText = "Syncing with Anant Cloud...") {
+export function showProgressModal(statusText = "Syncing with Anant Cloud...") {
     const topBar = getTopProgressBar();
     document.getElementById("photoUploadStatus").innerText = statusText;
     document.getElementById("photoProgressBar").style.width = "0%";
@@ -176,7 +176,7 @@ function showProgressModal(statusText = "Syncing with Anant Cloud...") {
     requestAnimationFrame(() => topBar.classList.add("active"));
 }
 
-function updateProgress(percent, statusText) {
+export function updateProgress(percent, statusText) {
     const bar = document.getElementById("photoProgressBar");
     const text = document.getElementById("photoPercentText");
     const status = document.getElementById("photoUploadStatus");
@@ -188,7 +188,7 @@ function updateProgress(percent, statusText) {
     });
 }
 
-function hideProgressModal() {
+export function hideProgressModal() {
     const topBar = document.getElementById("photoTopProgressBar");
     if (topBar) {
         topBar.classList.remove("active");
@@ -200,7 +200,6 @@ function hideProgressModal() {
 // 🌟 2. ULTRA-FAST GPU ACCELERATED COMPRESSION (ZERO UI FREEZE & NO LEAKS)
 // --------------------------------------------------------------------------
 async function smartCompressImage(file) {
-    // अगर GIF, SVG या पहले से छोटी फ़ाइल (2.5MB से कम) है तो कम्प्रेशन स्किप करें
     if (file.type === "image/gif" || file.type === "image/svg+xml") {
         return file;
     }
@@ -209,8 +208,7 @@ async function smartCompressImage(file) {
     }
 
     const isPro = isProUser();
-    // Pro: 3840px (Ultra 4K), Free: 2048px (Crisp 2K HD)
-    const maxDimension = isPro ? 3840 : 2048;
+    const maxDimension = isPro ? 3840 : 2048; // Pro: 4K, Free: 2K HD
     const quality = isPro ? 0.90 : 0.82;
 
     try {
@@ -229,7 +227,6 @@ async function smartCompressImage(file) {
                     }
                 }
 
-                // GPU Offscreen Canvas अगर उपलब्ध हो (UI को बिना ब्लॉक किए)
                 if (typeof OffscreenCanvas !== 'undefined') {
                     const offCanvas = new OffscreenCanvas(width, height);
                     const ctx = offCanvas.getContext('2d');
@@ -254,14 +251,13 @@ async function smartCompressImage(file) {
                     return compressedBlob;
                 }
             } finally {
-                bitmap.close(); // 🌟 Out Of Memory (Crash) से बचाने के लिए तुरंत बंद करें
+                bitmap.close(); // Out-Of-Memory से बचाने के लिए तुरंत बंद करें
             }
         }
     } catch (e) {
         console.warn("[Compression Fallback]:", e);
     }
 
-    // HTML Image Fallback
     return new Promise((resolve) => {
         const url = URL.createObjectURL(file);
         const img = new Image();
@@ -325,7 +321,6 @@ async function isDuplicatePhoto(uid, fileHash) {
 export async function uploadBatchPhotos(files, currentUser, currentView, showToast) {
     if (!files || files.length === 0) return;
 
-    // 🔒 Free User Batch Limit (Max 15)
     if (!isProUser() && files.length > FREE_BATCH_LIMIT) {
         guardProFeature("Upload 15+ Photos Simultaneously with Anant Pro", () => {
             uploadBatchPhotos(files, currentUser, currentView, showToast);
@@ -333,7 +328,6 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         return;
     }
 
-    // अगर ऑफलाइन हैं तो तुरंत IndexedDB में सुरक्षित करें
     if (!navigator.onLine) {
         for (const file of files) {
             await addToOfflineQueue(file, currentUser.uid, currentView, null);
@@ -342,7 +336,6 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
         return;
     }
 
-    // डुप्लीकेट फोटो को तुरंत फिल्टर करें
     let uniqueFiles = [];
     let skippedCount = 0;
 
@@ -372,7 +365,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
     }
 
     if (uniqueFiles.length === 0) {
-        if (showToast) showToast(`All ${files.length} photo(s) already exist in gallery!`);
+        if (showToast) showToast(`All ${files.length} photo(s) already exist in gallery! ✅`);
         return;
     }
 
@@ -386,7 +379,6 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
     let completedCount = 0;
     let successfulUploads = 0;
 
-    // 🌟 3-Parallel Worker Streams: बहुत तेज गति से बिना हैंग हुए अपलोड
     const CONCURRENCY = 3;
     let fileIndex = 0;
 
@@ -398,7 +390,8 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
             try {
                 const res = await uploadPhotoToTelegram(file, currentUser, currentView, null, {
                     isQueueSync: true,
-                    skipDuplicateCheck: true
+                    skipDuplicateCheck: true,
+                    suppressProgress: true // बैच में सिंगल प्रोग्रेस बार न टकराए
                 });
                 if (res) successfulUploads++;
             } catch (err) {
@@ -429,7 +422,7 @@ export async function uploadBatchPhotos(files, currentUser, currentView, showToa
 }
 
 // --------------------------------------------------------------------------
-// 🌟 4. SINGLE PHOTO UPLOAD ENGINE (SOLID RETRY & FIRESTORE INDEX)
+// 🌟 4. SINGLE & GALLERY-SHARE PHOTO UPLOAD ENGINE (AUTO-RESOLVE DUPLICATES)
 // --------------------------------------------------------------------------
 export async function uploadPhotoToTelegram(file, currentUser, currentView, showToast, options = {}) {
     if (!navigator.onLine && !options.isQueueSync) {
@@ -440,21 +433,25 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
     try {
         const fileHash = await calculateFileHash(file);
         
+        // 🌟 1. डुप्लीकेट फ़ोटो होने पर कतार से हटाएँ और तुरंत सफलता बताएँ (ताकि अटके नहीं)
         if (!options.skipDuplicateCheck) {
             const duplicate = await isDuplicatePhoto(currentUser.uid, fileHash);
-            if (duplicate && !options.isQueueSync) {
-                if (showToast) showToast("Photo already exists in gallery!");
-                return false;
+            if (duplicate) {
+                if (showToast) showToast("Photo already exists in cloud gallery! ✅");
+                hideProgressModal();
+                return true; // True लौटाने से IndexedDB इसे कतार से साफ़ कर देगा
             }
         }
 
-        if (!options.isQueueSync) {
+        const showUI = !options.suppressProgress;
+        if (showUI) {
             showProgressModal(isProUser() ? "Securing 4K Original Photo..." : "Optimizing photo quality...");
+            updateProgress(25, "Preparing Cloud Upload...");
         }
 
         // कंप्रेस करके साइज को हमेशा 3.8MB से नीचे रखें
         const compressedFile = await smartCompressImage(file);
-        if (!options.isQueueSync) updateProgress(35, "Connecting to Cloud Storage...");
+        if (showUI) updateProgress(45, "Connecting to Cloud Storage...");
 
         const { userName, userEmail } = getUserMeta(currentUser);
 
@@ -462,8 +459,8 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
             const xhr = new XMLHttpRequest();
 
             xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable && !options.isQueueSync) {
-                    const percent = 35 + Math.round((event.loaded / event.total) * 55);
+                if (event.lengthComputable && showUI) {
+                    const percent = 45 + Math.round((event.loaded / event.total) * 45);
                     updateProgress(percent, "Uploading to Cloud...");
                 }
             };
@@ -478,7 +475,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
 
                 if (xhr.status === 200 && response.ok && response.fileId) {
                     try {
-                        if (!options.isQueueSync) updateProgress(95, "Saving Cloud Index...");
+                        if (showUI) updateProgress(95, "Saving Cloud Index...");
 
                         const secureMaskedUrl = response.imageUrl || `/api/upload?file_id=${encodeURIComponent(response.fileId)}`;
 
@@ -496,7 +493,7 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
                             isDeleted: false
                         });
 
-                        if (!options.isQueueSync) {
+                        if (showUI) {
                             updateProgress(100, "Done!");
                             setTimeout(() => {
                                 hideProgressModal();
@@ -506,12 +503,12 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
 
                         resolve(true);
                     } catch (firestoreErr) {
-                        if (!options.isQueueSync) hideProgressModal();
+                        if (showUI) hideProgressModal();
                         if (showToast) showToast("Firestore Error: " + firestoreErr.message);
                         reject(firestoreErr);
                     }
                 } else {
-                    if (!options.isQueueSync) hideProgressModal();
+                    if (showUI) hideProgressModal();
                     const errText = response.error || `Upload Failed (${xhr.status})`;
                     if (showToast) showToast(errText);
                     reject(new Error(errText));
@@ -519,8 +516,8 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
             };
 
             xhr.onerror = async () => {
+                if (showUI) hideProgressModal();
                 if (!options.isQueueSync) {
-                    hideProgressModal();
                     await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
                 }
                 reject(new Error("Network connection failed during upload"));
@@ -531,8 +528,8 @@ export async function uploadPhotoToTelegram(file, currentUser, currentView, show
             xhr.send(compressedFile);
         });
     } catch (e) {
+        hideProgressModal();
         if (!options.isQueueSync) {
-            hideProgressModal();
             await addToOfflineQueue(file, currentUser.uid, currentView, showToast);
         }
         throw e;
