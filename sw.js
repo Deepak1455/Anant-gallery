@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - BULLETPROOF OFFLINE ENGINE
+// ANANT GALLERY SERVICE WORKER - BULLETPROOF OFFLINE & SHARE TARGET ENGINE
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v5';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v4';
+const CACHE_VERSION = 'anant-shell-v7';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v5';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -34,7 +34,7 @@ function openDB() {
     });
 }
 
-// 1. INSTALL WITH SAFE TRY/CATCH PRECACHE
+// 1. INSTALL
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_VERSION).then(async (cache) => {
@@ -47,7 +47,7 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// 2. ACTIVATE & CLEANUP
+// 2. ACTIVATE & CLEANUP OLD CACHES
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
@@ -62,11 +62,11 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// 3. FETCH CONTROLLER (EXACT PWABUILDER OFFLINE CRITERIA)
+// 3. FETCH CONTROLLER & WEB SHARE TARGET
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // A. Web Share Target
+    // 🌟 A. WEB SHARE TARGET (फोन की गैलरी से "Share to Anant Gallery" वाला हैंडलर)
     if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
         event.respondWith(
             (async () => {
@@ -80,26 +80,44 @@ self.addEventListener('fetch', (event) => {
                         const store = tx.objectStore(STORE_NAME);
 
                         for (const file of mediaFiles) {
-                            store.add({
-                                fileBlob: file,
-                                fileName: file.name || `shared_${Date.now()}.jpg`,
-                                fileType: file.type || "image/jpeg",
-                                fileSize: file.size,
-                                lastModified: file.lastModified || Date.now(),
-                                uid: null,
-                                currentView: "photos",
-                                retryCount: 0,
-                                addedAt: Date.now()
-                            });
+                            try {
+                                const buffer = await file.arrayBuffer();
+                                const cleanBlob = new Blob([buffer], { type: file.type || "image/jpeg" });
+                                store.add({
+                                    fileBlob: cleanBlob,
+                                    fileName: file.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
+                                    fileType: file.type || "image/jpeg",
+                                    fileSize: cleanBlob.size || file.size,
+                                    lastModified: file.lastModified || Date.now(),
+                                    uid: null,
+                                    currentView: "photos",
+                                    retryCount: 0,
+                                    addedAt: Date.now()
+                                });
+                            } catch (e) {
+                                store.add({
+                                    fileBlob: file,
+                                    fileName: file.name || `shared_${Date.now()}.jpg`,
+                                    fileType: file.type || "image/jpeg",
+                                    fileSize: file.size,
+                                    lastModified: file.lastModified || Date.now(),
+                                    uid: null,
+                                    currentView: "photos",
+                                    retryCount: 0,
+                                    addedAt: Date.now()
+                                });
+                            }
                         }
 
-                        await new Promise(resolve => {
+                        await new Promise((resolve) => {
                             tx.oncomplete = resolve;
                             tx.onerror = resolve;
                         });
                     }
-                } catch (err) {}
-                return Response.redirect('/', 303);
+                } catch (err) {
+                    console.error("[SW] Share Target Error:", err);
+                }
+                return Response.redirect('/?shared=1', 303);
             })()
         );
         return;
