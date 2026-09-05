@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - BULLETPROOF SHARE TARGET & OFFLINE ENGINE
+// ANANT GALLERY SERVICE WORKER - BULLETPROOF SHARE TARGET & SINGLE-WINDOW
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v12';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v10';
+const CACHE_VERSION = 'anant-shell-v16';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v13';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -63,12 +63,12 @@ self.addEventListener('activate', (event) => {
 });
 
 // --------------------------------------------------------------------------
-// 🌟 3. FETCH CONTROLLER & 100% RELIABLE ANDROID GALLERY SHARE TARGET
+// 🌟 3. FETCH CONTROLLER & ANDROID GALLERY SHARE TARGET (AUTO-CLOSE DUPLICATE)
 // --------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // A. ANDROID GALLERY SHARE TARGET HANDLER (Zero Crash & 100% Data Save)
+    // A. ANDROID GALLERY SHARE TARGET HANDLER
     if (event.request.method === 'POST' && (url.pathname.endsWith('share-target') || url.pathname.includes('share-target'))) {
         event.respondWith(
             (async () => {
@@ -76,7 +76,7 @@ self.addEventListener('fetch', (event) => {
                     const formData = await event.request.formData();
                     const mediaFiles = [];
 
-                    // Android OS Gallery से आने वाली हर इमेज फाइल को पकड़ें
+                    // Android OS Gallery से आने वाली हर इमेज फ़ाइल को पकड़ें
                     for (const [key, val] of formData.entries()) {
                         if (val && typeof val === 'object' && val.size > 0) {
                             mediaFiles.push(val);
@@ -108,7 +108,7 @@ self.addEventListener('fetch', (event) => {
                             });
                         }
 
-                        // 🌟 STEP 2: अब IndexedDB खोलकर एक ही बार में सुरक्षित लिखें (ट्रांजेक्शन कभी बंद नहीं होगा)
+                        // 🌟 STEP 2: IndexedDB में एक साथ सुरक्षित सेव करें
                         if (recordsToSave.length > 0) {
                             const db = await openDB();
                             await new Promise((resolve, reject) => {
@@ -125,20 +125,29 @@ self.addEventListener('fetch', (event) => {
                             });
                         }
 
-                        // 🌟 STEP 3: खुली हुई सभी ऐप विंडोज़ को सिंक का संदेश भेजें
+                        // 🌟 STEP 3: डुप्लीकेट विंडो बंद करने और ऐप फ़ोकस करने का लॉजिक
                         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-                        for (const client of clients) {
-                            client.postMessage({ 
+                        const openAppClient = clients.find(c => c.url.includes(self.location.origin) && !c.url.includes('share-target'));
+
+                        if (openAppClient && 'focus' in openAppClient) {
+                            await openAppClient.focus();
+                            openAppClient.postMessage({ 
                                 action: 'trigger-sync',
                                 sharedCount: mediaFiles.length 
                             });
+
+                            // शेयर वाली अस्थायी विंडो को तुरंत बंद करें ताकि मल्टीटास्किंग में नए ऐप न बनें
+                            return new Response(
+                                '<!DOCTYPE html><html><head><script>window.close(); setTimeout(()=>{ window.location.replace("/?shared=1"); }, 150);</script></head><body style="background:#090d16;"></body></html>',
+                                { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+                            );
                         }
                     }
                 } catch (err) {
-                    console.error("[SW Share Target Fatal Error]:", err);
+                    console.error("[SW Share Target Error]:", err);
                 }
 
-                // 303 Redirect तुरंत यूजर को ऐप की होम गैलरी में ले जाएगा
+                // अगर ऐप पहले से खुली नहीं थी तो रीडायरेक्ट करके खोलें
                 return Response.redirect('/?shared=1', 303);
             })()
         );
