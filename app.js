@@ -1071,7 +1071,7 @@ function multiDeletePerm() {
 }
 
 // --------------------------------------------------------------------------
-// 🌟 SMART SHARE-TARGET RECEIVER & FILE UPLOAD ENGINE
+// 🌟 SMART SHARE-TARGET RECEIVER & FILE UPLOAD ENGINE (AUTO-SYNC FIX)
 // --------------------------------------------------------------------------
 function getOrCreateFileInput() {
     let input = document.getElementById('fileInput');
@@ -1111,29 +1111,44 @@ function setupFileInput() {
     };
 }
 
-// 🌟 फोन की गैलरी से शेयर होकर आने वाले फोटो को तुरंत पकड़ें
+// 🌟 फोन की गैलरी से शेयर होकर आने वाले फोटो को पकड़ने का अचूक इंजन
+let isSharedIncoming = window.location.search.includes('shared=1');
+
 function checkIncomingSharedPhotos() {
-    if (window.location.search.includes('shared=1')) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-        showToast("📥 Photos received from Gallery! Starting Cloud Backup...");
-        
-        const trySync = () => {
-            if (currentUser) {
+    if (!isSharedIncoming) return;
+
+    // जब तक यूजर लोड नहीं हो जाता, तब तक इंतज़ार करें
+    const waitForUserAndUpload = () => {
+        if (currentUser) {
+            isSharedIncoming = false;
+            window.history.replaceState({}, document.title, window.location.pathname);
+            showToast("📥 Photos received from Gallery! Starting Cloud Backup...");
+            
+            setTimeout(() => {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-            } else {
-                setTimeout(trySync, 800);
-            }
-        };
-        setTimeout(trySync, 400);
-    }
+            }, 600);
+        } else {
+            setTimeout(waitForUserAndUpload, 300);
+        }
+    };
+
+    waitForUserAndUpload();
 }
 
+// सर्विस वर्कर का इंस्टेंट मैसेज पकड़ें
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event.data?.action === 'trigger-sync' && currentUser) {
-            const count = event.data.sharedCount || "";
-            showToast(`📥 ${count ? count + ' ' : ''}Photos received from Gallery! Uploading...`);
-            processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
+        if (event.data?.action === 'trigger-sync') {
+            const triggerSync = () => {
+                if (currentUser) {
+                    const count = event.data.sharedCount || "";
+                    showToast(`📥 ${count ? count + ' ' : ''}Photos received from Gallery! Uploading...`);
+                    processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
+                } else {
+                    setTimeout(triggerSync, 400);
+                }
+            };
+            triggerSync();
         }
     });
 }
