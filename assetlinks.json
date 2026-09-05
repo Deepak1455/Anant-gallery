@@ -5,9 +5,7 @@
       "namespace": "android_app",
       "package_name": "app.vercel.anant_gallery.twa",
       "sha256_cert_fingerprints": [
-        "61:10:E5:17:F4:BF:24:7B:86:6C:FE:C2:BA:72:2D:25:9B:05:AA:8D:94:61:D5:00:4E:34:DD:3E:5E:A9:27:FF",
-        "05:88:E0:C7:05:D0:CD:F6:BE:58:B7:D4:DF:25:30:E6:44:0C:E6:B5:CB:F5:44:55:7C:E2:18:ED:63:72:9B:76",
-        "24:DD:FE:BA:96:16:7B:22:B9:1B:4D:BE:28:8F:7F:C6:B9:35:73:C3:2E:4C:90:65:83:24:8E:F8:4F:FA:74:26"
+        "61:10:E5:17:F4:BF:24:7B:86:6C:FE:C2:BA:72:2D:25:9B:05:AA:8D:94:61:D5:00:4E:34:DD:3E:5E:A9:27:FF"
       ]
     }
   }
