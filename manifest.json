@@ -23,7 +23,7 @@
     "utilities"
   ],
   "launch_handler": {
-    "client_mode": "auto"
+    "client_mode": "focus-existing"
   },
   "scope_extensions": [
     {
@@ -123,18 +123,6 @@
             ".heic",
             ".heif",
             ".dng"
-          ]
-        },
-        {
-          "name": "media",
-          "accept": [
-            "image/*"
-          ]
-        },
-        {
-          "name": "files",
-          "accept": [
-            "image/*"
           ]
         }
       ]
