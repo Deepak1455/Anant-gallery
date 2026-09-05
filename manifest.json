@@ -26,7 +26,13 @@
       "origin": "https://anant-gallery.vercel.app"
     },
     {
+      "origin": "https://my-photo-d96e9.firebaseapp.com"
+    },
+    {
       "origin": "https://*.vercel.app"
+    },
+    {
+      "origin": "https://*.firebaseapp.com"
     }
   ],
   "protocol_handlers": [
