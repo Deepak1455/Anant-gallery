@@ -540,7 +540,8 @@ function injectHTML() {
             <div id="galleryContent"></div>
         </div>
 
-        <input type="file" id="fileInput" hidden accept="image/jpeg,image/png,image/webp,image/heic,image/gif,image/*" multiple>
+        <!-- 🌟 SMART ANDROID COMPATIBLE FILE INPUT (ZERO LAG & DIRECT GALLERY PICKER) -->
+        <input type="file" id="fileInput" accept="image/*" multiple style="position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;">
         <div id="toast">Message</div>
     `;
 
