@@ -2,8 +2,8 @@
 // ANANT GALLERY SERVICE WORKER - BULLETPROOF SHARE TARGET & OFFLINE ENGINE
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v8';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v6';
+const CACHE_VERSION = 'anant-shell-v10';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v8';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -63,23 +63,27 @@ self.addEventListener('activate', (event) => {
 });
 
 // --------------------------------------------------------------------------
-// 🌟 3. FETCH CONTROLLER & SMART UNIVERSAL SHARE TARGET
+// 🌟 3. FETCH CONTROLLER & SMART UNIVERSAL ANDROID SHARE TARGET
 // --------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // A. WEB SHARE TARGET (फोन की गैलरी से "Share to Anant Gallery" का फुल-प्रूफ हैंडलर)
-    if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
+    // A. WEB SHARE TARGET (फोन की गैलरी से "Share to Anant Gallery" का 100% फुल-प्रूफ हैंडलर)
+    if (event.request.method === 'POST' && (url.pathname.endsWith('share-target') || url.pathname.includes('share-target'))) {
         event.respondWith(
             (async () => {
                 try {
                     const formData = await event.request.formData();
                     const mediaFiles = [];
 
-                    // 🌟 किसी भी नाम (photos, file, image आदि) से आई हर इमेज फाइल को पकड़ें
+                    // 🌟 किसी भी Android ब्रांड (Samsung, Google Photos, Xiaomi, Vivo) से आई हर इमेज फाइल को पकड़ें
                     for (const [key, val] of formData.entries()) {
                         if (val && typeof val === 'object' && val.size > 0) {
-                            mediaFiles.push(val);
+                            const isImage = (val.type && val.type.startsWith('image/')) || 
+                                            (val.name && val.name.match(/\.(jpg|jpeg|png|webp|gif|heic|heif|dng)$/i));
+                            if (isImage) {
+                                mediaFiles.push(val);
+                            }
                         }
                     }
 
@@ -125,12 +129,17 @@ self.addEventListener('fetch', (event) => {
                         // 🌟 अगर ऐप पहले से बैकग्राउंड में खुली हो तो तुरंत ट्रिगर करें
                         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
                         for (const client of clients) {
-                            client.postMessage({ action: 'trigger-sync' });
+                            client.postMessage({ 
+                                action: 'trigger-sync',
+                                sharedCount: mediaFiles.length 
+                            });
                         }
                     }
                 } catch (err) {
                     console.error("[SW] Share Target Error:", err);
                 }
+
+                // 303 Redirect यूजर को तुरंत ऐप की गैलरी स्क्रीन पर ले जाएगा
                 return Response.redirect('/?shared=1', 303);
             })()
         );
