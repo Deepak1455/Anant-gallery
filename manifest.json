@@ -3,6 +3,8 @@
   "name": "Anant Gallery - Infinite Cloud Storage",
   "short_name": "Anant Gallery",
   "description": "Secure Infinite Photo Cloud & Private Vault Storage",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -15,6 +17,14 @@
   "background_color": "#090d16",
   "theme_color": "#000000",
   "categories": ["photos", "productivity", "utilities"],
+  "launch_handler": {
+    "client_mode": "auto"
+  },
+  "scope_extensions": [
+    {
+      "origin": "https://anant-gallery.vercel.app"
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
