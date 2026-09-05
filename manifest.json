@@ -23,16 +23,10 @@
   },
   "scope_extensions": [
     {
-      "origin": "https://anant-gallery.vercel.app"
-    },
-    {
       "origin": "https://my-photo-d96e9.firebaseapp.com"
     },
     {
-      "origin": "https://*.vercel.app"
-    },
-    {
-      "origin": "https://*.firebaseapp.com"
+      "origin": "https://anant-cdn.dt8484970.workers.dev"
     }
   ],
   "protocol_handlers": [
