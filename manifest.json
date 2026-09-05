@@ -6,13 +6,13 @@
   "lang": "en",
   "dir": "ltr",
   "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": [
-    "window-controls-overlay",
     "standalone",
-    "minimal-ui"
+    "minimal-ui",
+    "window-controls-overlay"
   ],
   "orientation": "portrait",
   "background_color": "#090d16",
@@ -74,7 +74,9 @@
       "icons": [
         {
           "src": "/icon-192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
         }
       ]
     },
@@ -86,7 +88,9 @@
       "icons": [
         {
           "src": "/icon-192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
         }
       ]
     },
@@ -98,7 +102,9 @@
       "icons": [
         {
           "src": "/icon-192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
         }
       ]
     }
