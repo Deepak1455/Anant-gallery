@@ -1070,8 +1070,7 @@ function multiDeletePerm() {
     });
 }
 
-// --------------------------------------------------------------------------
-// 🌟 12. SMART FILE UPLOAD ENGINE (ANDROID GALLERY ZERO-REJECTION)
+// 🌟 SMART SHARE-TARGET RECEIVER & FILE UPLOAD ENGINE
 // --------------------------------------------------------------------------
 function getOrCreateFileInput() {
     let input = document.getElementById('fileInput');
@@ -1098,7 +1097,6 @@ function setupFileInput() {
 
         if (!e.target.files || e.target.files.length === 0) return;
 
-        // 🌟 ANDROID GALLERY FIX: Don't reject files if MIME is empty or custom
         const files = Array.from(e.target.files).filter(f => f && (f.size > 0 || f.type?.startsWith('image/')));
 
         if (!files.length) {
@@ -1112,7 +1110,19 @@ function setupFileInput() {
     };
 }
 
-// 🌟 LISTEN FOR SHARED PHOTOS (Phone Gallery -> Share -> Anant Gallery)
+// 🌟 फोन की गैलरी से शेयर होकर आने वाले फोटो को तुरंत पकड़ें
+function checkIncomingSharedPhotos() {
+    if (window.location.search.includes('shared=1')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        showToast("📥 Photos received from Gallery! Starting Cloud Backup...");
+        if (currentUser) {
+            setTimeout(() => {
+                processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
+            }, 500);
+        }
+    }
+}
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync' && currentUser) {
@@ -1128,3 +1138,4 @@ window.addEventListener('focus', () => {
 });
 
 setupFileInput();
+checkIncomingSharedPhotos();
