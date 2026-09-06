@@ -28,40 +28,25 @@ jobs:
         run: |
           npm install -g @bubblewrap/cli
 
-      - name: ⚙️ Auto-Config Bubblewrap & Fix Errors
+      - name: ⚙️ Pre-Config Bubblewrap & Fix Line 45 Error
         run: |
-          # 1. Bubblewrap को पहले ही बता दें कि JDK और Android SDK कहाँ हैं (सवाल पूछना बंद)
+          # 1. Bubblewrap को Java 17 और Android SDK का रास्ता दें ताकि सवाल न पूछे
           mkdir -p ~/.bubblewrap
-          cat <<EOF > ~/.bubblewrap/config.json
-          {
-            "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${ANDROID_HOME}"
-          }
-          EOF
+          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
 
           # 2. twa-app फोल्डर में जाएं
           if [ -d "twa-app" ]; then
             cd twa-app
           fi
 
-          # 3. gradlew को executable permission दें
-          if [ -f "gradlew" ]; then
-            sed -i 's/\r$//' gradlew
-            chmod +x gradlew
-          fi
-
-          # 4. Line 45 वाले 'generatorApp' सिंटैक्स एरर को क्लीन करें
+          # 3. Line 45 वाले 'generatorApp' सिंटैक्स एरर को जड़ से हटाएं
           if [ -f "app/build.gradle" ]; then
-            echo "Fixing generatorApp error in app/build.gradle..."
-            sed -i 's/.*generatorApp:.*/\/\/ generatorApp line removed/' app/build.gradle
+            echo "Removing generatorApp line from build.gradle..."
+            sed -i '/generatorApp/d' app/build.gradle
           fi
 
-          # 5. AAB & APK बिल्ड करें
-          if [ -f "gradlew" ]; then
-            ./gradlew bundleRelease assembleRelease
-          else
-            yes "" | bubblewrap build --skipPwaValidation
-          fi
+          # 4. Bubblewrap Build बिना किसी सवाल के चलाएं
+          yes "" | bubblewrap build --skipPwaValidation
 
       - name: 📦 Upload Official AAB & APK
         uses: actions/upload-artifact@v4
@@ -71,4 +56,6 @@ jobs:
           path: |
             **/build/outputs/bundle/release/*.aab
             **/build/outputs/apk/release/*.apk
+            **/*.aab
+            **/*.apk
           retention-days: 14
