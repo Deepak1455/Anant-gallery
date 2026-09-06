@@ -27,15 +27,45 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 🔑 Generate Keystore & twa-manifest
+      - name: 🔑 Generate Keystore & Auto assetlinks.json
         run: |
-          # 1. यदि Keystore नहीं है तो बनाएं
+          # 1. Keystore बनाएं
           if [ ! -f "android.keystore" ]; then
-            echo "Creating signing keystore..."
+            echo "Creating permanent signing keystore..."
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. twa-manifest.json तैयार करें
+          # 2. SHA-256 फिंगरप्रिंट निकालें और assetlinks.json तैयार करें
+          SHA_FINGERPRINT=$(keytool -list -v -keystore android.keystore -alias android -storepass androidpassword | grep "SHA256:" | awk '{print $2}')
+          echo "CURRENT_SHA=$SHA_FINGERPRINT" >> $GITHUB_ENV
+
+          cat <<EOF > assetlinks.json
+          [
+            {
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                "namespace": "android_app",
+                "package_name": "app.vercel.anantgallery.twa",
+                "sha256_cert_fingerprints": [
+                  "$SHA_FINGERPRINT"
+                ]
+              }
+            }
+          ]
+          EOF
+
+          echo "=========================================================="
+          echo "🌟 NAYA ASSETLINKS.JSON TAIYAAR HAI:"
+          cat assetlinks.json
+          echo "=========================================================="
+
+          # GitHub Actions Summary पेज पर कॉपी बटन के साथ दिखाएं
+          echo "### 🚀 URL Bar Hatane Ke Liye Is Code Ko Copy Karke assetlinks.json Me Dalein:" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat assetlinks.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # 3. twa-manifest.json तैयार करें
           cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
@@ -71,9 +101,8 @@ jobs:
             }
           }
           EOF
-          echo "✅ Keystore and twa-manifest.json ready!"
 
-      - name: 🛠️ Generate Android Project (Zero Prompts)
+      - name: 🛠️ Generate Android Project
         run: |
           npm install @bubblewrap/core
           node -e "
@@ -86,53 +115,63 @@ jobs:
             } else if (typeof generator.create === 'function') {
               await generator.create('./', manifest);
             }
-            console.log('🎉 Android Native Project Generated Successfully!');
+            console.log('🎉 Project Generated!');
           }
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 🔨 Fix Resources, Compile & Sign with apksigner (v2/v3 Scheme)
+      - name: 📱 Inject Gallery Share Intent & Compile Signed APK/AAB
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
         run: |
-          # 1. generatorApp स्ट्रिंग को strings.xml में जोड़ें
+          # 1. generatorApp रिसोर्स फिक्स
           if [ -f "app/src/main/res/values/strings.xml" ]; then
             sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
           fi
 
-          # 2. AndroidManifest से meta-data साफ करें
+          # 2. 🌟 Android गैलरी शेयर मेनू में Anant Gallery को जोड़ने का 100% पक्का कोड
           python3 -c "
           import re
+          path = 'app/src/main/AndroidManifest.xml'
           try:
-              with open('app/src/main/AndroidManifest.xml', 'r') as f:
-                  c = f.read()
-              c = re.sub(r'<meta-data[^>]*generatorApp[^>]*/>', '', c, flags=re.DOTALL)
-              with open('app/src/main/AndroidManifest.xml', 'w') as f:
-                  f.write(c)
+              with open(path, 'r') as f:
+                  manifest = f.read()
+
+              # generatorApp मेटाडेटा हटाएं
+              manifest = re.sub(r'<meta-data[^>]*generatorApp[^>]*/>', '', manifest, flags=re.DOTALL)
+
+              # गैलरी शेयर इंटेंट-फ़िल्टर इंजेक्ट करें
+              share_intent = '''
+                      <intent-filter>
+                          <action android:name=\"android.intent.action.SEND\" />
+                          <action android:name=\"android.intent.action.SEND_MULTIPLE\" />
+                          <category android:name=\"android.intent.category.DEFAULT\" />
+                          <data android:mimeType=\"image/*\" />
+                      </intent-filter>
+              '''
+              if 'android.intent.action.SEND' not in manifest:
+                  manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*>)', r'\1\n' + share_intent, manifest)
+                  with open(path, 'w') as f:
+                      f.write(manifest)
+                  print('✅ Gallery Share Intent Filter Injected Successfully!')
           except Exception as e:
-              pass
+              print(e)
           "
 
           # 3. Gradle से AAB और APK बनाएं
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
 
-          # 4. आधिकारिक apksigner (v2 + v3 Signature) से APK को साइन करें
+          # 4. apksigner से APK को v2/v3 से साइन करें
           BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-          echo "Using Android Build Tools from: $BUILD_TOOLS"
-
           if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            # Zipalign
             $BUILD_TOOLS/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/aligned.apk
-            
-            # apksigner (v1, v2, v3 Signature Schemes)
             $BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out app/build/outputs/apk/release/anant-gallery-signed.apk app/build/outputs/apk/release/aligned.apk
-            
-            echo "✅ APK successfully signed with official v2/v3 scheme!"
+            echo "✅ Signed with official apksigner!"
           fi
 
-      - name: 📦 Upload Official AAB & Signed APK
+      - name: 📦 Upload AAB, Signed APK & assetlinks.json
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -140,5 +179,7 @@ jobs:
           path: |
             **/build/outputs/bundle/release/*.aab
             **/build/outputs/apk/release/anant-gallery-signed.apk
+            assetlinks.json
+            android.keystore
             **/*.aab
           retention-days: 14
