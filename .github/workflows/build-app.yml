@@ -91,17 +91,17 @@ jobs:
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 🔨 Fix generatorApp Resource & Compile AAB/APK
+      - name: 🔨 Fix Resources, Compile & Sign APK
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
         run: |
-          # 1. generatorApp स्ट्रिंग को strings.xml में जोड़ें ताकि AAPT2 एरर न दे
+          # 1. generatorApp स्ट्रिंग को strings.xml में जोड़ें
           if [ -f "app/src/main/res/values/strings.xml" ]; then
             sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
           fi
 
-          # 2. AndroidManifest.xml से भी generatorApp का झंझट साफ करें
+          # 2. AndroidManifest से meta-data साफ करें
           python3 -c "
           import re
           try:
@@ -110,23 +110,29 @@ jobs:
               c = re.sub(r'<meta-data[^>]*generatorApp[^>]*/>', '', c, flags=re.DOTALL)
               with open('app/src/main/AndroidManifest.xml', 'w') as f:
                   f.write(c)
-              print('AndroidManifest metadata cleaned!')
           except Exception as e:
-              print(e)
+              pass
           "
 
-          # 3. Gradle को परमिशन देकर सीधे AAB और APK बनाएं
+          # 3. Gradle से सीधे AAB और APK बनाएं
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
 
-      - name: 📦 Upload Official AAB & APK
+          # 4. APK को साइन करें ताकि फ़ोन में 1-क्लिक में इनस्टॉल हो सके!
+          if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            echo "Signing APK for direct phone installation..."
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore android.keystore -storepass androidpassword -keypass androidpassword app/build/outputs/apk/release/app-release-unsigned.apk android
+            cp app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/anant-gallery-signed.apk
+          fi
+
+      - name: 📦 Upload Official AAB & Signed APK
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Anant-Gallery-Android-Build
           path: |
             **/build/outputs/bundle/release/*.aab
+            **/build/outputs/apk/release/anant-gallery-signed.apk
             **/build/outputs/apk/release/*.apk
             **/*.aab
-            **/*.apk
           retention-days: 14
