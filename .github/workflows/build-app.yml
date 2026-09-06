@@ -62,6 +62,7 @@ jobs:
             "maskableIconUrl": "https://anant-gallery.vercel.app/icon-512.png",
             "appVersionCode": 1,
             "appVersionName": "1.0.0",
+            "appVersion": "1.0.0",
             "display": "standalone",
             "orientation": "portrait",
             "shortcuts": [],
@@ -87,10 +88,10 @@ jobs:
           }
           EOF
 
-          # 4. 🌟 बिना किसी सवाल के साइलेंट प्रोजेक्ट जनरेशन
-          bubblewrap update --skipPwaValidation
+          # 4. 🌟 वर्ज़न सवाल बाईपास करें (--skipVersionCheck से कभी नहीं पूछेगा)
+          printf '1.0.0\n1\n\n\n' | bubblewrap update --skipVersionCheck --skipPwaValidation || true
 
-          # 5. 🌟 सिंगल-टास्क (मल्टीपल स्क्रीन फिक्स)
+          # 5. 🌟 सिंगल-टास्क (डुप्लीकेट स्क्रीन हमेशा के लिए ख़त्म)
           sed -i 's|<activity|<activity android:launchMode="singleTask" android:taskAffinity=""|g' app/src/main/AndroidManifest.xml 2>/dev/null || true
 
           # 6. 🌟 सीधे Google Gradle इंजन से फ़ास्ट AAB और APK कंपाइल करें
@@ -106,6 +107,6 @@ jobs:
         with:
           name: Anant-Gallery-Google-Official-Build
           path: |
-            twa-app/app/build/outputs/bundle/release/*.aab
-            twa-app/app/build/outputs/apk/release/*.apk
+            twa-app/**/*.aab
+            twa-app/**/*.apk
             twa-app/android.keystore
