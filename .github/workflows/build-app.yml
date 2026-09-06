@@ -27,46 +27,16 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 🚀 Install Bubblewrap CLI
+      - name: 🔑 Generate Keystore & twa-manifest
         run: |
-          npm install -g @bubblewrap/cli
-
-      - name: ⚙️ Fix Android SDK Structure & Configure Bubblewrap
-        run: |
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-          if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
-            LATEST_DIR=$(find "$ANDROID_HOME/cmdline-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
-            if [ -n "$LATEST_DIR" ]; then
-              ln -s "$LATEST_DIR" "$ANDROID_HOME/cmdline-tools/latest"
-            fi
-          fi
-
-          yes | sdkmanager --licenses || true
-
-          mkdir -p ~/.bubblewrap
-          cat <<EOF > ~/.bubblewrap/config.json
-          {
-            "jdkPath": "$JAVA_HOME",
-            "androidSdkPath": "$ANDROID_HOME"
-          }
-          EOF
-          echo "✅ Bubblewrap Configured Successfully!"
-
-      - name: 🔨 Generate twa-manifest & Build Signed AAB/APK
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
-          BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
-        run: |
-          # 1. यदि Signing Keystore नहीं है तो बनाएं
+          # 1. यदि Keystore नहीं है तो अपने-आप बनाएं
           if [ ! -f "android.keystore" ]; then
             echo "Creating signing keystore..."
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. twa-manifest.json फ़ाइल तैयार करें
-          if [ ! -f "twa-manifest.json" ]; then
-            echo "Generating twa-manifest.json..."
-            cat <<EOF > twa-manifest.json
+          # 2. twa-manifest.json तैयार करें
+          cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
             "host": "anant-gallery.vercel.app",
@@ -100,10 +70,35 @@ jobs:
             }
           }
           EOF
+          echo "✅ Keystore and twa-manifest.json ready!"
+
+      - name: 🛠️ Generate Android Project (Zero Prompts)
+        run: |
+          npm install @bubblewrap/core
+          node -e "
+          const { TwaGenerator, TwaManifest } = require('@bubblewrap/core');
+          async function buildProject() {
+            const manifest = await TwaManifest.fromFile('./twa-manifest.json');
+            const generator = new TwaGenerator();
+            await generator.create(manifest);
+            console.log('🎉 Android Native Project Generated Successfully!');
+          }
+          buildProject().catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: 🔨 Compile Official Signed AAB & APK via Gradle
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
+          BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
+        run: |
+          # build.gradle में किसी भी पुराने सिंटैक्स एरर को साफ करें
+          if [ -f "app/build.gradle" ]; then
+            sed -i '/generatorApp/d' app/build.gradle || true
           fi
 
-          # 3. --skipVersionCheck से यह वर्ज़न का सवाल नहीं पूछेगा, और सीधे AAB/APK कम्पाइल करेगा
-          printf "y\n\n\n" | bubblewrap build --skipVersionCheck --skipPwaValidation
+          # Gradle को परमिशन दें और सीधे AAB व APK बनाएं
+          chmod +x gradlew
+          ./gradlew bundleRelease assembleRelease
 
       - name: 📦 Upload Official AAB & APK
         uses: actions/upload-artifact@v4
