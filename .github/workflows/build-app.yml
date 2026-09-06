@@ -29,13 +29,13 @@ jobs:
 
       - name: 🔑 Generate Keystore & twa-manifest
         run: |
-          # 1. यदि Keystore नहीं है तो अपने-आप बनाएं
+          # 1. यदि Keystore नहीं है तो बनाएं
           if [ ! -f "android.keystore" ]; then
             echo "Creating signing keystore..."
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. twa-manifest.json तैयार करें (सीधे GitHub से आइकन लेगा ताकि Vercel पर निर्भर न रहे)
+          # 2. twa-manifest.json तैयार करें
           cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
@@ -52,6 +52,7 @@ jobs:
             "maskableIconUrl": "https://raw.githubusercontent.com/Deepak1455/Anant-gallery/main/icon-512.png",
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
+            "generatorApp": "bubblewrap-cli",
             "signingKey": {
               "path": "./android.keystore",
               "alias": "android"
@@ -90,17 +91,31 @@ jobs:
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 🔨 Compile Official Signed AAB & APK via Gradle
+      - name: 🔨 Fix generatorApp Resource & Compile AAB/APK
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
         run: |
-          # build.gradle में किसी पुराने सिंटैक्स एरर को हटाएं
-          if [ -f "app/build.gradle" ]; then
-            sed -i '/generatorApp/d' app/build.gradle || true
+          # 1. generatorApp स्ट्रिंग को strings.xml में जोड़ें ताकि AAPT2 एरर न दे
+          if [ -f "app/src/main/res/values/strings.xml" ]; then
+            sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
           fi
 
-          # Gradle को परमिशन देकर सीधे फाइनल AAB और APK बनाएं
+          # 2. AndroidManifest.xml से भी generatorApp का झंझट साफ करें
+          python3 -c "
+          import re
+          try:
+              with open('app/src/main/AndroidManifest.xml', 'r') as f:
+                  c = f.read()
+              c = re.sub(r'<meta-data[^>]*generatorApp[^>]*/>', '', c, flags=re.DOTALL)
+              with open('app/src/main/AndroidManifest.xml', 'w') as f:
+                  f.write(c)
+              print('AndroidManifest metadata cleaned!')
+          except Exception as e:
+              print(e)
+          "
+
+          # 3. Gradle को परमिशन देकर सीधे AAB और APK बनाएं
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
 
