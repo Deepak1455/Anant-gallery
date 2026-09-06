@@ -35,7 +35,7 @@ jobs:
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. twa-manifest.json तैयार करें (नाम सेट किया गया: Anant Gallery)
+          # 2. twa-manifest.json तैयार करें
           cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
@@ -71,7 +71,7 @@ jobs:
             }
           }
           EOF
-          echo "✅ Keystore and twa-manifest.json ready with name Anant Gallery!"
+          echo "✅ Keystore and twa-manifest.json ready!"
 
       - name: 🛠️ Generate Android Project (Zero Prompts)
         run: |
@@ -91,7 +91,7 @@ jobs:
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 🔨 Fix Resources, Compile & Sign APK
+      - name: 🔨 Fix Resources, Compile & Sign with apksigner (v2/v3 Scheme)
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
@@ -114,15 +114,22 @@ jobs:
               pass
           "
 
-          # 3. Gradle से सीधे AAB और APK बनाएं
+          # 3. Gradle से AAB और APK बनाएं
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
 
-          # 4. APK को साइन करें ताकि फ़ोन में बिना एरर इनस्टॉल हो सके
+          # 4. आधिकारिक apksigner (v2 + v3 Signature) से APK को साइन करें ताकि नए Android पर तुरंत इनस्टॉल हो सके!
+          BUILD_TOOLS=\$(ls -d \$ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          echo "Using Android Build Tools from: \$BUILD_TOOLS"
+
           if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            echo "Signing APK for direct phone installation..."
-            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore android.keystore -storepass androidpassword -keypass androidpassword app/build/outputs/apk/release/app-release-unsigned.apk android
-            cp app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/anant-gallery-signed.apk
+            # Zipalign alignment
+            \$BUILD_TOOLS/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/aligned.apk
+            
+            # apksigner (v1, v2 & v3 schemes)
+            \$BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out app/build/outputs/apk/release/anant-gallery-signed.apk app/build/outputs/apk/release/aligned.apk
+            
+            echo "✅ APK signed with official v2/v3 schemes!"
           fi
 
       - name: 📦 Upload Official AAB & Signed APK
@@ -133,6 +140,5 @@ jobs:
           path: |
             **/build/outputs/bundle/release/*.aab
             **/build/outputs/apk/release/anant-gallery-signed.apk
-            **/build/outputs/apk/release/*.apk
             **/*.aab
           retention-days: 14
