@@ -25,12 +25,12 @@ jobs:
         with:
           node-version: 20
 
-      - name: 🚀 Install Bubblewrap
+      - name: 🚀 Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
-      - name: ⚙️ Build App Automatically
+      - name: ⚙️ Generate Project & Build AAB
         run: |
-          # 1. Bubblewrap के लिए JDK और SDK कॉन्फ़िगर करें (ताकि कोई सवाल न पूछे)
+          # 1. Bubblewrap config
           mkdir -p ~/.bubblewrap
           cat << EOF > ~/.bubblewrap/config.json
           {
@@ -39,34 +39,73 @@ jobs:
           }
           EOF
 
-          mkdir -p twa-build
-          cd twa-build
+          mkdir -p twa-app
+          cd twa-app
 
-          # 2. सुरक्षित डिजिटल Keystore बनाएँ
+          # 2. सुरक्षित Keystore बनाएँ
           keytool -genkeypair -dname "cn=Anant, ou=Engineering, o=AnantGallery, c=IN" \
             -alias anant-key -keypass AnantPass2026 -keystore android.keystore -storepass AnantPass2026 -validity 20000 -keyalg RSA
 
-          # 3. 🌟 Vercel से प्रोजेक्ट को बिना रुके ऑटो-इनिशियलाइज़ करें
-          yes "" | bubblewrap init --manifest=https://anant-gallery.vercel.app/manifest.json --directory=. --skipPwaValidation || true
+          # 3. सटीक TWA कॉन्फ़िगरेशन
+          cat << 'EOF' > twa-manifest.json
+          {
+            "packageId": "app.vercel.anant_gallery.twa",
+            "host": "anant-gallery.vercel.app",
+            "name": "Anant Gallery - Infinite Cloud Storage",
+            "launcherName": "Anant Gallery",
+            "themeColor": "#000000",
+            "navigationColor": "#000000",
+            "backgroundColor": "#090d16",
+            "enableNotifications": true,
+            "startUrl": "/?source=pwa",
+            "iconUrl": "https://anant-gallery.vercel.app/icon-512.png",
+            "maskableIconUrl": "https://anant-gallery.vercel.app/icon-512.png",
+            "appVersionCode": 1,
+            "appVersionName": "1.0.0",
+            "display": "standalone",
+            "orientation": "portrait",
+            "shortcuts": [],
+            "webShareTarget": {
+              "action": "/share-target",
+              "method": "POST",
+              "enctype": "multipart/form-data",
+              "params": {
+                "title": "title",
+                "text": "text",
+                "files": [
+                  {
+                    "name": "photos",
+                    "accept": ["image/*"]
+                  }
+                ]
+              }
+            },
+            "signing": {
+              "keyStore": "android.keystore",
+              "keyAlias": "anant-key"
+            }
+          }
+          EOF
 
-          # 4. Keystore को TWA से लिंक करें
-          sed -i 's|"keyStore": ".*"|"keyStore": "android.keystore"|' twa-manifest.json 2>/dev/null || true
-          sed -i 's|"keyAlias": ".*"|"keyAlias": "anant-key"|' twa-manifest.json 2>/dev/null || true
+          # 4. 🌟 बिना किसी सवाल के साइलेंट प्रोजेक्ट जनरेशन
+          bubblewrap update --skipPwaValidation
 
-          # 5. 🌟 सिंगल-टास्क (डुप्लीकेट स्क्रीन हमेशा के लिए ख़त्म)
+          # 5. 🌟 सिंगल-टास्क (मल्टीपल स्क्रीन फिक्स)
           sed -i 's|<activity|<activity android:launchMode="singleTask" android:taskAffinity=""|g' app/src/main/AndroidManifest.xml 2>/dev/null || true
 
-          # 6. ऑटोमैटिक पासवर्ड फ़ीड करके शुद्ध AAB और APK बिल्ड करें
-          export BUBBLEWRAP_KEYSTORE_PASSWORD="AnantPass2026"
-          export BUBBLEWRAP_KEY_PASSWORD="AnantPass2026"
+          # 6. 🌟 सीधे Google Gradle इंजन से फ़ास्ट AAB और APK कंपाइल करें
+          chmod +x gradlew
+          ./gradlew bundleRelease assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/android.keystore \
+            -Pandroid.injected.signing.store.password=AnantPass2026 \
+            -Pandroid.injected.signing.key.alias=anant-key \
+            -Pandroid.injected.signing.key.password=AnantPass2026
 
-          yes "AnantPass2026" | bubblewrap build --skipPwaValidation
-
-      - name: 📤 Upload Google Play Files
+      - name: 📤 Upload Official AAB & APK
         uses: actions/upload-artifact@v4
         with:
           name: Anant-Gallery-Google-Official-Build
           path: |
-            twa-build/*.aab
-            twa-build/*.apk
-            twa-build/*.keystore
+            twa-app/app/build/outputs/bundle/release/*.aab
+            twa-app/app/build/outputs/apk/release/*.apk
+            twa-app/android.keystore
