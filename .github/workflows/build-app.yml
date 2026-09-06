@@ -1,0 +1,64 @@
+name: Build Google Official AAB & APK
+
+on:
+  workflow_dispatch: # आप फ़ोन से बटन दबाकर जब चाहें तब चला सकते हैं
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 📦 Setup Node.js & Bubblewrap
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 🚀 Install Google Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: ⚙️ Generate TWA Project & Keystore
+        run: |
+          mkdir build-output
+          cd build-output
+
+          # Google के Bubblewrap से सीधे Vercel Manifest से ऐप इनिशियलाइज़ करें
+          npx @bubblewrap/cli init --manifest=https://anant-gallery.vercel.app/manifest.json --directory=.
+
+          # Keystore पासवर्ड सेट करें
+          export KEYSTORE_PASSWORD="AnantGalleryPass2026"
+          export KEY_PASSWORD="AnantGalleryPass2026"
+
+          # ऑटोमैटिक डिजिटल की (Key) बनाएँ
+          keytool -genkey -v -keystore android.keystore -alias anant-key -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass AnantGalleryPass2026 -keypass AnantGalleryPass2026 \
+            -dname "CN=Anant Admin, OU=Engineering, O=Anant Gallery, L=Delhi, S=Delhi, C=IN"
+
+          # Bubblewrap कॉन्फ़िगरेशन में कीस्टोर जोड़ें
+          sed -i 's|"signing": {.*}|"signing": {"keyStore": "android.keystore", "keyAlias": "anant-key"}|' twa-manifest.json
+
+          # 🌟 Android OS सिंगल-टास्क फ़िक्स लागू करें
+          sed -i 's|<activity|<activity android:launchMode="singleTask" android:taskAffinity=""|g' app/src/main/AndroidManifest.xml 2>/dev/null || true
+
+          # 🌟 शुद्ध AAB और APK बिल्ड करें
+          npx @bubblewrap/cli build
+
+      - name: 📤 Upload AAB & APK Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anant-Gallery-Google-Official-Build
+          path: |
+            build-output/app-release-bundle.aab
+            build-output/app-release-signed.apk
+            build-output/android.keystore
