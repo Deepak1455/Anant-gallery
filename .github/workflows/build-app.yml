@@ -28,31 +28,47 @@ jobs:
         run: |
           npm install -g @bubblewrap/cli
 
-      - name: ⚙️ Generate Project & Build AAB
+      - name: ⚙️ Auto-Config Bubblewrap & Fix Errors
         run: |
-          # 1. यदि twa-app फोल्डर है तो उसमें जाएं
+          # 1. Bubblewrap को पहले ही बता दें कि JDK और Android SDK कहाँ हैं (सवाल पूछना बंद)
+          mkdir -p ~/.bubblewrap
+          cat <<EOF > ~/.bubblewrap/config.json
+          {
+            "jdkPath": "${JAVA_HOME}",
+            "androidSdkPath": "${ANDROID_HOME}"
+          }
+          EOF
+
+          # 2. twa-app फोल्डर में जाएं
           if [ -d "twa-app" ]; then
             cd twa-app
           fi
 
-          # 2. Bubblewrap update चलाएं
-          bubblewrap update --skipPwaValidation || true
-
-          # 🌟 3. लाइन 45 वाले 'generatorApp' एरर को जड़ से ठीक करें
-          if [ -f "app/build.gradle" ]; then
-            echo "Removing invalid generatorApp line from build.gradle..."
-            sed -i '/generatorApp/d' app/build.gradle
+          # 3. gradlew को executable permission दें
+          if [ -f "gradlew" ]; then
+            sed -i 's/\r$//' gradlew
+            chmod +x gradlew
           fi
 
-          # 4. AAB और APK बिल्ड करें
-          bubblewrap build --skipPwaValidation || ./gradlew bundleRelease assembleRelease
+          # 4. Line 45 वाले 'generatorApp' सिंटैक्स एरर को क्लीन करें
+          if [ -f "app/build.gradle" ]; then
+            echo "Fixing generatorApp error in app/build.gradle..."
+            sed -i 's/.*generatorApp:.*/\/\/ generatorApp line removed/' app/build.gradle
+          fi
+
+          # 5. AAB & APK बिल्ड करें
+          if [ -f "gradlew" ]; then
+            ./gradlew bundleRelease assembleRelease
+          else
+            yes "" | bubblewrap build --skipPwaValidation
+          fi
 
       - name: 📦 Upload Official AAB & APK
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Anant-Gallery-Build
+          name: Anant-Gallery-Android-Build
           path: |
             **/build/outputs/bundle/release/*.aab
             **/build/outputs/apk/release/*.apk
-          retention-days: 14 
+          retention-days: 14
