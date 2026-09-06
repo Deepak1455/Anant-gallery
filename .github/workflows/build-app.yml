@@ -19,6 +19,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: 📱 Setup Android SDK Tools
+        uses: android-actions/setup-android@v3
+
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -28,25 +31,54 @@ jobs:
         run: |
           npm install -g @bubblewrap/cli
 
-      - name: ⚙️ Pre-Config Bubblewrap & Fix Line 45 Error
+      - name: ⚙️ Fix Android SDK Structure & Configure Bubblewrap
         run: |
-          # 1. Bubblewrap को Java 17 और Android SDK का रास्ता दें ताकि सवाल न पूछे
-          mkdir -p ~/.bubblewrap
-          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
+          # 1. Android SDK के cmdline-tools को 'latest' सिम्लिंक से जोड़ें (Bubblewrap की अनिवार्य शर्त)
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            LATEST_DIR=$(find "$ANDROID_HOME/cmdline-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+            if [ -n "$LATEST_DIR" ]; then
+              ln -s "$LATEST_DIR" "$ANDROID_HOME/cmdline-tools/latest"
+            fi
+          fi
 
-          # 2. twa-app फोल्डर में जाएं
+          # 2. सभी Android SDK लाइसेंस स्वतः स्वीकार करें
+          yes | sdkmanager --licenses || true
+
+          # 3. Bubblewrap को सही Java 17 और Android SDK पाथ दें
+          mkdir -p ~/.bubblewrap
+          cat <<EOF > ~/.bubblewrap/config.json
+          {
+            "jdkPath": "$JAVA_HOME",
+            "androidSdkPath": "$ANDROID_HOME"
+          }
+          EOF
+          echo "✅ Bubblewrap Configured Successfully!"
+
+      - name: 🔨 Build Signed Android AAB & APK
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
+          BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
+        run: |
+          # 1. यदि twa-app फोल्डर है तो उसमें जाएं
           if [ -d "twa-app" ]; then
             cd twa-app
           fi
 
-          # 3. Line 45 वाले 'generatorApp' सिंटैक्स एरर को जड़ से हटाएं
+          # 2. build.gradle से गलत 'generatorApp' लाइन को हटाएं
           if [ -f "app/build.gradle" ]; then
             echo "Removing generatorApp line from build.gradle..."
             sed -i '/generatorApp/d' app/build.gradle
           fi
 
-          # 4. Bubblewrap Build बिना किसी सवाल के चलाएं
-          yes "" | bubblewrap build --skipPwaValidation
+          # 3. यदि keystore मौजूद नहीं है तो ऑटोमैटिक release keystore बनाएं (ताकि पासवर्ड प्रॉम्प्ट न आए)
+          if [ ! -f "android.keystore" ]; then
+            echo "Creating signing keystore..."
+            keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, S=Delhi, C=IN"
+          fi
+
+          # 4. Bubblewrap Build बिना किसी प्रॉम्प्ट या सवाल के चलाएं
+          bubblewrap build --skipPwaValidation
 
       - name: 📦 Upload Official AAB & APK
         uses: actions/upload-artifact@v4
