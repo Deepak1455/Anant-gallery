@@ -57,15 +57,15 @@ jobs:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
         run: |
-          # 1. ऑटोमैटिक Signing Keystore बनाएं
+          # 1. यदि Signing Keystore नहीं है तो बनाएं
           if [ ! -f "android.keystore" ]; then
             echo "Creating signing keystore..."
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. यदि twa-manifest.json मौजूद नहीं है, तो इसे ऑटोमैटिक बनाएं
-          if [ ! -f "twa-manifest.json" ] && [ ! -f "twa-app/twa-manifest.json" ]; then
-            echo "Generating twa-manifest.json automatically..."
+          # 2. ऑटोमैटिक twa-manifest.json तैयार करें
+          if [ ! -f "twa-manifest.json" ]; then
+            echo "Generating twa-manifest.json..."
             cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
@@ -102,21 +102,8 @@ jobs:
           EOF
           fi
 
-          # 3. यदि twa-app फोल्डर में फाइल है तो वहां जाएं
-          if [ -d "twa-app" ]; then
-            cd twa-app
-          fi
-
-          # 4. Android Project फाइल्स तैयार करें
-          bubblewrap update --skipPwaValidation || true
-
-          # 5. build.gradle से गलत generatorApp सिंटैक्स लाइन हटाएं
-          if [ -f "app/build.gradle" ]; then
-            sed -i '/generatorApp/d' app/build.gradle
-          fi
-
-          # 6. फाइनल AAB और APK बिल्ड करें
-          bubblewrap build --skipPwaValidation
+          # 3. बिना किसी सवाल पर अटके ऑटोमैटिक 'yes' देकर सीधे AAB और APK कम्पाइल करें
+          printf "y\ny\ny\n" | bubblewrap build --skipPwaValidation
 
       - name: 📦 Upload Official AAB & APK
         uses: actions/upload-artifact@v4
