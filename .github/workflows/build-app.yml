@@ -33,7 +33,6 @@ jobs:
 
       - name: ⚙️ Fix Android SDK Structure & Configure Bubblewrap
         run: |
-          # 1. Android SDK के cmdline-tools को 'latest' सिम्लिंक से जोड़ें (Bubblewrap की अनिवार्य शर्त)
           mkdir -p "$ANDROID_HOME/cmdline-tools"
           if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
             LATEST_DIR=$(find "$ANDROID_HOME/cmdline-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
@@ -42,10 +41,8 @@ jobs:
             fi
           fi
 
-          # 2. सभी Android SDK लाइसेंस स्वतः स्वीकार करें
           yes | sdkmanager --licenses || true
 
-          # 3. Bubblewrap को सही Java 17 और Android SDK पाथ दें
           mkdir -p ~/.bubblewrap
           cat <<EOF > ~/.bubblewrap/config.json
           {
@@ -55,29 +52,70 @@ jobs:
           EOF
           echo "✅ Bubblewrap Configured Successfully!"
 
-      - name: 🔨 Build Signed Android AAB & APK
+      - name: 🔨 Generate twa-manifest & Build Signed AAB/APK
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
         run: |
-          # 1. यदि twa-app फोल्डर है तो उसमें जाएं
+          # 1. ऑटोमैटिक Signing Keystore बनाएं
+          if [ ! -f "android.keystore" ]; then
+            echo "Creating signing keystore..."
+            keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
+          fi
+
+          # 2. यदि twa-manifest.json मौजूद नहीं है, तो इसे ऑटोमैटिक बनाएं
+          if [ ! -f "twa-manifest.json" ] && [ ! -f "twa-app/twa-manifest.json" ]; then
+            echo "Generating twa-manifest.json automatically..."
+            cat <<EOF > twa-manifest.json
+          {
+            "packageId": "app.vercel.anantgallery.twa",
+            "host": "anant-gallery.vercel.app",
+            "name": "Anant Gallery - Infinite Cloud Storage",
+            "launcherName": "Anant",
+            "display": "standalone",
+            "themeColor": "#000000",
+            "navigationColor": "#000000",
+            "backgroundColor": "#090d16",
+            "enableNotifications": true,
+            "startUrl": "/?source=pwa",
+            "iconUrl": "https://anant-gallery.vercel.app/icon-512.png",
+            "maskableIconUrl": "https://anant-gallery.vercel.app/icon-512.png",
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
+            "signingKey": {
+              "path": "./android.keystore",
+              "alias": "android"
+            },
+            "splashScreenFadeOutDuration": 300,
+            "enableSiteSettingsShortcut": true,
+            "isChromeOSOnly": false,
+            "fullScopeUrl": "https://anant-gallery.vercel.app/",
+            "minSdkVersion": 21,
+            "orientation": "portrait",
+            "fingerprints": [],
+            "additionalTrustedOrigins": [],
+            "features": {},
+            "alphaDependencies": {
+              "enabled": false
+            }
+          }
+          EOF
+          fi
+
+          # 3. यदि twa-app फोल्डर में फाइल है तो वहां जाएं
           if [ -d "twa-app" ]; then
             cd twa-app
           fi
 
-          # 2. build.gradle से गलत 'generatorApp' लाइन को हटाएं
+          # 4. Android Project फाइल्स तैयार करें
+          bubblewrap update --skipPwaValidation || true
+
+          # 5. build.gradle से गलत generatorApp सिंटैक्स लाइन हटाएं
           if [ -f "app/build.gradle" ]; then
-            echo "Removing generatorApp line from build.gradle..."
             sed -i '/generatorApp/d' app/build.gradle
           fi
 
-          # 3. यदि keystore मौजूद नहीं है तो ऑटोमैटिक release keystore बनाएं (ताकि पासवर्ड प्रॉम्प्ट न आए)
-          if [ ! -f "android.keystore" ]; then
-            echo "Creating signing keystore..."
-            keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, S=Delhi, C=IN"
-          fi
-
-          # 4. Bubblewrap Build बिना किसी प्रॉम्प्ट या सवाल के चलाएं
+          # 6. फाइनल AAB और APK बिल्ड करें
           bubblewrap build --skipPwaValidation
 
       - name: 📦 Upload Official AAB & APK
