@@ -46,7 +46,7 @@ jobs:
           keytool -genkeypair -dname "cn=Anant, ou=Engineering, o=AnantGallery, c=IN" \
             -alias anant-key -keypass AnantPass2026 -keystore android.keystore -storepass AnantPass2026 -validity 20000 -keyalg RSA
 
-          # 3. सटीक TWA कॉन्फ़िगरेशन
+          # 3. 100% सटीक TWA कॉन्फ़िगरेशन (Splash Duration 300ms के साथ)
           cat << 'EOF' > twa-manifest.json
           {
             "packageId": "app.vercel.anant_gallery.twa",
@@ -63,6 +63,7 @@ jobs:
             "appVersionCode": 1,
             "appVersionName": "1.0.0",
             "appVersion": "1.0.0",
+            "splashScreenFadeOutDuration": 300,
             "display": "standalone",
             "orientation": "portrait",
             "shortcuts": [],
@@ -88,13 +89,14 @@ jobs:
           }
           EOF
 
-          # 4. 🌟 वर्ज़न सवाल बाईपास करें (--skipVersionCheck से कभी नहीं पूछेगा)
+          # 4. बिना किसी सवाल के प्रोजेक्ट बनाएँ
           printf '1.0.0\n1\n\n\n' | bubblewrap update --skipVersionCheck --skipPwaValidation || true
 
-          # 5. 🌟 सिंगल-टास्क (डुप्लीकेट स्क्रीन हमेशा के लिए ख़त्म)
+          # 5. 🌟 Gradle सिंटैक्स और सिंगल-टास्क ऑटो-फ़िक्स
+          sed -i 's|splashScreenFadeOutDuration:.*|splashScreenFadeOutDuration: 300|g' app/build.gradle 2>/dev/null || true
           sed -i 's|<activity|<activity android:launchMode="singleTask" android:taskAffinity=""|g' app/src/main/AndroidManifest.xml 2>/dev/null || true
 
-          # 6. 🌟 सीधे Google Gradle इंजन से फ़ास्ट AAB और APK कंपाइल करें
+          # 6. 🌟 सीधे Google Gradle इंजन से AAB और APK कंपाइल करें
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease \
             -Pandroid.injected.signing.store.file=$(pwd)/android.keystore \
