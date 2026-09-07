@@ -998,7 +998,7 @@ if (fileInputEl) {
     });
 }
 // --------------------------------------------------------------------------
-// 🌟 11. ANDROID GALLERY SHARE: 1-TAP INSTANT SMART AUTO-UPLOAD ENGINE
+// 🌟 11. ANDROID GALLERY SHARE-TARGET: INSTANT AUTO-UPLOAD ENGINE
 // --------------------------------------------------------------------------
 import { updateOfflineBadge } from "./offline-sync.js";
 
@@ -1009,36 +1009,33 @@ function checkIncomingSharedPhotos() {
     // URL को तुरंत साफ़ करें
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    // 🌟 1. तुरंत पर्पल "Queued" बैज को स्क्रीन पर उछालें (50ms के अंदर)
+    // 🌟 1. तुरंत पर्पल "Queued" बैज दिखाएं
     updateOfflineBadge(false);
-    if (navigator.vibrate) navigator.vibrate([20, 30, 20]); // हल्का स्मूथ वाइब्रेशन
+    if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
 
-    // 🌟 2. बिना किसी इंतज़ार के सीधे क्लाउड अपलोड शुरू करें
-    let syncAttempts = 0;
+    // 🌟 2. ऑटोमैटिक अपलोड ट्रिगर
     const autoSyncTimer = setInterval(() => {
-        syncAttempts++;
         if (currentUser) {
             clearInterval(autoSyncTimer);
-            showToast("📥 Photos received from Gallery! Uploading... ⚡");
+            showToast("📥 Photo received! Starting Cloud Upload... ⚡");
             setTimeout(() => {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
             }, 100);
         }
-        if (syncAttempts > 30) clearInterval(autoSyncTimer);
     }, 100);
+
+    setTimeout(() => clearInterval(autoSyncTimer), 8000);
 }
 
-// ऐप स्टार्ट होते ही तुरंत चेक करें
+// तुरंत चलाएं
 checkIncomingSharedPhotos();
 
-// 🌟 सर्विस वर्कर से लाइव सिग्नल मिलते ही रियल-टाइम बैज अपडेट
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync') {
-            updateOfflineBadge(false); // तुरंत पर्पल बैज पॉप होगा
+            updateOfflineBadge(false);
             if (navigator.vibrate) navigator.vibrate(25);
-            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) queued for upload! ⚡`);
-            
+            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) received from Gallery! ⚡`);
             if (currentUser) {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
             }
