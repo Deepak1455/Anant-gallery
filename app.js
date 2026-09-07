@@ -998,36 +998,47 @@ if (fileInputEl) {
     });
 }
 // --------------------------------------------------------------------------
-// 🌟 11. ANDROID GALLERY SHARE-TARGET: INSTANT AUTO-UPLOAD ENGINE
+// 🌟 11. ANDROID GALLERY SHARE: 1-TAP INSTANT SMART AUTO-UPLOAD ENGINE
 // --------------------------------------------------------------------------
+import { updateOfflineBadge } from "./offline-sync.js";
+
 function checkIncomingSharedPhotos() {
-    if (!window.location.search.includes('shared=1')) return;
-    
-    // URL से ?shared=1 हटाएँ ताकि रिफ्रेश पर बार-बार न चले
+    const isShared = window.location.search.includes('shared=1');
+    if (!isShared) return;
+
+    // URL को तुरंत साफ़ करें
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    // 🌟 ऑटोमैटिक स्मार्ट टाइमर: जैसे ही यूज़र ऑथेंटिकेट होगा, सीधे अपलोड शुरू!
-    let attempts = 0;
-    const autoSyncInterval = setInterval(() => {
-        attempts++;
+    // 🌟 1. तुरंत पर्पल "Queued" बैज को स्क्रीन पर उछालें (50ms के अंदर)
+    updateOfflineBadge(false);
+    if (navigator.vibrate) navigator.vibrate([20, 30, 20]); // हल्का स्मूथ वाइब्रेशन
+
+    // 🌟 2. बिना किसी इंतज़ार के सीधे क्लाउड अपलोड शुरू करें
+    let syncAttempts = 0;
+    const autoSyncTimer = setInterval(() => {
+        syncAttempts++;
         if (currentUser) {
-            clearInterval(autoSyncInterval);
-            showToast("📥 Photo received! Starting Auto-Upload... ⚡");
+            clearInterval(autoSyncTimer);
+            showToast("📥 Photos received from Gallery! Uploading... ⚡");
             setTimeout(() => {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-            }, 250);
+            }, 100);
         }
-        if (attempts > 40) clearInterval(autoSyncInterval);
-    }, 150);
+        if (syncAttempts > 30) clearInterval(autoSyncTimer);
+    }, 100);
 }
 
-// ऐप स्टार्ट होते ही और सर्विस वर्कर का मैसेज आते ही तुरंत चेक करें
+// ऐप स्टार्ट होते ही तुरंत चेक करें
 checkIncomingSharedPhotos();
 
+// 🌟 सर्विस वर्कर से लाइव सिग्नल मिलते ही रियल-टाइम बैज अपडेट
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync') {
-            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) received from Gallery! Uploading... ⚡`);
+            updateOfflineBadge(false); // तुरंत पर्पल बैज पॉप होगा
+            if (navigator.vibrate) navigator.vibrate(25);
+            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) queued for upload! ⚡`);
+            
             if (currentUser) {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
             }
