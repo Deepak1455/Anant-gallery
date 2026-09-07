@@ -35,7 +35,7 @@ jobs:
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. twa-manifest.json तैयार करें
+          # 2. twa-manifest.json तैयार करें (रिलेटिव /share-target के साथ)
           cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
@@ -105,7 +105,7 @@ jobs:
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 📱 Fix Double-Screen & Connect Gallery Share Upload
+      - name: 📱 Smart Share Target & AutoVerify URL Bar Removal
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
@@ -115,32 +115,35 @@ jobs:
             sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
           fi
 
-          # 2. share_target.xml फ़ाइल बनाएं (ताकि शेयर की गई फ़ोटो सीधे ऐप में रिसीव हो)
+          # 2. रिलेटिव share_target.xml (Android TWA के आधिकारिक नियम अनुसार)
           mkdir -p app/src/main/res/xml
           cat <<'EOF' > app/src/main/res/xml/share_target.xml
           <?xml version="1.0" encoding="utf-8"?>
           <share-target
               xmlns:android="http://schemas.android.com/apk/res/android"
-              action="https://anant-gallery.vercel.app/share-target"
+              action="/share-target"
               method="POST"
               enctype="multipart/form-data">
               <data name="photos" />
           </share-target>
           EOF
 
-          # 3. AndroidManifest में सिंगल-टास्क (डबल स्क्रीन हटाने के लिए) और शेयर मेटाडेटा जोड़ें
+          # 3. AndroidManifest में singleTask, autoVerify और 1-क्लिक शेयर इंटेंट सेट करें
           python3 -c "
           import re
           path = 'app/src/main/AndroidManifest.xml'
           with open(path, 'r') as f:
               manifest = f.read()
 
-          # डबल स्क्रीन फिक्स: singleTask मोड सेट करें
+          # URL बार हटाने के लिए autoVerify जोड़े
+          manifest = manifest.replace('<intent-filter>', '<intent-filter android:autoVerify=\"true\">')
+
+          # सिंगल टास्क सेट करें
           manifest = re.sub(r'android:launchMode=\"[^\"]*\"', 'android:launchMode=\"singleTask\"', manifest)
           if 'android:launchMode' not in manifest:
               manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*)', r'\1 android:launchMode=\"singleTask\"', manifest)
 
-          # शेयर इंटेंट और मेटाडेटा जोड़ें
+          # शेयर इंटेंट जोड़ें
           share_block = '''
                   <intent-filter>
                       <action android:name=\"android.intent.action.SEND\" />
@@ -159,14 +162,14 @@ jobs:
 
           with open(path, 'w') as f:
               f.write(manifest)
-          print('✅ SingleTask (No Double Screen) & Share Target Linked!')
+          print('✅ Smart Share Target & AutoVerify Configured!')
           "
 
-          # 4. Gradle से बिल्ड करें
+          # 4. Gradle से AAB और APK बनाएं
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
 
-          # 5. apksigner से साइन करें
+          # 5. apksigner से v2+v3 साइन करें
           BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
           if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
             $BUILD_TOOLS/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/aligned.apk
