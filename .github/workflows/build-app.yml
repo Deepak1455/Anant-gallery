@@ -27,15 +27,41 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 🔑 Setup Keystore & twa-manifest
+      - name: 🔑 Setup Permanent Keystore & twa-manifest
         run: |
-          # 1. Keystore बनाएं
+          # 1. यदि रिपॉजिटरी में पहले से Keystore है तो वही इस्तेमाल करें, वरना परमानेंट Keystore बनाएं
           if [ ! -f "android.keystore" ]; then
             echo "Creating permanent signing keystore..."
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. twa-manifest.json तैयार करें (रिलेटिव /share-target के साथ)
+          # 2. असली SHA-256 फिंगरप्रिंट निकालें
+          SHA_FINGERPRINT=$(keytool -list -v -keystore android.keystore -alias android -storepass androidpassword | grep "SHA256:" | awk '{print $2}')
+          echo "CURRENT_SHA=$SHA_FINGERPRINT" >> $GITHUB_ENV
+
+          # 3. परफेक्ट assetlinks.json ऑटोमैटिक तैयार करें
+          cat <<EOF > assetlinks.json
+          [
+            {
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                "namespace": "android_app",
+                "package_name": "app.vercel.anantgallery.twa",
+                "sha256_cert_fingerprints": [
+                  "$SHA_FINGERPRINT"
+                ]
+              }
+            }
+          ]
+          EOF
+
+          # GitHub Actions Summary पर कॉपी करने के लिए दिखाएं
+          echo "### 🚀 URL Bar Hatane Ke Liye Is Code Ko assetlinks.json Me Dalein:" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat assetlinks.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # 4. twa-manifest.json तैयार करें
           cat <<EOF > twa-manifest.json
           {
             "packageId": "app.vercel.anantgallery.twa",
@@ -63,7 +89,11 @@ jobs:
             "fullScopeUrl": "https://anant-gallery.vercel.app/",
             "minSdkVersion": 21,
             "orientation": "portrait",
-            "fingerprints": [],
+            "fingerprints": [
+              {
+                "value": "$SHA_FINGERPRINT"
+              }
+            ],
             "additionalTrustedOrigins": [],
             "webShareTarget": {
               "action": "/share-target",
@@ -105,7 +135,7 @@ jobs:
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 📱 Smart Share Target & AutoVerify URL Bar Removal
+      - name: 📱 Remove URL Bar (autoVerify) & Fix Share Target
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
@@ -115,7 +145,7 @@ jobs:
             sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
           fi
 
-          # 2. रिलेटिव share_target.xml (Android TWA के आधिकारिक नियम अनुसार)
+          # 2. रिलेटिव share_target.xml बनाएं
           mkdir -p app/src/main/res/xml
           cat <<'EOF' > app/src/main/res/xml/share_target.xml
           <?xml version="1.0" encoding="utf-8"?>
@@ -128,17 +158,17 @@ jobs:
           </share-target>
           EOF
 
-          # 3. AndroidManifest में singleTask, autoVerify और 1-क्लिक शेयर इंटेंट सेट करें
+          # 3. AndroidManifest में autoVerify="true" लगाएं जिससे URL बार 100% गायब हो जाए
           python3 -c "
           import re
           path = 'app/src/main/AndroidManifest.xml'
           with open(path, 'r') as f:
               manifest = f.read()
 
-          # URL बार हटाने के लिए autoVerify जोड़े
-          manifest = manifest.replace('<intent-filter>', '<intent-filter android:autoVerify=\"true\">')
+          # URL बार हटाने का मास्टर कोड: autoVerify=\"true\" सेट करें
+          manifest = re.sub(r'<intent-filter(\s+android:autoVerify=\"true\")?', '<intent-filter android:autoVerify=\"true\"', manifest)
 
-          # सिंगल टास्क सेट करें
+          # सिंगल टास्क सेट करें (डबल स्क्रीन हटाने के लिए)
           manifest = re.sub(r'android:launchMode=\"[^\"]*\"', 'android:launchMode=\"singleTask\"', manifest)
           if 'android:launchMode' not in manifest:
               manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*)', r'\1 android:launchMode=\"singleTask\"', manifest)
@@ -162,7 +192,7 @@ jobs:
 
           with open(path, 'w') as f:
               f.write(manifest)
-          print('✅ Smart Share Target & AutoVerify Configured!')
+          print('✅ autoVerify=\"true\" and Share Target injected successfully!')
           "
 
           # 4. Gradle से AAB और APK बनाएं
@@ -177,7 +207,7 @@ jobs:
             echo "✅ Signed APK Ready!"
           fi
 
-      - name: 📦 Upload Official AAB & Signed APK
+      - name: 📦 Upload Official AAB, Signed APK & Keystore
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -185,5 +215,7 @@ jobs:
           path: |
             **/build/outputs/bundle/release/*.aab
             **/build/outputs/apk/release/anant-gallery-signed.apk
+            assetlinks.json
+            android.keystore
             **/*.aab
           retention-days: 14
