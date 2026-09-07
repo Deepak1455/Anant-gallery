@@ -998,33 +998,36 @@ if (fileInputEl) {
     });
 }
 // --------------------------------------------------------------------------
-// 🌟 11. ANDROID GALLERY SHARE-TARGET RECEIVER & INSTANT SYNC ENGINE
+// 🌟 11. ANDROID GALLERY SHARE-TARGET: INSTANT AUTO-UPLOAD ENGINE
 // --------------------------------------------------------------------------
 function checkIncomingSharedPhotos() {
-    const isShared = window.location.search.includes('shared=1');
-    if (!isShared) return;
-
+    if (!window.location.search.includes('shared=1')) return;
+    
+    // URL से ?shared=1 हटाएँ ताकि रिफ्रेश पर बार-बार न चले
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    const triggerUpload = () => {
+    // 🌟 ऑटोमैटिक स्मार्ट टाइमर: जैसे ही यूज़र ऑथेंटिकेट होगा, सीधे अपलोड शुरू!
+    let attempts = 0;
+    const autoSyncInterval = setInterval(() => {
+        attempts++;
         if (currentUser) {
-            showToast("📥 Gallery photo received! Starting Cloud Upload... ⚡");
+            clearInterval(autoSyncInterval);
+            showToast("📥 Photo received! Starting Auto-Upload... ⚡");
             setTimeout(() => {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-            }, 300);
-        } else {
-            setTimeout(triggerUpload, 200);
+            }, 250);
         }
-    };
-
-    triggerUpload();
+        if (attempts > 40) clearInterval(autoSyncInterval);
+    }, 150);
 }
 
-// सर्विस वर्कर का इंस्टेंट ट्रिगर
+// ऐप स्टार्ट होते ही और सर्विस वर्कर का मैसेज आते ही तुरंत चेक करें
+checkIncomingSharedPhotos();
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync') {
-            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) received from Gallery! Uploading...`);
+            showToast(`📥 ${event.data.sharedCount || ''} Photo(s) received from Gallery! Uploading... ⚡`);
             if (currentUser) {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
             }
