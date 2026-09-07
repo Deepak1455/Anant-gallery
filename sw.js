@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - ANDROID STREAMING SHARE ENGINE v22
+// ANANT GALLERY SERVICE WORKER - SMART AUTO-SHARE & INSTANT SYNC ENGINE v25
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v22';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v22';
+const CACHE_VERSION = 'anant-shell-v25';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v25';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -34,34 +34,40 @@ function openDB() {
     });
 }
 
+// 🌟 बिना किसी देरी के 0.01 सेकंड में सर्विस वर्कर को एक्टिव करें (पहला क्लिक फिक्स)
 self.addEventListener('install', (event) => {
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_VERSION).then(async (cache) => {
             for (const asset of PRECACHE_ASSETS) {
                 try { await cache.add(asset); } catch (e) {}
             }
-        }).then(() => self.skipWaiting())
+        })
     );
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.map((key) => {
-                    if (key !== CACHE_VERSION && key !== IMAGE_CACHE_NAME) {
-                        return caches.delete(key);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim())
+        Promise.all([
+            self.clients.claim(),
+            caches.keys().then((keys) => {
+                return Promise.all(
+                    keys.map((key) => {
+                        if (key !== CACHE_VERSION && key !== IMAGE_CACHE_NAME) {
+                            return caches.delete(key);
+                        }
+                    })
+                );
+            })
+        ])
     );
 });
 
-// 🌟 100% BULLETPROOF ANDROID SHARE INTERCEPTOR
+// 🌟 100% BULLETPROOF SMART 1-TAP SHARE INTERCEPTOR
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
+    // गैलरी से आने वाले शेयर अनुरोध को पकड़ें
     if (event.request.method === 'POST' && url.pathname.includes('share-target')) {
         event.respondWith(
             (async () => {
@@ -70,20 +76,21 @@ self.addEventListener('fetch', (event) => {
                     const recordsToSave = [];
 
                     for (const [key, val] of formData.entries()) {
-                        // किसी भी प्रकार की इमेज फ़ाइल को पकड़ें (size चेक किए बिना)
+                        // किसी भी प्रकार की इमेज फ़ाइल को तुरंत मेमोरी में बदलें
                         if (val && (typeof val === 'object' || val instanceof Blob)) {
                             let buffer = null;
                             try {
-                                // Android Stream को सुरक्षित ArrayBuffer में बदलें
-                                buffer = await new Response(val).arrayBuffer();
+                                buffer = await val.arrayBuffer();
                             } catch (e) {
-                                try { buffer = await val.arrayBuffer(); } catch (err) {}
+                                try {
+                                    buffer = await new Response(val).arrayBuffer();
+                                } catch (err) {}
                             }
 
                             if (buffer && buffer.byteLength > 0) {
                                 recordsToSave.push({
                                     fileBuffer: buffer,
-                                    fileName: val.name || `shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
+                                    fileName: val.name || `gallery_shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
                                     fileType: val.type || "image/jpeg",
                                     fileSize: buffer.byteLength,
                                     lastModified: Date.now(),
@@ -96,7 +103,7 @@ self.addEventListener('fetch', (event) => {
                         }
                     }
 
-                    // IndexedDB में तुरंत सेव करें
+                    // IndexedDB में बिना किसी रुकावट के तुरंत सेव करें
                     if (recordsToSave.length > 0) {
                         const db = await openDB();
                         await new Promise((resolve, reject) => {
@@ -107,25 +114,25 @@ self.addEventListener('fetch', (event) => {
                             tx.onerror = () => reject(tx.error);
                         });
 
-                        // खुली हुई स्क्रीन को तुरंत अपलोड करने का आदेश दें
+                        // खुली हुई स्क्रीन को तुरंत ऑटोमैटिक अपलोड शुरू करने का सिग्नल भेजें
                         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-                        const openApp = clients.find(c => c.url.includes(self.location.origin) && !c.url.includes('share-target'));
-                        if (openApp) {
-                            openApp.postMessage({ action: 'trigger-sync', sharedCount: recordsToSave.length });
+                        for (const client of clients) {
+                            client.postMessage({ action: 'trigger-sync', sharedCount: recordsToSave.length });
                         }
                     }
                 } catch (err) {
                     console.error("[SW Share Target Error]:", err);
                 }
 
-                // Android TWA को तुरंत मुख्य गैलरी पेज पर भेजें
-                return Response.redirect('/?shared=1', 303);
+                // 🌟 पहले क्लिक का फिक्स: Absolute URL से रीडायरेक्ट (ताकि पहला क्लिक कभी फेल न हो)
+                const redirectTarget = new URL('/?shared=1', self.location.origin).href;
+                return Response.redirect(redirectTarget, 303);
             })()
         );
         return;
     }
 
-    // सामान्य नेविगेशन
+    // सामान्य नेविगेशन अनुरोध (फ़ास्ट लोड)
     if (event.request.mode === 'navigate' || (event.request.method === 'GET' && event.request.headers.get('accept')?.includes('text/html'))) {
         event.respondWith(
             fetch(event.request).catch(async () => {
@@ -136,7 +143,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // इमेज और बाकी फाइल्स
+    // कैश्ड फ़ाइल्स और इमेजेस
     if (event.request.method === 'GET') {
         event.respondWith(
             caches.match(event.request).then((cachedResponse) => {
