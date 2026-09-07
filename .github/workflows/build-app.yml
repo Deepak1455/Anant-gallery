@@ -29,17 +29,17 @@ jobs:
 
       - name: 🔑 Setup Permanent Keystore & twa-manifest
         run: |
-          # 1. यदि रिपॉजिटरी में पहले से Keystore है तो वही इस्तेमाल करें, वरना परमानेंट Keystore बनाएं
+          # 1. यदि Keystore मौजूद नहीं है तो परमानेंट Keystore बनाएं
           if [ ! -f "android.keystore" ]; then
             echo "Creating permanent signing keystore..."
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # 2. असली SHA-256 फिंगरप्रिंट निकालें
+          # 2. SHA-256 फिंगरप्रिंट निकालें
           SHA_FINGERPRINT=$(keytool -list -v -keystore android.keystore -alias android -storepass androidpassword | grep "SHA256:" | awk '{print $2}')
           echo "CURRENT_SHA=$SHA_FINGERPRINT" >> $GITHUB_ENV
 
-          # 3. परफेक्ट assetlinks.json ऑटोमैटिक तैयार करें
+          # 3. परफेक्ट assetlinks.json तैयार करें
           cat <<EOF > assetlinks.json
           [
             {
@@ -135,7 +135,7 @@ jobs:
           buildProject().catch(e => { console.error(e); process.exit(1); });
           "
 
-      - name: 📱 Remove URL Bar (autoVerify) & Fix Share Target
+      - name: 📱 Smart Share Target & URL Bar Removal (Clean Fix)
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
@@ -145,12 +145,11 @@ jobs:
             sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
           fi
 
-          # 2. रिलेटिव share_target.xml बनाएं
+          # 2. आधिकारिक रिलेटिव share_target.xml बनाएं
           mkdir -p app/src/main/res/xml
           cat <<'EOF' > app/src/main/res/xml/share_target.xml
           <?xml version="1.0" encoding="utf-8"?>
           <share-target
-              xmlns:android="http://schemas.android.com/apk/res/android"
               action="/share-target"
               method="POST"
               enctype="multipart/form-data">
@@ -158,22 +157,26 @@ jobs:
           </share-target>
           EOF
 
-          # 3. AndroidManifest में autoVerify="true" लगाएं जिससे URL बार 100% गायब हो जाए
+          # 3. AndroidManifest में autoVerify (सिर्फ वेबसाइट लिंक पर) और गैलरी शेयरिंग को 100% साफ़ जोड़ें
           python3 -c "
           import re
           path = 'app/src/main/AndroidManifest.xml'
           with open(path, 'r') as f:
               manifest = f.read()
 
-          # URL बार हटाने का मास्टर कोड: autoVerify=\"true\" सेट करें
-          manifest = re.sub(r'<intent-filter(\s+android:autoVerify=\"true\")?', '<intent-filter android:autoVerify=\"true\"', manifest)
+          # URL बार हटाने के लिए autoVerify सिर्फ VIEW (वेबसाइट लिंक) वाले फ़िल्टर पर लगाएं (शेयर फ़िल्टर को साफ़ रखें)
+          manifest = re.sub(
+              r'<intent-filter(\s+android:autoVerify=\"true\")?>(\s*<action android:name=\"android.intent.action.VIEW\")',
+              r'<intent-filter android:autoVerify=\"true\">\2',
+              manifest
+          )
 
-          # सिंगल टास्क सेट करें (डबल स्क्रीन हटाने के लिए)
+          # सिंगल-टास्क सेट करें (ताकि डबल स्क्रीन कभी न खुले)
           manifest = re.sub(r'android:launchMode=\"[^\"]*\"', 'android:launchMode=\"singleTask\"', manifest)
           if 'android:launchMode' not in manifest:
               manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*)', r'\1 android:launchMode=\"singleTask\"', manifest)
 
-          # शेयर इंटेंट जोड़ें
+          # गैलरी शेयर इंटेंट-फ़िल्टर और मेटाडेटा (AndroidX + Support दोनों के लिए)
           share_block = '''
                   <intent-filter>
                       <action android:name=\"android.intent.action.SEND\" />
@@ -184,15 +187,21 @@ jobs:
                   <meta-data
                       android:name=\"android.support.customtabs.trusted.METADATA_SHARE_TARGET\"
                       android:resource=\"@xml/share_target\" />
+                  <meta-data
+                      android:name=\"androidx.browser.trusted.METADATA_SHARE_TARGET\"
+                      android:resource=\"@xml/share_target\" />
           '''
 
+          # पुराने डुप्लीकेट शेयर फ़िल्टर साफ़ करें
           manifest = re.sub(r'<intent-filter>\s*<action android:name=\"android.intent.action.SEND\".*?</intent-filter>', '', manifest, flags=re.DOTALL)
-          manifest = re.sub(r'<meta-data\s+android:name=\"android.support.customtabs.trusted.METADATA_SHARE_TARGET\".*?/>', '', manifest, flags=re.DOTALL)
+          manifest = re.sub(r'<meta-data\s+android:name=\"[^\"]*METADATA_SHARE_TARGET\".*?/>', '', manifest, flags=re.DOTALL)
+
+          # LauncherActivity के अंदर नया शेयर फ़िल्टर जोड़ें
           manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*>)', r'\1' + share_block, manifest)
 
           with open(path, 'w') as f:
               f.write(manifest)
-          print('✅ autoVerify=\"true\" and Share Target injected successfully!')
+          print('✅ Fixed: autoVerify isolated & Clean Share Target linked!')
           "
 
           # 4. Gradle से AAB और APK बनाएं
