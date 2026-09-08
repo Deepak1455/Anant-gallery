@@ -1002,40 +1002,39 @@ if (fileInputEl) {
 // --------------------------------------------------------------------------
 import { updateOfflineBadge } from "./offline-sync.js";
 
-function checkIncomingSharedPhotos() {
-    const isShared = window.location.search.includes('shared=1');
-    if (!isShared) return;
+let hasHandledShare = false;
 
-    // URL को तुरंत साफ़ करें
+export function checkIncomingSharedPhotos(activeUser) {
+    // 🌟 window.location का सही प्रयोग
+    const isShared = window.location.search && window.location.search.includes('shared=1');
+    if (!isShared || hasHandledShare) return;
+    
+    // अगर यूज़र अभी तक ऑथेंटिकेट नहीं हुआ है, तो onAuthStateChanged का इंतज़ार करें
+    if (!activeUser) return;
+    hasHandledShare = true;
+
+    // 🌟 window.history से clean करें
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    // 🌟 1. तुरंत पर्पल "Queued" बैज दिखाएं
+    // 1. तुरंत पर्पल "Queued" बैज दिखाएं और वाइब्रेशन दें
     updateOfflineBadge(false);
-    if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+    if (navigator.vibrate) navigator.vibrate([20, 35, 20]);
+    showToast("📥 Photo received! Starting Cloud Upload... ⚡");
 
-    // 🌟 2. ऑटोमैटिक अपलोड ट्रिगर
-    const autoSyncTimer = setInterval(() => {
-        if (currentUser) {
-            clearInterval(autoSyncTimer);
-            showToast("📥 Photo received! Starting Cloud Upload... ⚡");
-            setTimeout(() => {
-                processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
-            }, 100);
-        }
-    }, 100);
-
-    setTimeout(() => clearInterval(autoSyncTimer), 8000);
+    // 2. ऑथेंटिकेटेड यूज़र के साथ तुरंत सिंक शुरू करें
+    setTimeout(() => {
+        processOfflineQueue(activeUser, uploadPhotoToTelegram, showToast);
+    }, 150);
 }
 
-// तुरंत चलाएं
-checkIncomingSharedPhotos();
-
+// 🌟 बैकग्राउंड में ऐप खुला होने पर सर्विस वर्कर से आने वाला मैसेज
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync') {
             updateOfflineBadge(false);
-            if (navigator.vibrate) navigator.vibrate(25);
+            if (navigator.vibrate) navigator.vibrate([25, 35, 25]);
             showToast(`📥 ${event.data.sharedCount || ''} Photo(s) received from Gallery! ⚡`);
+
             if (currentUser) {
                 processOfflineQueue(currentUser, uploadPhotoToTelegram, showToast);
             }
