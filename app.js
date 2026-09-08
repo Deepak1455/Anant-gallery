@@ -58,7 +58,7 @@ import {
     showCustomDeleteModal 
 } from "./albums.js";
 import { uploadPhotoToTelegram, uploadBatchPhotos } from "./telegram-photo.js";
-import { initOfflineSync, processOfflineQueue } from "./offline-sync.js";
+import { initOfflineSync, processOfflineQueue, updateOfflineBadge } from "./offline-sync.js";
 import { runAutoTrashPurge } from "./trash-purge.js";
 import { initSplashScreen, hideSplashScreen } from "./splash-screen.js";
 
@@ -488,6 +488,9 @@ if (emailInput) {
     };
 }
 
+// --------------------------------------------------------------------------
+// 🌟 ON AUTH STATE CHANGED - SECURE CLOUD AUTO-SYNC
+// --------------------------------------------------------------------------
 onAuthStateChanged(auth, (user) => {
     hideSplashScreen();
     const authScreen = document.getElementById('authScreen');
@@ -525,6 +528,7 @@ onAuthStateChanged(auth, (user) => {
         }
     }
 });
+
 // 🌟 DYNAMICALLY INJECT ADMIN LINK IN SIDEBAR IF USER IS ADMIN
 function setupAdminSidebarLink(user) {
     const existing = document.getElementById('navAdminPortal');
@@ -1000,23 +1004,18 @@ if (fileInputEl) {
         e.target.value = '';
     });
 }
+
 // --------------------------------------------------------------------------
 // 🌟 11. ANDROID GALLERY SHARE-TARGET: INSTANT AUTO-UPLOAD ENGINE (100% FIXED)
 // --------------------------------------------------------------------------
-import { updateOfflineBadge } from "./offline-sync.js";
-
-let hasHandledShare = false;
-
 function checkIncomingSharedPhotos(user) {
-    // 🌟 window.location और window.history का सुरक्षित इस्तेमाल
     if (typeof window === 'undefined' || !window.location) return;
 
     const isShared = window.location.search && window.location.search.includes('shared=1');
-    if (!isShared || hasHandledShare) return;
+    if (!isShared) return;
 
     // अगर यूज़र अभी तक लोड नहीं हुआ, तो इंतज़ार करें (URL अभी साफ़ न करें)
     if (!user) return;
-    hasHandledShare = true;
 
     // 🌟 यूज़र ऑथेंटिकेट होने के बाद ही URL से ?shared=1 हटाएं
     if (window.history && window.history.replaceState) {
