@@ -28,6 +28,7 @@ const CLOUDINARY_UPLOAD_PRESET = "my_photo";
 const OFFICIAL_SUPPORT_EMAIL = "anantgalleryogr@gmail.com";
 
 let unsubscribeProfile = null;
+let activeProHandler = null;
 
 const HASH_KEYS = {
     APP_PIN_HASH: "app_pin_code_hash",
@@ -830,11 +831,13 @@ export function renderProfileScreen(containerElement, passedUser = null) {
     });
 
     // 🌟 LIVE PRO STATUS LISTENER (Re-renders immediately when Pro is updated)
-    const handleProEvent = () => {
+    if (activeProHandler) {
+        window.removeEventListener('anant_pro_updated', activeProHandler);
+    }
+    activeProHandler = () => {
         renderProfileScreen(containerElement, user);
     };
-    window.removeEventListener('anant_pro_updated', handleProEvent);
-    window.addEventListener('anant_pro_updated', handleProEvent, { once: true });
+    window.addEventListener('anant_pro_updated', activeProHandler, { once: true });
 
     document.getElementById('btnOpenPrivacyPolicy')?.addEventListener('click', () => { window.open('/privacy.html', '_blank'); });
     document.getElementById('btnContactSupport')?.addEventListener('click', () => { window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=Support`; });
@@ -1122,15 +1125,21 @@ function showDeleteAccountModal(user) {
         try {
             const qPhotos = query(collection(db, "user_photos"), where("uid", "==", user.uid));
             const photoSnap = await getDocs(qPhotos);
-            const batch1 = writeBatch(db);
-            photoSnap.forEach(d => batch1.delete(doc(db, "user_photos", d.id)));
-            await batch1.commit();
+            
+            // 🌟 400 के सेफ चंक्स में डिलीट करें (Firestore Batch 500 Limit Guard)
+            for (let i = 0; i < photoSnap.docs.length; i += 400) {
+                const batch = writeBatch(db);
+                photoSnap.docs.slice(i, i + 400).forEach(d => batch.delete(doc(db, "user_photos", d.id)));
+                await batch.commit();
+            }
 
             const qAlbums = query(collection(db, "user_albums"), where("uid", "==", user.uid));
             const albumSnap = await getDocs(qAlbums);
-            const batch2 = writeBatch(db);
-            albumSnap.forEach(d => batch2.delete(doc(db, "user_albums", d.id)));
-            await batch2.commit();
+            for (let i = 0; i < albumSnap.docs.length; i += 400) {
+                const batch = writeBatch(db);
+                albumSnap.docs.slice(i, i + 400).forEach(d => batch.delete(doc(db, "user_albums", d.id)));
+                await batch.commit();
+            }
 
             localStorage.clear();
             sessionStorage.clear();
@@ -1149,5 +1158,9 @@ export function stopProfileListener() {
     if (unsubscribeProfile) {
         unsubscribeProfile();
         unsubscribeProfile = null;
+    }
+    if (activeProHandler) {
+        window.removeEventListener('anant_pro_updated', activeProHandler);
+        activeProHandler = null;
     }
 }
