@@ -140,9 +140,11 @@ jobs:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
           BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
         run: |
-          # 1. strings.xml में generatorApp स्ट्रिंग डालें
+          # 1. Duplicate guard के साथ strings.xml में generatorApp स्ट्रिंग डालें
           if [ -f "app/src/main/res/values/strings.xml" ]; then
-            sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
+            if ! grep -q 'name="generatorApp"' app/src/main/res/values/strings.xml; then
+              sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
+            fi
           fi
 
           # 2. आधिकारिक रिलेटिव share_target.xml बनाएं
@@ -157,14 +159,14 @@ jobs:
           </share-target>
           EOF
 
-          # 3. AndroidManifest में autoVerify (सिर्फ वेबसाइट लिंक पर) और गैलरी शेयरिंग को 100% साफ़ जोड़ें
+          # 3. AndroidManifest में autoVerify और गैलरी शेयरिंग को 100% साफ़ जोड़ें
           python3 -c "
           import re
           path = 'app/src/main/AndroidManifest.xml'
           with open(path, 'r') as f:
               manifest = f.read()
 
-          # URL बार हटाने के लिए autoVerify सिर्फ VIEW (वेबसाइट लिंक) वाले फ़िल्टर पर लगाएं (शेयर फ़िल्टर को साफ़ रखें)
+          # URL बार हटाने के लिए autoVerify सिर्फ VIEW वाले फ़िल्टर पर लगाएं
           manifest = re.sub(
               r'<intent-filter(\s+android:autoVerify=\"true\")?>(\s*<action android:name=\"android.intent.action.VIEW\")',
               r'<intent-filter android:autoVerify=\"true\">\2',
@@ -208,10 +210,11 @@ jobs:
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
 
-          # 5. apksigner से v2+v3 साइन करें
+          # 5. apksigner से v2+v3 साइन करें (डायनामिक APK डिटेक्शन)
           BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-          if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            $BUILD_TOOLS/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/aligned.apk
+          APK_RAW=$(find app/build/outputs/apk/release/ -name "*.apk" ! -name "*signed*" | head -n 1)
+          if [ -n "$APK_RAW" ]; then
+            $BUILD_TOOLS/zipalign -v -f -p 4 "$APK_RAW" app/build/outputs/apk/release/aligned.apk
             $BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out app/build/outputs/apk/release/anant-gallery-signed.apk app/build/outputs/apk/release/aligned.apk
             echo "✅ Signed APK Ready!"
           fi
