@@ -1,5 +1,5 @@
 // ==========================================================================
-// PROFILE MODULE - PRO PLAN TYPE (1 MO / 1 YR / LIFETIME) & EXPIRY TRACKER
+// PROFILE MODULE - PRO PLAN TYPE (1 MO / 1 YR / LIFETIME) & EXPIRY TRACKER 
 // ==========================================================================
 
 import { renderSettingsSection } from "./settings.js";
