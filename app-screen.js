@@ -364,32 +364,6 @@ const appScreenStyles = `
     from { transform: scale(0.9); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
-
-#toast {
-    position: fixed; 
-    top: 80px; 
-    left: 50%; 
-    transform: translateX(-50%);
-    background: var(--bg-card, #ffffff); 
-    color: var(--text-main, #0f172a);
-    padding: 12px 24px; 
-    border-radius: 30px;
-    font-size: 0.88rem; 
-    font-weight: 600;
-    z-index: 9999; 
-    pointer-events: none; 
-    opacity: 0; 
-    border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.05);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), top 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    max-width: 88%;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
 `;
 
 function injectStyles() {
@@ -449,8 +423,7 @@ export function checkAndRenderPWAInstallBanner() {
     pwaBoard.innerHTML = `
         <div class="pwa-install-left">
             <div class="pwa-install-icon-box">
-                <img src="loadingphoto.png" class="pwa-install-icon-img" alt="Anant" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <i class="fa-solid fa-infinity" style="display:none;"></i>
+                <img src="/icon-192.png" class="pwa-install-icon-img" alt="Anant" onerror="this.src='/loadingphoto.png';">
             </div>
             <div class="pwa-install-text-box">
                 <div class="pwa-install-title">Install Anant Gallery</div>
@@ -542,7 +515,6 @@ function injectHTML() {
 
         <!-- 🌟 SMART ANDROID COMPATIBLE FILE INPUT (ZERO LAG & DIRECT GALLERY PICKER) -->
         <input type="file" id="fileInput" accept="image/*" multiple style="position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;">
-        <div id="toast">Message</div>
     `;
 
     document.body.appendChild(appScreenDiv);
@@ -560,9 +532,16 @@ function setupPWAEventListeners() {
         smoothRemovePWABanner();
     });
 
-    window.matchMedia('(display-mode: standalone)').addEventListener('change', (e) => {
+    const mql = window.matchMedia('(display-mode: standalone)');
+    const handleMqlChange = (e) => {
         if (e.matches) removePWAInstallBannerImmediately();
-    });
+    };
+
+    if (mql.addEventListener) {
+        mql.addEventListener('change', handleMqlChange);
+    } else if (mql.addListener) {
+        mql.addListener(handleMqlChange);
+    }
 }
 
 export function initAppScreen() {
