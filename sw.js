@@ -1,9 +1,9 @@
 // ==========================================================================
-// ANANT GALLERY SERVICE WORKER - SMART AUTO-SHARE & INSTANT SYNC ENGINE v25
+// ANANT GALLERY SERVICE WORKER - SMART AUTO-SHARE & INSTANT SYNC ENGINE v26
 // ==========================================================================
 
-const CACHE_VERSION = 'anant-shell-v25';
-const IMAGE_CACHE_NAME = 'anant-photos-cache-v25';
+const CACHE_VERSION = 'anant-shell-v26';
+const IMAGE_CACHE_NAME = 'anant-photos-cache-v26';
 const DB_NAME = "GalleryOfflineDB";
 const STORE_NAME = "offline_uploads";
 const DB_VERSION = 3;
@@ -34,7 +34,7 @@ function openDB() {
     });
 }
 
-// 🌟 बिना किसी देरी के 0.01 सेकंड में सर्विस वर्कर को एक्टिव करें (पहला क्लिक फिक्स)
+// 🌟 बिना किसी देरी के तुरंत सर्विस वर्कर को एक्टिवेट करें
 self.addEventListener('install', (event) => {
     self.skipWaiting();
     event.waitUntil(
@@ -76,7 +76,7 @@ self.addEventListener('fetch', (event) => {
                     const recordsToSave = [];
 
                     for (const [key, val] of formData.entries()) {
-                        // किसी भी प्रकार की इमेज फ़ाइल को तुरंत मेमोरी में बदलें
+                        // किसी भी प्रकार की इमेज फ़ाइल को सुरक्षित मेमोरी बफर में बदलें
                         if (val && (typeof val === 'object' || val instanceof Blob)) {
                             let buffer = null;
                             try {
@@ -88,10 +88,17 @@ self.addEventListener('fetch', (event) => {
                             }
 
                             if (buffer && buffer.byteLength > 0) {
+                                // 🌟 MIME-Type और File Name सैनिटाइज़ेशन
+                                const cleanType = (val.type && val.type.startsWith('image/')) ? val.type : "image/jpeg";
+                                let cleanName = val.name || "";
+                                if (!/\.(jpg|jpeg|png|webp|gif|heic)$/i.test(cleanName)) {
+                                    cleanName = `gallery_shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+                                }
+
                                 recordsToSave.push({
                                     fileBuffer: buffer,
-                                    fileName: val.name || `gallery_shared_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`,
-                                    fileType: val.type || "image/jpeg",
+                                    fileName: cleanName,
+                                    fileType: cleanType,
                                     fileSize: buffer.byteLength,
                                     lastModified: Date.now(),
                                     uid: null,
@@ -103,15 +110,21 @@ self.addEventListener('fetch', (event) => {
                         }
                     }
 
-                    // IndexedDB में बिना किसी रुकावट के तुरंत सेव करें
+                    // IndexedDB में सुरक्षित सेव करें और कनेक्शन बंद करें
                     if (recordsToSave.length > 0) {
                         const db = await openDB();
                         await new Promise((resolve, reject) => {
                             const tx = db.transaction(STORE_NAME, "readwrite");
                             const store = tx.objectStore(STORE_NAME);
                             for (const r of recordsToSave) store.add(r);
-                            tx.oncomplete = () => resolve();
-                            tx.onerror = () => reject(tx.error);
+                            tx.oncomplete = () => {
+                                db.close(); // 🌟 कनेक्शन तुरंत सुरक्षित बंद करें
+                                resolve();
+                            };
+                            tx.onerror = () => {
+                                db.close();
+                                reject(tx.error);
+                            };
                         });
 
                         // खुली हुई स्क्रीन को तुरंत ऑटोमैटिक अपलोड शुरू करने का सिग्नल भेजें
@@ -124,7 +137,7 @@ self.addEventListener('fetch', (event) => {
                     console.error("[SW Share Target Error]:", err);
                 }
 
-                // 🌟 पहले क्लिक का फिक्स: Absolute URL से रीडायरेक्ट (ताकि पहला क्लिक कभी फेल न हो)
+                // 🌟 Absolute 303 Redirect ताकि ब्राउज़र तुरंत ऐप के होमपेज पर आ जाए
                 const redirectTarget = new URL('/?shared=1', self.location.origin).href;
                 return Response.redirect(redirectTarget, 303);
             })()
