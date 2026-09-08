@@ -39,7 +39,6 @@ jobs:
             keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
           fi
 
-          # Keystore को app फोल्डर में भी कॉपी करें ताकि Gradle को हर हाल में मिले
           mkdir -p app
           cp android.keystore app/android.keystore
 
@@ -167,7 +166,7 @@ jobs:
           </share-target>
           EOF
 
-          # 3. AndroidManifest में autoVerify और गैलरी शेयरिंग को 100% साफ़ जोड़ें
+          # 3. AndroidManifest में autoVerify और गैलरी शेयरिंग को जोड़ें
           python3 -c "
           import re, os
           path = 'app/src/main/AndroidManifest.xml'
@@ -217,34 +216,43 @@ jobs:
           print('✅ Fixed: autoVerify isolated & Clean Share Target linked!')
           "
 
-          # 4. Gradle से AAB और APK बनाएं (फ़ॉलबैक के साथ ताकि कभी फ़ेल न हो)
+          # 4. Gradle से Official AAB बनाएं
           chmod +x gradlew
-          ./gradlew assembleRelease || ./gradlew assembleDebug || true
-          ./gradlew bundleRelease || true
+          ./gradlew bundleRelease assembleRelease || ./gradlew bundleRelease
 
-          # 5. apksigner से साइन करें और नाम 'Anant-Gallery.apk' रखें
-          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
           mkdir -p app/build/outputs/apk/release/
           mkdir -p app/build/outputs/bundle/release/
 
-          # किसी भी जेनरेट हुई APK को ढूँढें
-          APK_RAW=$(find app/build/outputs/apk/ -name "*.apk" ! -name "*signed*" | head -n 1)
-
-          if [ -n "$APK_RAW" ]; then
-            echo "Signing APK: $APK_RAW"
-            $BUILD_TOOLS/zipalign -v -f -p 4 "$APK_RAW" app/build/outputs/apk/release/aligned.apk
-            $BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out "app/build/outputs/apk/release/Anant-Gallery.apk" app/build/outputs/apk/release/aligned.apk
-            echo "🎉 Anant-Gallery.apk Ready!"
-          else
-            echo "❌ No APK found to sign!"
-          fi
-
-          # AAB फ़ाइल का नाम भी Anant-Gallery.aab रखें
-          AAB_RAW=$(find app/build/outputs/bundle/ -name "*.aab" | head -n 1)
-          if [ -n "$AAB_RAW" ]; then
-            cp "$AAB_RAW" "app/build/outputs/bundle/release/Anant-Gallery.aab"
+          # 5. AAB फ़ाइल को रीनेम करें (Anant-Gallery.aab)
+          AAB_FILE=$(find app/build/outputs/bundle/ -name "*.aab" | head -n 1)
+          if [ -n "$AAB_FILE" ]; then
+            cp "$AAB_FILE" "app/build/outputs/bundle/release/Anant-Gallery.aab"
             echo "🎉 Anant-Gallery.aab Ready!"
           fi
+
+          # 6. 🚀 Google Bundletool से 100% गारंटीड Anant-Gallery.apk बनाएं
+          echo "⬇️ Downloading Google Bundletool to generate Universal APK..."
+          curl -sL -f --retry 3 https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -o bundletool.jar
+
+          echo "⚙️ Building Universal APK from AAB..."
+          java -jar bundletool.jar build-apks \
+            --bundle="app/build/outputs/bundle/release/Anant-Gallery.aab" \
+            --output=app.apks \
+            --mode=universal \
+            --ks=android.keystore \
+            --ks-pass=pass:androidpassword \
+            --ks-key-alias=android \
+            --key-pass=pass:androidpassword
+
+          # 7. Unzip करके असली Anant-Gallery.apk बाहर निकालें
+          unzip -p app.apks universal.apk > "app/build/outputs/apk/release/Anant-Gallery.apk"
+
+          # 8. V2+V3 सिग्नेचर से साइन और अलाइन करें
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          $BUILD_TOOLS/zipalign -v -f -p 4 "app/build/outputs/apk/release/Anant-Gallery.apk" "app/build/outputs/apk/release/aligned.apk"
+          $BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out "app/build/outputs/apk/release/Anant-Gallery.apk" "app/build/outputs/apk/release/aligned.apk"
+          
+          echo "🎉 100% Ready: Anant-Gallery.apk is Signed & Generated!"
 
       - name: 📦 Upload Official AAB, Signed APK & Keystore
         uses: actions/upload-artifact@v4
@@ -256,4 +264,4 @@ jobs:
             app/build/outputs/bundle/release/Anant-Gallery.aab
             assetlinks.json
             android.keystore
-          retention-days: 14 
+          retention-days: 14
