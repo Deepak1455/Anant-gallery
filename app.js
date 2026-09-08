@@ -506,9 +506,13 @@ onAuthStateChanged(auth, (user) => {
         checkAppPinLock();
         switchView('photos');
         
-        // 🌟 Check for shared photos after login
-        checkIncomingSharedPhotos();
+        // 🌟 1. शेयर होकर आई फ़ोटो को यूज़र मिलने के बाद ही सिंक करें
+        checkIncomingSharedPhotos(user);
+
+        // 🌟 2. पहले से पेंडिंग ऑफ़लाइन कतार को भी क्लाउड पर भेजें
         processOfflineQueue(user, uploadPhotoToTelegram, showToast);
+
+        // 🌟 3. पुराना ट्रैश ऑटो-क्लीन करें
         runAutoTrashPurge(user, showToast);
     } else {
         currentUser = null;
@@ -521,7 +525,6 @@ onAuthStateChanged(auth, (user) => {
         }
     }
 });
-
 // 🌟 DYNAMICALLY INJECT ADMIN LINK IN SIDEBAR IF USER IS ADMIN
 function setupAdminSidebarLink(user) {
     const existing = document.getElementById('navAdminPortal');
@@ -998,36 +1001,40 @@ if (fileInputEl) {
     });
 }
 // --------------------------------------------------------------------------
-// 🌟 11. ANDROID GALLERY SHARE-TARGET: INSTANT AUTO-UPLOAD ENGINE
+// 🌟 11. ANDROID GALLERY SHARE-TARGET: INSTANT AUTO-UPLOAD ENGINE (100% FIXED)
 // --------------------------------------------------------------------------
 import { updateOfflineBadge } from "./offline-sync.js";
 
 let hasHandledShare = false;
 
-export function checkIncomingSharedPhotos(activeUser) {
-    // 🌟 window.location का सही प्रयोग
+function checkIncomingSharedPhotos(user) {
+    // 🌟 window.location और window.history का सुरक्षित इस्तेमाल
+    if (typeof window === 'undefined' || !window.location) return;
+
     const isShared = window.location.search && window.location.search.includes('shared=1');
     if (!isShared || hasHandledShare) return;
-    
-    // अगर यूज़र अभी तक ऑथेंटिकेट नहीं हुआ है, तो onAuthStateChanged का इंतज़ार करें
-    if (!activeUser) return;
+
+    // अगर यूज़र अभी तक लोड नहीं हुआ, तो इंतज़ार करें (URL अभी साफ़ न करें)
+    if (!user) return;
     hasHandledShare = true;
 
-    // 🌟 window.history से clean करें
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // 🌟 यूज़र ऑथेंटिकेट होने के बाद ही URL से ?shared=1 हटाएं
+    if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
-    // 1. तुरंत पर्पल "Queued" बैज दिखाएं और वाइब्रेशन दें
+    // 1. तुरंत पर्पल "Queued" बैज और वाइब्रेशन दें
     updateOfflineBadge(false);
     if (navigator.vibrate) navigator.vibrate([20, 35, 20]);
     showToast("📥 Photo received! Starting Cloud Upload... ⚡");
 
-    // 2. ऑथेंटिकेटेड यूज़र के साथ तुरंत सिंक शुरू करें
+    // 2. तुरंत अपलोड शुरू करें
     setTimeout(() => {
-        processOfflineQueue(activeUser, uploadPhotoToTelegram, showToast);
+        processOfflineQueue(user, uploadPhotoToTelegram, showToast);
     }, 150);
 }
 
-// 🌟 बैकग्राउंड में ऐप खुला होने पर सर्विस वर्कर से आने वाला मैसेज
+// 🌟 जब ऐप पहले से खुला हो और गैलरी से फ़ोटो शेयर की जाए
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.action === 'trigger-sync') {
