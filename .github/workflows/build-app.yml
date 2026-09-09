@@ -31,6 +31,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: 🔑 Setup Permanent Keystore & twa-manifest
         run: |
@@ -237,16 +238,13 @@ jobs:
             --bundle="app/build/outputs/bundle/release/Anant-Gallery.aab" \
             --output=app.apks \
             --mode=universal \
-            --ks=android.keystore \
-            --ks-pass=pass:androidpassword \
-            --ks-key-alias=android \
-            --key-pass=pass:androidpassword
+            --overwrite
 
-          unzip -p app.apks universal.apk > "app/build/outputs/apk/release/Anant-Gallery.apk"
+          unzip -p app.apks universal.apk > "app/build/outputs/apk/release/unsigned.apk"
 
           # 7. V2+V3 सिग्नेचर से साइन और अलाइन करें
           BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-          $BUILD_TOOLS/zipalign -v -f -p 4 "app/build/outputs/apk/release/Anant-Gallery.apk" "app/build/outputs/apk/release/aligned.apk"
+          $BUILD_TOOLS/zipalign -v -f -p 4 "app/build/outputs/apk/release/unsigned.apk" "app/build/outputs/apk/release/aligned.apk"
           $BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out "app/build/outputs/apk/release/Anant-Gallery.apk" "app/build/outputs/apk/release/aligned.apk"
           
           echo "🎉 100% Ready: Anant-Gallery.apk Generated!"
