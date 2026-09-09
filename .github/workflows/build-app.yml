@@ -13,7 +13,6 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      # ⚡ 2x सुपरफास्ट बिल्ड के लिए Gradle Caching
       - name: ☕ Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -32,7 +31,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: 🔑 Setup Permanent Keystore & twa-manifest
         run: |
@@ -218,7 +216,7 @@ jobs:
           print('✅ Fixed: <files> Tag and Share Target 100% Linked!')
           "
 
-          # ⚡ 4. सुपरफास्ट पैरेलल Gradle बिल्ड
+          # ⚡ 4. सुपरफास्ट Gradle बिल्ड
           chmod +x gradlew
           ./gradlew bundleRelease --parallel --build-cache
 
