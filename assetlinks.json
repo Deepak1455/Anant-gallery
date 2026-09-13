@@ -1,7 +1,7 @@
 [
   {
     "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
+    "target": { 
       "namespace": "android_app",
       "package_name": "app.vercel.anant_gallery.twa",
       "sha256_cert_fingerprints": [
