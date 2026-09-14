@@ -1,12 +1,14 @@
 [
   {
     "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": { 
+    "target": {
       "namespace": "android_app",
       "package_name": "app.vercel.anant_gallery.twa",
       "sha256_cert_fingerprints": [
-        "7B:33:D2:31:6B:0A:E4:DC:17:CE:2F:9B:72:E5:65:75:2A:03:38:AE:93:AD:B6:56:E3:5D:10:A3:99:D4:CA:BD",
-        "E8:F8:2B:10:E9:CB:45:9C:46:EF:E0:88:E9:73:0D:27:A7:E6:BE:D1:B6:32:BE:39:B9:5A:37:E3:2D:A7:40:6D"
+        "B1:A4:33:C1:9B:77:18:72:BE:3E:FE:46:DA:E5:26:20:80:75:16:0F:45:CB:5A:3D:9D:A0:58:BB:60:1D:DC:69",
+        "DA:F2:31:B3:61:A2:E9:17:61:F5:56:DC:2E:FB:72:F1:40:FD:BC:A3:E5:6E:06:58:1B:32:08:C6:25:82:74:B1",
+        "57:B6:7F:2D:D5:24:EF:27:F4:8F:0D:38:91:F4:73:CA:AF:D3:37:92:B4:A4:72:94:14:C6:5D:B0:55:D2:DA:4F",
+        "7B:33:D2:31:6B:0A:E4:DC:17:CE:2F:9B:72:E5:65:75:2A:03:38:AE:93:AD:B6:56:E3:5D:10:A3:99:D4:CA:BD"
       ]
     }
   }
