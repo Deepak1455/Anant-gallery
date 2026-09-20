@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anant Gallery - Super Admin Command Center</title>
+    
+    <link rel="icon" type="image/png" href="/icon-192.png">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+    <!-- 🔒 ACCESS DENIED OVERLAY -->
+    <div id="accessDeniedScreen" class="denied-overlay" style="display: none;">
+        <div class="denied-card">
+            <div class="denied-icon"><i class="fa-solid fa-user-lock"></i></div>
+            <h3 style="color:#0f172a; margin-bottom: 6px;">Access Restricted</h3>
+            <p style="color:#64748b; font-size:0.82rem; line-height: 1.4;">Only verified Super Admins can access this Command Center.</p>
+            <button class="btn-back-app" id="btnBackToApp"><i class="fa-solid fa-arrow-left"></i> Return to Gallery</button>
+        </div>
+    </div>
+
+    <!-- 🌟 TOP COMMAND HEADER -->
+    <header class="admin-header">
+        <div class="header-brand">
+            <div class="brand-logo-box">
+                <img src="/icon-192.png" alt="Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <i class="fa-solid fa-infinity" style="display:none;"></i>
+            </div>
+            <div>
+                <div class="brand-title">Admin Command Center</div>
+                <div class="brand-sub"><span class="live-pulse"></span> Anant Cloud Master</div>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="admin-user-pill">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span id="adminEmailDisplay">Admin</span>
+            </div>
+            <button class="btn-exit-admin" id="btnExitAdmin" title="Exit to App"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+        </div>
+    </header>
+
+    <!-- 🌟 MAIN ADMIN CONTAINER -->
+    <main class="admin-container">
+
+        <!-- 1. LIVE TELEMETRY CARDS -->
+        <section class="telemetry-grid">
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(79, 70, 229, 0.1); color: #4f46e5;">
+                    <i class="fa-regular fa-images"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Cloud Photos</div>
+                    <div class="telemetry-value" id="valTotalPhotos">0</div>
+                    <div class="telemetry-sub" id="valActivePhotos">0 active</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Cloud Users</div>
+                    <div class="telemetry-value" id="valTotalUsers">0</div>
+                    <div class="telemetry-sub" id="valProSubscribers">0 Pro Members</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Anant Pro Active</div>
+                    <div class="telemetry-value" id="valProUsersCount">0</div>
+                    <div class="telemetry-sub">Subscribers & VIP</div>
+                </div>
+            </div>
+
+            <div class="telemetry-card">
+                <div class="telemetry-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+                <div>
+                    <div class="telemetry-label">Storage Saved</div>
+                    <div class="telemetry-value" id="valTotalStorage">0 MB</div>
+                    <div class="telemetry-sub">Infinite Telegram CDN</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 🌟 2. GLOBAL APP REMOTE CONTROLS -->
+        <section class="control-board">
+            <div class="section-heading">
+                <i class="fa-solid fa-sliders" style="color: var(--accent);"></i> App Remote Controls
+            </div>
+            
+            <div class="controls-grid">
+                <div class="control-card">
+                    <div>
+                        <div class="control-title"><i class="fa-solid fa-wrench" style="color: #f59e0b;"></i> Maintenance Mode</div>
+                        <div class="control-desc">Lock app with scheduled maintenance screen</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleMaintenance">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="control-card">
+                    <div>
+                        <div class="control-title"><i class="fa-solid fa-cloud-arrow-up" style="color: #4f46e5;"></i> Cloud Uploads</div>
+                        <div class="control-desc">Allow/Pause global photo backup for users</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleUploads" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- 🛡️ GOOGLE PLAY STORE REVIEW COMPLIANCE TOGGLE -->
+                <div class="control-card" style="border: 1.5px solid rgba(16, 185, 129, 0.4);">
+                    <div>
+                        <div class="control-title"><i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> Play Store Review Mode</div>
+                        <div class="control-desc">Hide Razorpay from Google Reviewers (Zero Rejections)</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleReviewMode" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- BROADCAST CARD -->
+            <div class="broadcast-card">
+                <div class="broadcast-header">
+                    <div class="broadcast-title">
+                        <i class="fa-solid fa-bullhorn"></i> Global In-App Announcement
+                    </div>
+                    <span class="live-notice-badge" id="liveNoticeBadge" style="display: none;">
+                        <span class="live-pulse-green"></span> Live Now
+                    </span>
+                </div>
+
+                <div class="broadcast-input-box">
+                    <div class="broadcast-input-wrap">
+                        <i class="fa-solid fa-message broadcast-icon"></i>
+                        <input type="text" id="broadcastInput" placeholder="Enter broadcast notice for all users..." maxlength="120">
+                    </div>
+                    <div class="broadcast-actions">
+                        <button class="btn-broadcast-send" id="btnPublishNotice">
+                            <i class="fa-solid fa-paper-plane"></i> <span>Publish</span>
+                        </button>
+                        <button class="btn-broadcast-clear" id="btnClearNotice" title="Clear Live Announcement">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="broadcast-preview-chip" id="noticePreviewBox" style="display: none;">
+                    <i class="fa-solid fa-circle-check preview-icon"></i>
+                    <div class="preview-content">
+                        <strong>Active on User Screens:</strong> <span id="noticePreviewText"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 🌟 3. USER DIRECTORY & SUBSCRIPTION CONTROLLER -->
+        <section class="users-board">
+            <div class="section-heading-split">
+                <div class="dir-title-box">
+                    <div class="section-heading" style="margin-bottom:0;">
+                        <i class="fa-solid fa-users-gear" style="color: var(--accent);"></i> User Directory & Pro Manager
+                    </div>
+                    <span class="user-count-pill" id="valTotalUsersBadge">0 Accounts</span>
+                </div>
+                <div class="user-search-wrapper">
+                    <i class="fa-solid fa-magnifying-glass user-search-icon"></i>
+                    <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search by Name, Email or UID...">
+                </div>
+            </div>
+
+            <div class="user-table-wrapper">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>User Profile</th>
+                            <th>Plan / Tier</th>
+                            <th>Active Photos</th>
+                            <th>Storage</th>
+                            <th>Favs</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        <tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-muted);"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching active user accounts...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 🌟 4. REALTIME PHOTO STREAM -->
+        <section class="moderation-board">
+            <div class="section-heading-split">
+                <div class="section-heading" style="margin-bottom: 0;">
+                    <i class="fa-solid fa-photo-film" style="color: var(--accent);"></i> Live Photo Stream
+                </div>
+                <div class="stream-actions">
+                    <span class="stream-badge" id="streamCount">0 recent</span>
+                    <button class="btn-refresh-stream" id="btnRefreshStream" title="Refresh Live Photos">
+                        <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="photo-stream-grid" id="adminPhotoGrid">
+                <div style="grid-column: 1/-1; text-align:center; padding: 25px; color: var(--text-muted); font-size: 0.85rem;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="color:var(--accent);"></i> Loading Cloud Photos...
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 🌟 5. PRO USER INSPECTOR & PRO GRANT MODAL -->
+    <div id="userInspectModal" class="user-modal-overlay" style="display: none;">
+        <div class="user-modal-card">
+            
+            <!-- Modal Header -->
+            <div class="user-modal-header">
+                <div class="user-modal-profile">
+                    <div class="user-avatar-modal" id="modalUserAvatar">U</div>
+                    <div style="overflow:hidden;">
+                        <div class="user-modal-name-wrap">
+                            <div class="user-modal-name" id="modalUserName">User Name</div>
+                            <span id="modalProBadge" class="admin-free-badge">FREE</span>
+                        </div>
+                        <div class="user-modal-email" id="modalUserEmail">user@email.com</div>
+                    </div>
+                </div>
+                <button class="user-modal-close" id="closeInspectModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- 👑 PRO SUBSCRIPTION GRANT BOX -->
+            <div class="pro-grant-box">
+                <div class="pro-grant-header">
+                    <div class="pro-grant-title">
+                        <i class="fa-solid fa-crown" style="color:#f59e0b;"></i> Subscription Management
+                    </div>
+                    <span id="modalSubscriptionStatusText" style="font-size:0.75rem; font-weight:700; color:#64748b;">Free Plan</span>
+                </div>
+                
+                <div class="pro-grant-actions">
+                    <button class="btn-grant-pro" id="btnGrantProLifetime" title="Grant Lifetime Pro">
+                        <i class="fa-solid fa-infinity"></i> Lifetime Pro
+                    </button>
+                    <button class="btn-grant-pro" id="btnGrantPro1Year" title="Grant 1 Year Pro">
+                        <i class="fa-solid fa-calendar"></i> 1 Year Pro
+                    </button>
+                    <button class="btn-grant-pro" id="btnGrantPro1Month" title="Grant 1 Month Pro">
+                        <i class="fa-solid fa-clock"></i> 1 Month
+                    </button>
+                    <button class="btn-revoke-pro" id="btnRevokePro" title="Revoke Pro Status">
+                        <i class="fa-solid fa-ban"></i> Set Free
+                    </button>
+                </div>
+            </div>
+
+            <!-- Clickable Interactive Tabs -->
+            <div class="user-modal-stats">
+                <div class="user-m-stat active" id="tabStatPhotos" title="Active Photos">
+                    <span class="val" id="modalTotalPhotos">0</span>
+                    <span class="lbl">Active</span>
+                </div>
+                <div class="user-m-stat" id="tabStatStorage" title="Total Storage Used">
+                    <span class="val" id="modalTotalStorage">0 MB</span>
+                    <span class="lbl">Storage</span>
+                </div>
+                <div class="user-m-stat" id="tabStatFavs" title="Favorite Photos">
+                    <span class="val" id="modalFavPhotos">0</span>
+                    <span class="lbl">Favs ❤️</span>
+                </div>
+                <div class="user-m-stat" id="tabStatTrash" title="Trash Bin Photos">
+                    <span class="val" id="modalTrashPhotos">0</span>
+                    <span class="lbl">Trash 🗑️</span>
+                </div>
+            </div>
+
+            <!-- Tab Heading -->
+            <div class="user-modal-gallery-title">
+                <span id="modalGalleryHeading">Active Photos</span> 
+                <span style="color:var(--text-muted); font-size:0.75rem; font-weight:700;" id="modalGalleryCountBadge">(0)</span>
+            </div>
+
+            <!-- Scrollable 3-Column Square Grid -->
+            <div class="user-modal-scroll-area">
+                <div class="photo-stream-grid" id="modalUserPhotosGrid">
+                    <!-- Photos rendered here -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<!-- TOAST (HIDDEN BY DEFAULT) -->
+    <div id="adminToast" style="display: none;"></div>
+
+    <script type="module" src="admin.js"></script>
+</body>
+</html>

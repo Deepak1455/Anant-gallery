@@ -1,0 +1,262 @@
+name: Generate Android AAB & APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 📱 Setup Android SDK Tools
+        uses: android-actions/setup-android@v3
+
+      - name: 📝 Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 🔑 Setup Permanent Keystore & twa-manifest
+        run: |
+          # 1. यदि Keystore मौजूद नहीं है तो बनाएं
+          if [ ! -f "android.keystore" ]; then
+            echo "Creating permanent signing keystore..."
+            keytool -genkey -v -keystore android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass androidpassword -keypass androidpassword -dname "CN=AnantGallery, OU=Mobile, O=Anant, L=Delhi, ST=Delhi, C=IN"
+          fi
+
+          mkdir -p app
+          cp android.keystore app/android.keystore
+
+          # 2. SHA-256 फिंगरप्रिंट निकालें
+          SHA_FINGERPRINT=$(keytool -list -v -keystore android.keystore -alias android -storepass androidpassword | grep "SHA256:" | awk '{print $2}')
+          echo "CURRENT_SHA=$SHA_FINGERPRINT" >> $GITHUB_ENV
+
+          # 3. परफेक्ट assetlinks.json तैयार करें
+          cat <<EOF > assetlinks.json
+          [
+            {
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                "namespace": "android_app",
+                "package_name": "app.vercel.anantgallery.twa",
+                "sha256_cert_fingerprints": [
+                  "$SHA_FINGERPRINT"
+                ]
+              }
+            }
+          ]
+          EOF
+
+          # GitHub Actions Summary पर कॉपी करने के लिए दिखाएं
+          echo "### 🚀 URL Bar Hatane Ke Liye Is Code Ko assetlinks.json Me Dalein:" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat assetlinks.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # 4. twa-manifest.json तैयार करें (ऐप का नाम: Anant Gallery)
+          cat <<EOF > twa-manifest.json
+          {
+            "packageId": "app.vercel.anantgallery.twa",
+            "host": "anant-gallery.vercel.app",
+            "name": "Anant Gallery",
+            "launcherName": "Anant Gallery",
+            "display": "standalone",
+            "themeColor": "#000000",
+            "navigationColor": "#000000",
+            "backgroundColor": "#090d16",
+            "enableNotifications": true,
+            "startUrl": "/?source=pwa",
+            "iconUrl": "https://raw.githubusercontent.com/Deepak1455/Anant-gallery/main/icon-512.png",
+            "maskableIconUrl": "https://raw.githubusercontent.com/Deepak1455/Anant-gallery/main/icon-512.png",
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
+            "generatorApp": "bubblewrap-cli",
+            "signingKey": {
+              "path": "./android.keystore",
+              "alias": "android"
+            },
+            "splashScreenFadeOutDuration": 300,
+            "enableSiteSettingsShortcut": true,
+            "isChromeOSOnly": false,
+            "fullScopeUrl": "https://anant-gallery.vercel.app/",
+            "minSdkVersion": 21,
+            "orientation": "portrait",
+            "fingerprints": [
+              {
+                "value": "$SHA_FINGERPRINT"
+              }
+            ],
+            "additionalTrustedOrigins": [],
+            "webShareTarget": {
+              "action": "/share-target",
+              "method": "POST",
+              "enctype": "multipart/form-data",
+              "params": {
+                "title": "title",
+                "text": "text",
+                "files": [
+                  {
+                    "name": "photos",
+                    "accept": ["image/*"]
+                  }
+                ]
+              }
+            },
+            "features": {},
+            "alphaDependencies": {
+              "enabled": false
+            }
+          }
+          EOF
+
+      - name: 🛠️ Generate Android Project
+        run: |
+          npm install @bubblewrap/core
+          node -e "
+          const { TwaGenerator, TwaManifest } = require('@bubblewrap/core');
+          async function buildProject() {
+            const manifest = await TwaManifest.fromFile('./twa-manifest.json');
+            const generator = new TwaGenerator();
+            if (typeof generator.createTwaProject === 'function') {
+              await generator.createTwaProject('./', manifest);
+            } else if (typeof generator.create === 'function') {
+              await generator.create('./', manifest);
+            }
+            console.log('🎉 Project Generated!');
+          }
+          buildProject().catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: 📱 Smart Share Target & URL Bar Removal (100% Working Fix)
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: "androidpassword"
+          BUBBLEWRAP_KEY_PASSWORD: "androidpassword"
+        run: |
+          # 1. Duplicate guard के साथ strings.xml में generatorApp स्ट्रिंग डालें
+          if [ -f "app/src/main/res/values/strings.xml" ]; then
+            if ! grep -q 'name="generatorApp"' app/src/main/res/values/strings.xml; then
+              sed -i 's|</resources>|    <string name="generatorApp">bubblewrap</string>\n</resources>|' app/src/main/res/values/strings.xml
+            fi
+          fi
+
+          # 🌟 2. फ़ोटो शेयरिंग का असली Google TWA XML (<files> टैग के साथ)
+          mkdir -p app/src/main/res/xml
+          cat <<'EOF' > app/src/main/res/xml/share_target.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <share-target action="/share-target" method="POST" enctype="multipart/form-data">
+              <data name="title" />
+              <data name="text" />
+              <files name="photos" accept="image/*" />
+          </share-target>
+          EOF
+
+          # 3. AndroidManifest में autoVerify और शेयरिंग इंटेंट को जोड़ें
+          python3 -c "
+          import re, os
+          path = 'app/src/main/AndroidManifest.xml'
+          if not os.path.exists(path):
+              exit(0)
+
+          with open(path, 'r') as f:
+              manifest = f.read()
+
+          # URL बार हटाने के लिए autoVerify सिर्फ VIEW वाले फ़िल्टर पर लगाएं
+          manifest = re.sub(
+              r'<intent-filter(\s+android:autoVerify=\"true\")?>(\s*<action android:name=\"android.intent.action.VIEW\")',
+              r'<intent-filter android:autoVerify=\"true\">\2',
+              manifest
+          )
+
+          # सिंगल-टास्क सेट करें (ताकि डबल स्क्रीन कभी न खुले)
+          manifest = re.sub(r'android:launchMode=\"[^\"]*\"', 'android:launchMode=\"singleTask\"', manifest)
+          if 'android:launchMode' not in manifest:
+              manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*)', r'\1 android:launchMode=\"singleTask\"', manifest)
+
+          # गैलरी शेयर इंटेंट-फ़िल्टर और मेटाडेटा
+          share_block = '''
+                  <intent-filter>
+                      <action android:name=\"android.intent.action.SEND\" />
+                      <action android:name=\"android.intent.action.SEND_MULTIPLE\" />
+                      <category android:name=\"android.intent.category.DEFAULT\" />
+                      <data android:mimeType=\"image/*\" />
+                  </intent-filter>
+                  <meta-data
+                      android:name=\"android.support.customtabs.trusted.METADATA_SHARE_TARGET\"
+                      android:resource=\"@xml/share_target\" />
+                  <meta-data
+                      android:name=\"androidx.browser.trusted.METADATA_SHARE_TARGET\"
+                      android:resource=\"@xml/share_target\" />
+          '''
+
+          # पुराने डुप्लीकेट शेयर फ़िल्टर साफ़ करें
+          manifest = re.sub(r'<intent-filter>\s*<action android:name=\"android.intent.action.SEND\".*?</intent-filter>', '', manifest, flags=re.DOTALL)
+          manifest = re.sub(r'<meta-data\s+android:name=\"[^\"]*METADATA_SHARE_TARGET\".*?/>', '', manifest, flags=re.DOTALL)
+
+          # LauncherActivity के अंदर नया शेयर फ़िल्टर जोड़ें
+          manifest = re.sub(r'(<activity[^>]*android:name=\"[^\"]*LauncherActivity\"[^>]*>)', r'\1' + share_block, manifest)
+
+          with open(path, 'w') as f:
+              f.write(manifest)
+          print('✅ Fixed: <files> Tag and Share Target 100% Linked!')
+          "
+
+          # ⚡ 4. सुपरफास्ट Gradle बिल्ड
+          chmod +x gradlew
+          ./gradlew bundleRelease --parallel --build-cache
+
+          mkdir -p app/build/outputs/apk/release/
+          mkdir -p app/build/outputs/bundle/release/
+
+          # 5. AAB फ़ाइल को रीनेम करें (Anant-Gallery.aab)
+          AAB_FILE=$(find app/build/outputs/bundle/ -name "*.aab" | head -n 1)
+          if [ -n "$AAB_FILE" ]; then
+            cp "$AAB_FILE" "app/build/outputs/bundle/release/Anant-Gallery.aab"
+            echo "🎉 Anant-Gallery.aab Ready!"
+          fi
+
+          # 6. 🚀 Google Bundletool से 100% यूनिवर्सल Anant-Gallery.apk बनाएं
+          curl -sL -f --retry 3 https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -o bundletool.jar
+
+          java -jar bundletool.jar build-apks \
+            --bundle="app/build/outputs/bundle/release/Anant-Gallery.aab" \
+            --output=app.apks \
+            --mode=universal \
+            --overwrite
+
+          unzip -p app.apks universal.apk > "app/build/outputs/apk/release/unsigned.apk"
+
+          # 7. V2+V3 सिग्नेचर से साइन और अलाइन करें
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          $BUILD_TOOLS/zipalign -v -f -p 4 "app/build/outputs/apk/release/unsigned.apk" "app/build/outputs/apk/release/aligned.apk"
+          $BUILD_TOOLS/apksigner sign --ks android.keystore --ks-pass pass:androidpassword --key-pass pass:androidpassword --out "app/build/outputs/apk/release/Anant-Gallery.apk" "app/build/outputs/apk/release/aligned.apk"
+          
+          echo "🎉 100% Ready: Anant-Gallery.apk Generated!"
+
+      - name: 📦 Upload Official AAB, Signed APK & Keystore
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Anant-Gallery-Android-Build
+          path: |
+            app/build/outputs/apk/release/Anant-Gallery.apk
+            app/build/outputs/bundle/release/Anant-Gallery.aab
+            assetlinks.json
+            android.keystore
+          retention-days: 14

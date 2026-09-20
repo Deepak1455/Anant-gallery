@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Anant Gallery - Infinite Cloud Storage</title>
+    
+    <!-- Capture beforeinstallprompt IMMEDIATELY before modules load -->
+    <script>
+        window.deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.deferredInstallPrompt = e;
+            window.dispatchEvent(new CustomEvent('anant_pwa_ready'));
+        });
+    </script>
+
+    <!-- 🌟 High-Res App Favicon & Apple Touch Icons (PWABuilder Compliant) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+    <link rel="shortcut icon" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
+
+    <!-- 🌟 PERMANENT DARK STATUS BAR (Ensures Phone Time, SIM & Battery are ALWAYS CRISP WHITE) -->
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Anant Gallery">
+    <meta name="application-name" content="Anant Gallery">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 🌟 RAZORPAY 1-TAP SECURE PAYMENT CHECKOUT SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- SIDEBAR & OVERLAY -->
+    <div id="sidebarOverlay"></div>
+    <nav id="sidebar">
+        <div class="sb-header">Anant Gallery</div>
+        <div class="sb-item active" id="navPhotos">
+            <i class="fa-regular fa-images"></i> Photos
+        </div>
+        <div class="sb-item" id="navAlbums">
+            <i class="fa-solid fa-folder-open" style="color: #0ea5e9;"></i> Albums
+        </div>
+        <div class="sb-item" id="navFavorites">
+            <i class="fa-solid fa-heart" style="color: #ec4899;"></i> Favorites
+        </div>
+        <div class="sb-item" id="navHidden">
+            <i class="fa-solid fa-user-shield" style="color: #6366f1;"></i> Private Photos
+        </div>
+        <div class="sb-item" id="navTrash">
+            <i class="fa-solid fa-trash"></i> Trash Bin
+        </div>
+        <div class="sb-item" id="navProfile">
+            <i class="fa-solid fa-user"></i> My Profile
+        </div>
+        <div class="sb-item" onclick="window.open('/privacy.html', '_blank')">
+            <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> Privacy Policy
+        </div>
+        <div style="flex:1"></div>
+        <div class="sb-item" id="logoutBtn" style="color: var(--danger)">
+            <i class="fa-solid fa-right-from-bracket"></i> Log Out
+        </div>
+    </nav>
+
+    <!-- AUTHENTICATION SCREEN WITH GOOGLE SIGN-IN & FORGOT PASSWORD -->
+    <div id="authScreen">
+        <div class="auth-box">
+            <div class="auth-logo-box">
+                <img src="/icon-192.png" class="auth-logo-img" alt="Anant Gallery" onerror="this.src='/loadingphoto.png'; this.onerror=null;">
+                <i class="fa-solid fa-infinity" style="display:none;"></i>
+            </div>
+            <div class="app-title">Anant Gallery</div>
+            <p class="auth-subtitle">Secure Infinite Photo Cloud</p>
+
+            <!-- 1-TAP GOOGLE SIGN-IN BUTTON -->
+            <button type="button" class="btn-google" id="googleAuthBtn">
+                <svg class="google-icon" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Continue with Google</span>
+            </button>
+
+            <div class="auth-divider">
+                <span>OR WITH EMAIL</span>
+            </div>
+
+            <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="email" placeholder="Email" autocomplete="email"></div>
+            <div class="input-group" id="passGroup"><i class="fa-solid fa-lock"></i><input type="password" id="pass" placeholder="Password" autocomplete="current-password"></div>
+            
+            <button class="btn" id="authBtn">Enter Gallery</button>
+            
+            <!-- 🌟 FORGOT PASSWORD LINK -->
+            <div class="link" id="forgotPassBtn" style="margin-top: 14px; font-size: 0.82rem; color: var(--accent);">Forgot Password?</div>
+            
+            <div class="link" id="toggleAuth" style="margin-top: 14px;">New here? <span>Create Account</span></div>
+        </div>
+    </div>
+
+    <!-- GLOBAL TOAST NOTIFICATION CONTAINER -->
+    <div id="toast"></div>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((reg) => console.log('SW Registered Successfully:', reg.scope))
+                    .catch((err) => console.error('SW Registration Failed:', err));
+            });
+        }
+    </script>
+
+    <!-- JavaScript Module -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
