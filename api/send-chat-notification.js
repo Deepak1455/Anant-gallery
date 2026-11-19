@@ -71,36 +71,24 @@ export default async function handler(req, res) {
         ? 'Sent a view-limit protected photo'
         : String(messagePreview || 'New secure message').slice(0, 180);
 
+    // Data-Only High-Priority FCM -> Always wakes AnantFirebaseMessagingService to draw Circular User DP + Stacked MessagingStyle!
     const fcmResponse = await admin.messaging().send({
       token: fcmToken,
-      notification: {
-        title: String(senderName || 'Anant Secure Chat'),
-        body: safeBody,
-      },
       data: {
         type: 'secure_chat',
         chatId: String(chatId),
         senderUid: String(senderUid),
-        senderName: String(senderName),
+        senderName: String(senderName || 'Anant Secure Chat'),
         senderEmail: String(senderEmail),
         senderPhotoUrl: String(senderPhotoUrl),
         messageId: String(messageId),
         messageType: String(messageType),
         messagePreview: safeBody,
+        timestamp: String(Date.now()),
       },
       android: {
         priority: 'high',
-        collapseKey: String(chatId || senderUid),
-        notification: {
-          channelId: 'anant_secure_chat_v2',
-          sound: 'default',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-          priority: 'max',
-          visibility: 'private',
-          clickAction: 'OPEN_SECURE_CHAT',
-          tag: String(chatId || senderUid),
-        },
+        ttl: 86400 * 1000,
       },
     });
 
