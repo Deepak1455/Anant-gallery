@@ -63,7 +63,6 @@ export default async function handler(req, res) {
     const userRef = db.collection('users').doc(recipientUid);
     const senderRef = db.collection('users').doc(senderUid);
 
-    // Parallel fetch for ultra-low latency
     const needsSenderLookup = !String(senderName || '').trim() || !String(senderPhotoUrl || '').trim();
     const [userDoc, senderDoc] = await Promise.all([
       userRef.get(),
@@ -100,45 +99,8 @@ export default async function handler(req, res) {
       singleLineBody = 'Accepted your Secure Chat request';
     }
 
-    const supportsRichPush = recipientData.richNotifications === true;
-    const collapseKey = String(chatId || senderUid).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
-
-    // Fallback stacking only needed if device hasn't registered rich Data-Only support
-    let stackedTitle = finalSenderName;
-    let stackedBody = singleLineBody;
-
-    if (!supportsRichPush && type === 'secure_chat' && chatId) {
-      try {
-        // FIXED: Node.js Firebase Admin SDK uses .doc(), NOT .document()
-        const recentSnap = await db
-          .collection('secure_chats')
-          .doc(chatId)
-          .collection('messages')
-          .orderBy('timestamp', 'desc')
-          .limit(6)
-          .get();
-
-        const unseenLines = [];
-        for (const doc of recentSnap.docs) {
-          const m = doc.data() || {};
-          const isSeen = m.seen === true || m.isSeen === true;
-          if (m.senderId === senderUid && !isSeen) {
-            const line =
-              m.type === 'photo'
-                ? 'Sent a view-limit protected photo'
-                : String(m.text || m.message || '').trim().slice(0, 80);
-            if (line) unseenLines.unshift(line);
-          }
-        }
-
-        if (unseenLines.length > 1) {
-          stackedTitle = `${finalSenderName} (${unseenLines.length} new messages)`;
-          stackedBody = unseenLines.slice(-4).join('\n');
-        }
-      } catch (_) {
-        // Safe fallback
-      }
-    }
+    // Default to Instagram Data-Only Rich Push unless explicitly disabled
+    const supportsRichPush = recipientData.richNotifications !== false;
 
     const baseData = {
       type: String(type),
@@ -147,12 +109,13 @@ export default async function handler(req, res) {
       senderName: finalSenderName,
       senderEmail: String(senderEmail),
       senderPhotoUrl: validImageUrl,
-      messageId: String(messageId),
+      messageId: String(messageId || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
       messageType: String(messageType),
       messagePreview: singleLineBody,
       timestamp: String(Date.now()),
     };
 
+    // IMPORTANT: Do NOT set collapseKey for chat messages so rapid messages (Hi, Jddi, Eiei) are NEVER dropped!
     const messagePayload = supportsRichPush
       ? {
           token: fcmToken,
@@ -160,22 +123,20 @@ export default async function handler(req, res) {
           android: {
             priority: 'high',
             ttl: 86400 * 1000,
-            collapseKey,
           },
         }
       : {
           token: fcmToken,
           notification: {
-            title: stackedTitle,
-            body: stackedBody,
+            title: finalSenderName,
+            body: singleLineBody,
           },
           data: baseData,
           android: {
             priority: 'high',
             ttl: 86400 * 1000,
-            collapseKey,
             notification: {
-              channelId: 'anant_secure_chat_v2',
+              channelId: 'anant_secure_chat_v3',
               sound: 'default',
               defaultSound: true,
               defaultVibrateTimings: true,
@@ -191,7 +152,7 @@ export default async function handler(req, res) {
       const fcmResponse = await admin.messaging().send(messagePayload);
       return res.status(200).json({
         success: true,
-        mode: supportsRichPush ? 'instagram_rich_data' : 'stacked_single_card',
+        mode: supportsRichPush ? 'instagram_rich_data' : 'fallback_single_card',
         messageId: fcmResponse,
       });
     } catch (sendErr) {
