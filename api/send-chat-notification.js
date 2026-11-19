@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       recipientUid = '',
       chatId = '',
       senderUid = '',
-      senderName = 'Anant Secure Chat',
+      senderName = '',
       senderEmail = '',
       senderPhotoUrl = '',
       messageId = '',
@@ -64,13 +64,20 @@ export default async function handler(req, res) {
     const fcmToken = userDoc.data()?.fcmToken || '';
     if (!fcmToken) return res.status(200).json({ skipped: true, reason: 'No fcmToken' });
 
-    // Fallback: look up sender photo from Firestore if not passed in body
+    // Fallback: look up sender name & photo from Firestore if missing
+    let resolvedName = String(senderName || '').trim();
     let rawSenderPhoto = String(senderPhotoUrl || '').trim();
-    if (!rawSenderPhoto) {
+    if (!resolvedName || !rawSenderPhoto) {
       try {
         const senderDoc = await admin.firestore().collection('users').doc(senderUid).get();
         if (senderDoc.exists) {
-          rawSenderPhoto = senderDoc.data()?.photoUrl || senderDoc.data()?.avatarUrl || '';
+          const sData = senderDoc.data() || {};
+          if (!resolvedName) {
+            resolvedName = sData.name || sData.displayName || 'Anant User';
+          }
+          if (!rawSenderPhoto) {
+            rawSenderPhoto = sData.photoUrl || sData.avatarUrl || sData.profilePhoto || '';
+          }
         }
       } catch (_) {}
     }
@@ -81,33 +88,14 @@ export default async function handler(req, res) {
         ? 'Sent a view-limit protected photo'
         : String(messagePreview || 'New secure message').slice(0, 180);
 
-    // Unique tag per message -> NEVER overwrites "Hi" when "Jk" arrives!
-    const uniqueTag = String(messageId || `${chatId}_${Date.now()}`);
-
-    const androidNotification = {
-      channelId: 'anant_secure_chat_v2',
-      sound: 'default',
-      defaultSound: true,
-      defaultVibrateTimings: true,
-      priority: 'max',
-      visibility: 'private',
-      clickAction: 'OPEN_SECURE_CHAT',
-      tag: uniqueTag,
-      ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-    };
-
+    // High-Priority Data-Only FCM -> Android renders WhatsApp-grade Circular DP + Stacked MessagingStyle + Inline Reply!
     const fcmResponse = await admin.messaging().send({
       token: fcmToken,
-      notification: {
-        title: String(senderName || 'Anant Secure Chat'),
-        body: safeBody,
-        ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-      },
       data: {
         type: 'secure_chat',
         chatId: String(chatId),
         senderUid: String(senderUid),
-        senderName: String(senderName || 'Anant Secure Chat'),
+        senderName: resolvedName || 'Anant Secure Chat',
         senderEmail: String(senderEmail),
         senderPhotoUrl: validImageUrl,
         messageId: String(messageId),
@@ -117,7 +105,7 @@ export default async function handler(req, res) {
       },
       android: {
         priority: 'high',
-        notification: androidNotification,
+        ttl: 86400 * 1000,
       },
     });
 
