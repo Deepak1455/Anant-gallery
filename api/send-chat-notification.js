@@ -61,27 +61,29 @@ export default async function handler(req, res) {
 
     const db = admin.firestore();
     const userRef = db.collection('users').doc(recipientUid);
-    const userDoc = await userRef.get();
+    const senderRef = db.collection('users').doc(senderUid);
+
+    // Parallel fetch for ultra-low latency
+    const needsSenderLookup = !String(senderName || '').trim() || !String(senderPhotoUrl || '').trim();
+    const [userDoc, senderDoc] = await Promise.all([
+      userRef.get(),
+      needsSenderLookup ? senderRef.get().catch(() => null) : Promise.resolve(null),
+    ]);
+
     if (!userDoc.exists) return res.status(404).json({ error: 'Recipient user not found' });
 
     const recipientData = userDoc.data() || {};
     const fcmToken = recipientData.fcmToken || '';
     if (!fcmToken) return res.status(200).json({ skipped: true, reason: 'No fcmToken' });
 
-    // Resolve sender Name & Photo safely from Firestore if missing
     let resolvedName = String(senderName || '').trim();
     let rawSenderPhoto = String(senderPhotoUrl || '').trim();
-    if (!resolvedName || !rawSenderPhoto) {
-      try {
-        const senderDoc = await db.collection('users').doc(senderUid).get();
-        if (senderDoc.exists) {
-          const sData = senderDoc.data() || {};
-          if (!resolvedName) resolvedName = sData.name || sData.displayName || 'Anant User';
-          if (!rawSenderPhoto) {
-            rawSenderPhoto = sData.photoUrl || sData.avatarUrl || sData.profilePhoto || '';
-          }
-        }
-      } catch (_) {}
+    if (senderDoc && senderDoc.exists) {
+      const sData = senderDoc.data() || {};
+      if (!resolvedName) resolvedName = sData.name || sData.displayName || 'Anant User';
+      if (!rawSenderPhoto) {
+        rawSenderPhoto = sData.photoUrl || sData.avatarUrl || sData.profilePhoto || '';
+      }
     }
 
     const finalSenderName = resolvedName || 'Anant Secure Chat';
@@ -98,15 +100,19 @@ export default async function handler(req, res) {
       singleLineBody = 'Accepted your Secure Chat request';
     }
 
-    // Smart Single-Card Server Stacking for unread messages (prevents separate cards!)
+    const supportsRichPush = recipientData.richNotifications === true;
+    const collapseKey = String(chatId || senderUid).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+
+    // Fallback stacking only needed if device hasn't registered rich Data-Only support
     let stackedTitle = finalSenderName;
     let stackedBody = singleLineBody;
 
-    if (type === 'secure_chat' && chatId) {
+    if (!supportsRichPush && type === 'secure_chat' && chatId) {
       try {
+        // FIXED: Node.js Firebase Admin SDK uses .doc(), NOT .document()
         const recentSnap = await db
           .collection('secure_chats')
-          .document(chatId)
+          .doc(chatId)
           .collection('messages')
           .orderBy('timestamp', 'desc')
           .limit(6)
@@ -119,7 +125,7 @@ export default async function handler(req, res) {
           if (m.senderId === senderUid && !isSeen) {
             const line =
               m.type === 'photo'
-                ? 'View-limit photo'
+                ? 'Sent a view-limit protected photo'
                 : String(m.text || m.message || '').trim().slice(0, 80);
             if (line) unseenLines.unshift(line);
           }
@@ -130,13 +136,9 @@ export default async function handler(req, res) {
           stackedBody = unseenLines.slice(-4).join('\n');
         }
       } catch (_) {
-        // Safe fallback to singleLineBody if timestamp field/order differs
+        // Safe fallback
       }
     }
-
-    // Use Data-Only MessagingStyle when recipient device confirmed rich push support;
-    // otherwise use Single-Card Hybrid (100% Vivo reliable, NEVER multiple cards!)
-    const supportsRichPush = recipientData.richNotifications === true;
 
     const baseData = {
       type: String(type),
@@ -158,6 +160,7 @@ export default async function handler(req, res) {
           android: {
             priority: 'high',
             ttl: 86400 * 1000,
+            collapseKey,
           },
         }
       : {
@@ -170,6 +173,7 @@ export default async function handler(req, res) {
           android: {
             priority: 'high',
             ttl: 86400 * 1000,
+            collapseKey,
             notification: {
               channelId: 'anant_secure_chat_v2',
               sound: 'default',
@@ -178,7 +182,6 @@ export default async function handler(req, res) {
               priority: 'max',
               visibility: 'private',
               clickAction: 'OPEN_SECURE_CHAT',
-              // Same tag per chatId -> ALWAYS 1 single stacked card, NEVER multiple cards!
               tag: String(chatId || senderUid),
             },
           },
@@ -188,11 +191,10 @@ export default async function handler(req, res) {
       const fcmResponse = await admin.messaging().send(messagePayload);
       return res.status(200).json({
         success: true,
-        mode: supportsRichPush ? 'rich_data_only' : 'stacked_single_card',
+        mode: supportsRichPush ? 'instagram_rich_data' : 'stacked_single_card',
         messageId: fcmResponse,
       });
     } catch (sendErr) {
-      // Auto-clean dead/uninstalled FCM token
       if (
         sendErr?.code === 'messaging/registration-token-not-registered' ||
         sendErr?.code === 'messaging/invalid-registration-token'
