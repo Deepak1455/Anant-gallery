@@ -88,9 +88,15 @@ export default async function handler(req, res) {
         ? 'Sent a view-limit protected photo'
         : String(messagePreview || 'New secure message').slice(0, 180);
 
-    // High-Priority Data-Only FCM -> Android renders WhatsApp-grade Circular DP + Stacked MessagingStyle + Inline Reply!
+    // Unique tag per message -> keeps every unread message visible without overwriting!
+    const uniqueTag = String(messageId || `${chatId}_${Date.now()}`);
+
     const fcmResponse = await admin.messaging().send({
       token: fcmToken,
+      notification: {
+        title: resolvedName || 'Anant Secure Chat',
+        body: safeBody,
+      },
       data: {
         type: 'secure_chat',
         chatId: String(chatId),
@@ -106,6 +112,16 @@ export default async function handler(req, res) {
       android: {
         priority: 'high',
         ttl: 86400 * 1000,
+        notification: {
+          channelId: 'anant_secure_chat_v2',
+          sound: 'default',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          priority: 'max',
+          visibility: 'private',
+          clickAction: 'OPEN_SECURE_CHAT',
+          tag: uniqueTag,
+        },
       },
     });
 
