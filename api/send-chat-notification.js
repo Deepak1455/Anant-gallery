@@ -11,18 +11,21 @@ if (!admin.apps.length) {
   });
 }
 
+function sanitizeImageUrl(rawUrl) {
+  const clean = String(rawUrl || '').trim();
+  if (!clean) return '';
+  if (clean.startsWith('/api/')) return `https://anant-gallery.vercel.app${clean}`;
+  if (clean.startsWith('https://')) return clean;
+  return '';
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const authHeader = req.headers.authorization || '';
@@ -51,36 +54,62 @@ export default async function handler(req, res) {
     if (!recipientUid || !senderUid || decoded.uid !== senderUid) {
       return res.status(403).json({ error: 'Invalid sender or recipient' });
     }
-
     if (recipientUid === senderUid) {
       return res.status(200).json({ skipped: true, reason: 'Self message' });
     }
 
     const userDoc = await admin.firestore().collection('users').doc(recipientUid).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Recipient user not found' });
-    }
+    if (!userDoc.exists) return res.status(404).json({ error: 'Recipient user not found' });
 
     const fcmToken = userDoc.data()?.fcmToken || '';
-    if (!fcmToken) {
-      return res.status(200).json({ skipped: true, reason: 'No fcmToken' });
+    if (!fcmToken) return res.status(200).json({ skipped: true, reason: 'No fcmToken' });
+
+    // Fallback: look up sender photo from Firestore if not passed in body
+    let rawSenderPhoto = String(senderPhotoUrl || '').trim();
+    if (!rawSenderPhoto) {
+      try {
+        const senderDoc = await admin.firestore().collection('users').doc(senderUid).get();
+        if (senderDoc.exists) {
+          rawSenderPhoto = senderDoc.data()?.photoUrl || senderDoc.data()?.avatarUrl || '';
+        }
+      } catch (_) {}
     }
 
+    const validImageUrl = sanitizeImageUrl(rawSenderPhoto);
     const safeBody =
       messageType === 'photo'
         ? 'Sent a view-limit protected photo'
         : String(messagePreview || 'New secure message').slice(0, 180);
 
-    // Data-Only High-Priority FCM -> Always wakes AnantFirebaseMessagingService to draw Circular User DP + Stacked MessagingStyle!
+    // Unique tag per message -> NEVER overwrites "Hi" when "Jk" arrives!
+    const uniqueTag = String(messageId || `${chatId}_${Date.now()}`);
+
+    const androidNotification = {
+      channelId: 'anant_secure_chat_v2',
+      sound: 'default',
+      defaultSound: true,
+      defaultVibrateTimings: true,
+      priority: 'max',
+      visibility: 'private',
+      clickAction: 'OPEN_SECURE_CHAT',
+      tag: uniqueTag,
+      ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+    };
+
     const fcmResponse = await admin.messaging().send({
       token: fcmToken,
+      notification: {
+        title: String(senderName || 'Anant Secure Chat'),
+        body: safeBody,
+        ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+      },
       data: {
         type: 'secure_chat',
         chatId: String(chatId),
         senderUid: String(senderUid),
         senderName: String(senderName || 'Anant Secure Chat'),
         senderEmail: String(senderEmail),
-        senderPhotoUrl: String(senderPhotoUrl),
+        senderPhotoUrl: validImageUrl,
         messageId: String(messageId),
         messageType: String(messageType),
         messagePreview: safeBody,
@@ -88,7 +117,7 @@ export default async function handler(req, res) {
       },
       android: {
         priority: 'high',
-        ttl: 86400 * 1000,
+        notification: androidNotification,
       },
     });
 
