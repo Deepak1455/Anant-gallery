@@ -18,8 +18,9 @@ if (!admin.apps.length) {
   } catch (_) {}
 }
 
+// 100% Zero-Firestore In-Memory Caches (Unlimited Free!)
 const threadCache = globalThis.__anantThreadCache || (globalThis.__anantThreadCache = new Map());
-const richModeCache = globalThis.__anantRichModeCache || (globalThis.__anantRichModeCache = new Map());
+const userPrefsCache = globalThis.__anantUserPrefsCache || (globalThis.__anantUserPrefsCache = new Map());
 
 function getSecretUserTopic(uid) {
   const secret =
@@ -41,6 +42,19 @@ function sanitizeImageUrl(rawUrl) {
   if (clean.startsWith('/api/')) return `https://anant-gallery.vercel.app${clean}`;
   if (clean.startsWith('https://')) return clean;
   return '';
+}
+
+function isCurrentlyQuietHours(prefs) {
+  if (!prefs || prefs.quietHoursEnabled !== true) return false;
+  const offsetMin = Number.isFinite(prefs.timezoneOffsetMin) ? prefs.timezoneOffsetMin : 330; // Default IST (+5:30)
+  const localMs = Date.now() + offsetMin * 60 * 1000;
+  const hour = new Date(localMs).getUTCHours();
+  const start = Number.isFinite(prefs.quietStartHour) ? prefs.quietStartHour : 23;
+  const end = Number.isFinite(prefs.quietEndHour) ? prefs.quietEndHour : 7;
+  if (start > end) {
+    return hour >= start || hour < end;
+  }
+  return hour >= start && hour < end;
 }
 
 async function sendWithTopicFallback(basePayload, directToken, recipientTopic, forceTopic) {
@@ -89,9 +103,7 @@ export default async function handler(req, res) {
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
     const {
-      type = 'secure_chat',
-      deliveryMode = 'auto',
-      richMode = false,
+      type = 'secure_chat', // 'register_device' | 'unregister_device' | 'update_prefs' | 'clear_thread' | 'test_push' | 'secure_chat' | 'chat_request' | 'request_accepted' | 'screenshot_alert' | 'reaction'
       fcmToken = '',
       recipientUid = '',
       recipientFcmToken = '',
@@ -104,9 +116,42 @@ export default async function handler(req, res) {
       messageId = '',
       messageType = 'text',
       messagePreview = 'New secure message',
+      viewLimit = 0,
       stackedLines: clientStackedLines = null,
       testViaTopic = false,
+      privacyMode,
+      quietHoursEnabled,
+      quietStartHour,
+      quietEndHour,
+      timezoneOffsetMin,
+      mutedChatIds,
     } = parsedBody;
+
+    // Helper to merge user preferences in memory (0 Firestore writes)
+    const savePrefsIfProvided = (uid) => {
+      const prev = userPrefsCache.get(uid) || {};
+      const next = {
+        privacyMode: typeof privacyMode === 'boolean' ? privacyMode : Boolean(prev.privacyMode),
+        quietHoursEnabled:
+          typeof quietHoursEnabled === 'boolean'
+            ? quietHoursEnabled
+            : Boolean(prev.quietHoursEnabled),
+        quietStartHour: Number.isFinite(Number(quietStartHour))
+          ? Number(quietStartHour)
+          : (prev.quietStartHour ?? 23),
+        quietEndHour: Number.isFinite(Number(quietEndHour))
+          ? Number(quietEndHour)
+          : (prev.quietEndHour ?? 7),
+        timezoneOffsetMin: Number.isFinite(Number(timezoneOffsetMin))
+          ? Number(timezoneOffsetMin)
+          : (prev.timezoneOffsetMin ?? 330),
+        mutedChatIds: Array.isArray(mutedChatIds)
+          ? mutedChatIds.map((id) => String(id).trim()).filter(Boolean)
+          : (prev.mutedChatIds || []),
+      };
+      userPrefsCache.set(uid, next);
+      return next;
+    };
 
     // 1) REGISTER DEVICE TO UNLIMITED PRIVATE FCM TOPIC
     if (type === 'register_device') {
@@ -114,26 +159,35 @@ export default async function handler(req, res) {
       if (!cleanToken) {
         return res.status(400).json({ error: 'Missing fcmToken' });
       }
-      richModeCache.set(decoded.uid, richMode === true);
+      const savedPrefs = savePrefsIfProvided(decoded.uid);
       const userTopic = getSecretUserTopic(decoded.uid);
       const subRes = await admin.messaging().subscribeToTopic([cleanToken], userTopic);
       return res.status(200).json({
         success: subRes.successCount >= 1 && subRes.failureCount === 0,
         mode: 'topic_registered',
-        richMode: richMode === true,
         topic: userTopic,
+        prefs: savedPrefs,
         successCount: subRes.successCount,
         failureCount: subRes.failureCount,
       });
     }
 
-    // 2) UNREGISTER DEVICE ON LOGOUT
+    // 2) UPDATE PRIVACY MODE / QUIET HOURS / MUTED CHATS (0 Firestore calls)
+    if (type === 'update_prefs') {
+      const savedPrefs = savePrefsIfProvided(decoded.uid);
+      return res.status(200).json({
+        success: true,
+        mode: 'prefs_updated',
+        prefs: savedPrefs,
+      });
+    }
+
+    // 3) UNREGISTER DEVICE ON LOGOUT
     if (type === 'unregister_device') {
       const cleanToken = String(fcmToken || recipientFcmToken || '').trim();
       if (!cleanToken) {
         return res.status(400).json({ error: 'Missing fcmToken' });
       }
-      richModeCache.delete(decoded.uid);
       const userTopic = getSecretUserTopic(decoded.uid);
       const unsubRes = await admin.messaging().unsubscribeFromTopic([cleanToken], userTopic);
       return res.status(200).json({
@@ -144,7 +198,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3) CLEAR UNREAD THREAD COUNT INSTANTLY WHEN USER OPENS CHAT
+    // 4) CLEAR UNREAD THREAD COUNT INSTANTLY WHEN CHAT IS OPENED
     if (type === 'clear_thread') {
       const clearKey = String(chatId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
       if (clearKey) {
@@ -164,37 +218,35 @@ export default async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'Self message skipped' });
     }
 
-    const finalChannelId = String(targetChannelId || 'anant_secure_chat_v3').trim();
+    const recipientPrefs = userPrefsCache.get(effectiveRecipientUid) || {};
     const directToken = String(recipientFcmToken || fcmToken || '').trim();
     const recipientTopic = getSecretUserTopic(effectiveRecipientUid);
     const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
-    // 4) INSTANT LIVE TEST PUSH WITH DP
+    // 5) INSTANT LIVE TEST PUSH
     if (type === 'test_push') {
       const testBase = {
         notification: {
-          title: String(senderName || '').trim() || 'Anant Gallery Secure Chat',
-          body: 'Instant push notifications with DP are active on this device.',
-          ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+          title: 'Anant Gallery Secure Chat',
+          body: 'Advance push alerts are active and working smoothly.',
         },
         data: {
           type: 'test_push',
           senderUid: effectiveSenderUid,
           senderName: String(senderName || '').trim() || 'Anant Gallery',
           senderPhotoUrl: validImageUrl,
-          messagePreview: 'Instant push notifications with DP are active on this device.',
+          messagePreview: 'Advance push alerts are active and working smoothly.',
           timestamp: String(Date.now()),
         },
         android: {
           priority: 'high',
           ttl: 300 * 1000,
           notification: {
-            channelId: finalChannelId,
+            channelId: String(targetChannelId || 'anant_secure_chat_v3').trim(),
             defaultSound: true,
             defaultVibrateTimings: true,
             priority: 'max',
             visibility: 'public',
-            ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
           },
         },
       };
@@ -209,24 +261,28 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         mode: `test_${result.mode}`,
-        hasDpImage: Boolean(validImageUrl),
-        channelId: finalChannelId,
         messageId: result.messageId,
       });
     }
 
-    // 5) AUTO-SMART UNLIMITED SECURE CHAT PUSH (DP ALWAYS SHOWN!)
+    // 6) ADVANCE SMART SECURE CHAT / SECURITY / REACTION PUSH
     const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
 
     let singleLineBody =
       messageType === 'photo'
-        ? 'Sent a view-limit protected photo'
+        ? Number(viewLimit) > 0
+          ? `Sent a protected photo (${Number(viewLimit)} view limit)`
+          : 'Sent a view-limit protected photo'
         : String(messagePreview || 'New secure message').trim().slice(0, 180);
 
     if (type === 'chat_request') {
       singleLineBody = 'Sent you a Secure Chat request';
     } else if (type === 'request_accepted') {
       singleLineBody = 'Accepted your Secure Chat request';
+    } else if (type === 'screenshot_alert') {
+      singleLineBody = 'Security Alert: Captured a screenshot in Secure Chat';
+    } else if (type === 'reaction') {
+      singleLineBody = String(messagePreview || 'Reacted to your message').trim().slice(0, 140);
     }
 
     const now = Date.now();
@@ -239,7 +295,7 @@ export default async function handler(req, res) {
         .map((s) => String(s || '').trim().slice(0, 120))
         .filter(Boolean)
         .slice(-6);
-    } else if (type === 'secure_chat' && threadKey) {
+    } else if ((type === 'secure_chat' || type === 'reaction') && threadKey) {
       const cacheKey = `${effectiveRecipientUid}::${threadKey}`;
       const prev = threadCache.get(cacheKey);
       const isFresh = prev && now - prev.updatedAt < 20 * 60 * 1000;
@@ -258,11 +314,29 @@ export default async function handler(req, res) {
       }
     }
 
-    const stackedTitle =
-      stackedLines.length > 1
+    // Privacy Lock Mode: Hide actual message text on lockscreen if enabled by recipient
+    const isPrivacyMode = recipientPrefs.privacyMode === true;
+    const isChatMuted =
+      Array.isArray(recipientPrefs.mutedChatIds) &&
+      recipientPrefs.mutedChatIds.includes(String(chatId));
+    const isQuietNow =
+      type !== 'screenshot_alert' && (isChatMuted || isCurrentlyQuietHours(recipientPrefs));
+
+    const finalChannelId = isQuietNow
+      ? 'anant_secure_chat_quiet_v3'
+      : String(targetChannelId || 'anant_secure_chat_v3').trim();
+
+    const displayTitle = isPrivacyMode
+      ? 'Anant Secure Chat'
+      : stackedLines.length > 1
         ? `${finalSenderName} (${stackedLines.length} new messages)`
         : finalSenderName;
-    const stackedBody = stackedLines.join('\n');
+
+    const displayBody = isPrivacyMode
+      ? stackedLines.length > 1
+        ? `${stackedLines.length} new encrypted messages`
+        : 'New encrypted message'
+      : stackedLines.join('\n');
 
     const baseData = {
       type: String(type),
@@ -276,50 +350,40 @@ export default async function handler(req, res) {
       messagePreview: singleLineBody,
       stackedLinesJson: JSON.stringify(stackedLines),
       unreadCount: String(stackedLines.length),
+      privacyMode: String(isPrivacyMode),
+      isQuiet: String(isQuietNow),
       timestamp: String(now),
     };
 
-    const useDataOnly =
-      deliveryMode === 'data_only' ||
-      (deliveryMode === 'auto' && richModeCache.get(effectiveRecipientUid) === true);
-
-    const basePayload = useDataOnly
-      ? {
-          data: baseData,
-          android: {
-            priority: 'high',
-            ttl: 86400 * 1000,
-          },
-        }
-      : {
-          notification: {
-            title: stackedTitle,
-            body: stackedBody,
-            ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-          },
-          data: baseData,
-          android: {
-            priority: 'high',
-            ttl: 86400 * 1000,
-            notification: {
-              channelId: finalChannelId,
-              defaultSound: true,
-              defaultVibrateTimings: true,
-              priority: 'max',
-              visibility: 'private',
-              tag: threadKey,
-              ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-            },
-          },
-        };
+    // Clean 100% Vivo-proof stacked card (NO giant photo cutting off stacked text!)
+    const basePayload = {
+      notification: {
+        title: displayTitle,
+        body: displayBody,
+      },
+      data: baseData,
+      android: {
+        priority: isQuietNow ? 'normal' : 'high',
+        ttl: 86400 * 1000,
+        notification: {
+          channelId: finalChannelId,
+          defaultSound: !isQuietNow,
+          defaultVibrateTimings: !isQuietNow,
+          priority: isQuietNow ? 'low' : 'max',
+          visibility: 'private',
+          tag: threadKey,
+        },
+      },
+    };
 
     const result = await sendWithTopicFallback(basePayload, directToken, recipientTopic, false);
 
     return res.status(200).json({
       success: true,
-      mode: `${useDataOnly ? 'smart_circular_dp' : 'vivo_hybrid_with_dp'}_${result.mode}`,
-      hasDpImage: Boolean(validImageUrl),
+      mode: result.mode,
       channelId: finalChannelId,
+      privacyMode: isPrivacyMode,
+      isQuiet: isQuietNow,
       stackedCount: stackedLines.length,
       messageId: result.messageId,
     });
