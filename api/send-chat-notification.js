@@ -18,7 +18,6 @@ if (!admin.apps.length) {
   } catch (_) {}
 }
 
-// In-memory multi-message stack cache (0 Firestore Reads / 0 Firestore Writes)
 const threadCache = globalThis.__anantThreadCache || (globalThis.__anantThreadCache = new Map());
 
 function getSecretUserTopic(uid) {
@@ -43,6 +42,32 @@ function sanitizeImageUrl(rawUrl) {
   return '';
 }
 
+async function sendWithTopicFallback(basePayload, directToken, recipientTopic, forceTopic) {
+  const useTopic = !directToken || forceTopic === true;
+  if (useTopic) {
+    const messageId = await admin.messaging().send({
+      ...basePayload,
+      topic: recipientTopic,
+    });
+    return { messageId, mode: 'unlimited_secret_topic' };
+  }
+
+  try {
+    const messageId = await admin.messaging().send({
+      ...basePayload,
+      token: directToken,
+    });
+    return { messageId, mode: 'unlimited_direct_token' };
+  } catch (_) {
+    // Stale/invalid direct token -> automatically fallback to Secret Topic (NO 500 crash!)
+    const messageId = await admin.messaging().send({
+      ...basePayload,
+      topic: recipientTopic,
+    });
+    return { messageId, mode: 'fallback_secret_topic' };
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -64,8 +89,8 @@ export default async function handler(req, res) {
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
     const {
-      type = 'secure_chat', // 'register_device' | 'unregister_device' | 'test_push' | 'secure_chat' | 'chat_request' | 'request_accepted'
-      deliveryMode = 'hybrid', // 'hybrid' (100% Vivo reliable) | 'data_only' (pure MessagingStyle)
+      type = 'secure_chat',
+      deliveryMode = 'hybrid',
       fcmToken = '',
       recipientUid = '',
       recipientFcmToken = '',
@@ -79,9 +104,10 @@ export default async function handler(req, res) {
       messageType = 'text',
       messagePreview = 'New secure message',
       stackedLines: clientStackedLines = null,
+      testViaTopic = false,
     } = parsedBody;
 
-    // 1) REGISTER DEVICE TO UNLIMITED PRIVATE FCM TOPIC (0 Firestore calls)
+    // 1) REGISTER DEVICE TO PRIVATE UNLIMITED FCM TOPIC
     if (type === 'register_device') {
       const cleanToken = String(fcmToken || recipientFcmToken || '').trim();
       if (!cleanToken) {
@@ -90,14 +116,16 @@ export default async function handler(req, res) {
       const userTopic = getSecretUserTopic(decoded.uid);
       const subRes = await admin.messaging().subscribeToTopic([cleanToken], userTopic);
       return res.status(200).json({
-        success: subRes.failureCount === 0,
+        success: subRes.successCount >= 1 && subRes.failureCount === 0,
         mode: 'topic_registered',
+        topic: userTopic,
         successCount: subRes.successCount,
         failureCount: subRes.failureCount,
+        errors: (subRes.errors || []).map((e) => e.error?.message || 'unknown'),
       });
     }
 
-    // 2) UNREGISTER DEVICE ON LOGOUT (0 Firestore calls)
+    // 2) UNREGISTER DEVICE ON LOGOUT
     if (type === 'unregister_device') {
       const cleanToken = String(fcmToken || recipientFcmToken || '').trim();
       if (!cleanToken) {
@@ -108,6 +136,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: unsubRes.failureCount === 0,
         mode: 'topic_unregistered',
+        topic: userTopic,
         successCount: unsubRes.successCount,
       });
     }
@@ -125,14 +154,11 @@ export default async function handler(req, res) {
 
     const finalChannelId = String(targetChannelId || 'anant_secure_chat_v3').trim();
     const directToken = String(recipientFcmToken || fcmToken || '').trim();
-    const deliveryTarget = directToken
-      ? { token: directToken }
-      : { topic: getSecretUserTopic(effectiveRecipientUid) };
+    const recipientTopic = getSecretUserTopic(effectiveRecipientUid);
 
-    // 3) INSTANT LIVE TEST PUSH (0 Firestore calls)
+    // 3) INSTANT LIVE TEST PUSH
     if (type === 'test_push') {
-      const testResp = await admin.messaging().send({
-        ...deliveryTarget,
+      const testBase = {
         notification: {
           title: 'Anant Gallery Secure Chat',
           body: 'Unlimited push notifications are active on this device.',
@@ -154,17 +180,24 @@ export default async function handler(req, res) {
             visibility: 'public',
           },
         },
-      });
+      };
+
+      const result = await sendWithTopicFallback(
+        testBase,
+        directToken,
+        recipientTopic,
+        testViaTopic === true
+      );
 
       return res.status(200).json({
         success: true,
-        mode: directToken ? 'test_push_direct_token' : 'test_push_secret_topic',
+        mode: `test_${result.mode}`,
         channelId: finalChannelId,
-        messageId: testResp,
+        messageId: result.messageId,
       });
     }
 
-    // 4) UNLIMITED SECURE CHAT / REQUEST PUSH (0 Firestore calls)
+    // 4) UNLIMITED SECURE CHAT / REQUEST PUSH
     const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
     const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
@@ -183,7 +216,6 @@ export default async function handler(req, res) {
     const finalMessageId = String(messageId || `${now}_${Math.random().toString(36).slice(2, 7)}`);
     const threadKey = String(chatId || effectiveSenderUid).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-    // In-memory multi-message stacking so rapid messages (Hi, Jddi, Eiei) all stay visible in 1 card
     let stackedLines = [singleLineBody];
     if (Array.isArray(clientStackedLines) && clientStackedLines.length > 0) {
       stackedLines = clientStackedLines
@@ -231,9 +263,8 @@ export default async function handler(req, res) {
 
     const isDataOnly = deliveryMode === 'data_only';
 
-    const messagePayload = isDataOnly
+    const basePayload = isDataOnly
       ? {
-          ...deliveryTarget,
           data: baseData,
           android: {
             priority: 'high',
@@ -241,7 +272,6 @@ export default async function handler(req, res) {
           },
         }
       : {
-          ...deliveryTarget,
           notification: {
             title: stackedTitle,
             body: stackedBody,
@@ -256,29 +286,25 @@ export default async function handler(req, res) {
               defaultVibrateTimings: true,
               priority: 'max',
               visibility: 'private',
-              clickAction: 'OPEN_SECURE_CHAT',
               tag: threadKey,
             },
           },
         };
 
-    const fcmResponse = await admin.messaging().send(messagePayload);
+    const result = await sendWithTopicFallback(basePayload, directToken, recipientTopic, false);
 
     return res.status(200).json({
       success: true,
-      mode: directToken
-        ? isDataOnly
-          ? 'unlimited_token_data_only'
-          : 'unlimited_token_hybrid'
-        : isDataOnly
-          ? 'unlimited_topic_data_only'
-          : 'unlimited_topic_hybrid',
+      mode: result.mode,
       channelId: finalChannelId,
       stackedCount: stackedLines.length,
-      messageId: fcmResponse,
+      messageId: result.messageId,
     });
   } catch (err) {
     console.error('Push notification error:', err);
-    return res.status(500).json({ error: err.message || 'Internal error' });
+    return res.status(500).json({
+      error: err?.message || 'Internal error',
+      code: err?.code || 'unknown',
+    });
   }
 }
