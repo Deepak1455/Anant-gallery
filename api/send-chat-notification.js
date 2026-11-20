@@ -59,7 +59,6 @@ async function sendWithTopicFallback(basePayload, directToken, recipientTopic, f
     });
     return { messageId, mode: 'unlimited_direct_token' };
   } catch (_) {
-    // Stale/invalid direct token -> automatically fallback to Secret Topic (NO 500 crash!)
     const messageId = await admin.messaging().send({
       ...basePayload,
       topic: recipientTopic,
@@ -90,7 +89,8 @@ export default async function handler(req, res) {
 
     const {
       type = 'secure_chat',
-      deliveryMode = 'hybrid',
+      // Default to 'data_only' so Android renders WhatsApp/Instagram Circular User DP + Stacked MessagingStyle + Reply!
+      deliveryMode = 'data_only',
       fcmToken = '',
       recipientUid = '',
       recipientFcmToken = '',
@@ -159,26 +159,17 @@ export default async function handler(req, res) {
     // 3) INSTANT LIVE TEST PUSH
     if (type === 'test_push') {
       const testBase = {
-        notification: {
-          title: 'Anant Gallery Secure Chat',
-          body: 'Unlimited push notifications are active on this device.',
-        },
         data: {
           type: 'test_push',
-          senderName: 'Anant Gallery',
-          messagePreview: 'Unlimited push notifications are active on this device.',
+          senderUid: effectiveSenderUid,
+          senderName: String(senderName || '').trim() || 'Anant Gallery',
+          senderPhotoUrl: sanitizeImageUrl(senderPhotoUrl),
+          messagePreview: 'Unlimited push notifications with Circular DP are active.',
           timestamp: String(Date.now()),
         },
         android: {
           priority: 'high',
           ttl: 300 * 1000,
-          notification: {
-            channelId: finalChannelId,
-            defaultSound: true,
-            defaultVibrateTimings: true,
-            priority: 'max',
-            visibility: 'public',
-          },
         },
       };
 
@@ -197,7 +188,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4) UNLIMITED SECURE CHAT / REQUEST PUSH
+    // 4) UNLIMITED SECURE CHAT / REQUEST PUSH WITH CIRCULAR DP SUPPORT
     const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
     const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
@@ -257,11 +248,12 @@ export default async function handler(req, res) {
       messageId: finalMessageId,
       messageType: String(messageType),
       messagePreview: singleLineBody,
+      stackedLinesJson: JSON.stringify(stackedLines),
       unreadCount: String(stackedLines.length),
       timestamp: String(now),
     };
 
-    const isDataOnly = deliveryMode === 'data_only';
+    const isDataOnly = deliveryMode !== 'hybrid';
 
     const basePayload = isDataOnly
       ? {
@@ -295,7 +287,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      mode: result.mode,
+      mode: `${isDataOnly ? 'data_only' : 'hybrid'}_${result.mode}`,
       channelId: finalChannelId,
       stackedCount: stackedLines.length,
       messageId: result.messageId,
