@@ -89,8 +89,8 @@ export default async function handler(req, res) {
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
     const {
-      type = 'secure_chat', // 'register_device' | 'unregister_device' | 'clear_thread' | 'test_push' | 'secure_chat' | 'chat_request' | 'request_accepted'
-      deliveryMode = 'auto', // 'auto' | 'hybrid' | 'data_only'
+      type = 'secure_chat',
+      deliveryMode = 'auto',
       richMode = false,
       fcmToken = '',
       recipientUid = '',
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3) CLEAR UNREAD THREAD COUNT INSTANTLY WHEN USER OPENS CHAT (0 Firestore calls!)
+    // 3) CLEAR UNREAD THREAD COUNT INSTANTLY WHEN USER OPENS CHAT
     if (type === 'clear_thread') {
       const clearKey = String(chatId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
       if (clearKey) {
@@ -169,19 +169,20 @@ export default async function handler(req, res) {
     const recipientTopic = getSecretUserTopic(effectiveRecipientUid);
     const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
-    // 4) INSTANT LIVE TEST PUSH
+    // 4) INSTANT LIVE TEST PUSH WITH DP
     if (type === 'test_push') {
       const testBase = {
         notification: {
-          title: 'Anant Gallery Secure Chat',
-          body: 'Instant push notifications are active on this device.',
+          title: String(senderName || '').trim() || 'Anant Gallery Secure Chat',
+          body: 'Instant push notifications with DP are active on this device.',
+          ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
         },
         data: {
           type: 'test_push',
           senderUid: effectiveSenderUid,
           senderName: String(senderName || '').trim() || 'Anant Gallery',
           senderPhotoUrl: validImageUrl,
-          messagePreview: 'Instant push notifications are active on this device.',
+          messagePreview: 'Instant push notifications with DP are active on this device.',
           timestamp: String(Date.now()),
         },
         android: {
@@ -193,6 +194,7 @@ export default async function handler(req, res) {
             defaultVibrateTimings: true,
             priority: 'max',
             visibility: 'public',
+            ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
           },
         },
       };
@@ -207,12 +209,13 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         mode: `test_${result.mode}`,
+        hasDpImage: Boolean(validImageUrl),
         channelId: finalChannelId,
         messageId: result.messageId,
       });
     }
 
-    // 5) AUTO-SMART UNLIMITED SECURE CHAT PUSH
+    // 5) AUTO-SMART UNLIMITED SECURE CHAT PUSH (DP ALWAYS SHOWN!)
     const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
 
     let singleLineBody =
@@ -276,8 +279,6 @@ export default async function handler(req, res) {
       timestamp: String(now),
     };
 
-    // Auto-Smart: Uses WhatsApp-style data_only ONLY for devices confirmed with Unrestricted Background;
-    // otherwise uses 100% Vivo-proof clean 6-line hybrid card (NO giant face banner cutting off text!)
     const useDataOnly =
       deliveryMode === 'data_only' ||
       (deliveryMode === 'auto' && richModeCache.get(effectiveRecipientUid) === true);
@@ -294,6 +295,7 @@ export default async function handler(req, res) {
           notification: {
             title: stackedTitle,
             body: stackedBody,
+            ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
           },
           data: baseData,
           android: {
@@ -306,6 +308,7 @@ export default async function handler(req, res) {
               priority: 'max',
               visibility: 'private',
               tag: threadKey,
+              ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
             },
           },
         };
@@ -314,7 +317,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      mode: `${useDataOnly ? 'smart_circular_dp' : 'clean_vivo_hybrid'}_${result.mode}`,
+      mode: `${useDataOnly ? 'smart_circular_dp' : 'vivo_hybrid_with_dp'}_${result.mode}`,
+      hasDpImage: Boolean(validImageUrl),
       channelId: finalChannelId,
       stackedCount: stackedLines.length,
       messageId: result.messageId,
