@@ -89,8 +89,6 @@ export default async function handler(req, res) {
 
     const {
       type = 'secure_chat',
-      // Default to 'data_only' so Android renders WhatsApp/Instagram Circular User DP + Stacked MessagingStyle + Reply!
-      deliveryMode = 'data_only',
       fcmToken = '',
       recipientUid = '',
       recipientFcmToken = '',
@@ -155,21 +153,37 @@ export default async function handler(req, res) {
     const finalChannelId = String(targetChannelId || 'anant_secure_chat_v3').trim();
     const directToken = String(recipientFcmToken || fcmToken || '').trim();
     const recipientTopic = getSecretUserTopic(effectiveRecipientUid);
+    const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
-    // 3) INSTANT LIVE TEST PUSH
+    // 3) INSTANT LIVE TEST PUSH (100% Vivo-Proof Hybrid + User DP)
     if (type === 'test_push') {
+      const testNotif = {
+        title: String(senderName || '').trim() || 'Anant Gallery Secure Chat',
+        body: 'Unlimited push notifications with User DP are active.',
+        ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+      };
+
       const testBase = {
+        notification: testNotif,
         data: {
           type: 'test_push',
           senderUid: effectiveSenderUid,
-          senderName: String(senderName || '').trim() || 'Anant Gallery',
-          senderPhotoUrl: sanitizeImageUrl(senderPhotoUrl),
-          messagePreview: 'Unlimited push notifications with Circular DP are active.',
+          senderName: testNotif.title,
+          senderPhotoUrl: validImageUrl,
+          messagePreview: testNotif.body,
           timestamp: String(Date.now()),
         },
         android: {
           priority: 'high',
           ttl: 300 * 1000,
+          notification: {
+            channelId: finalChannelId,
+            defaultSound: true,
+            defaultVibrateTimings: true,
+            priority: 'max',
+            visibility: 'public',
+            ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+          },
         },
       };
 
@@ -182,15 +196,15 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         success: true,
-        mode: `test_${result.mode}`,
+        mode: `test_hybrid_${result.mode}`,
         channelId: finalChannelId,
+        hasDpImage: Boolean(validImageUrl),
         messageId: result.messageId,
       });
     }
 
-    // 4) UNLIMITED SECURE CHAT / REQUEST PUSH WITH CIRCULAR DP SUPPORT
+    // 4) 100% VIVO-PROOF UNLIMITED HYBRID PUSH + STACKED MESSAGES + USER DP
     const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
-    const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
     let singleLineBody =
       messageType === 'photo'
@@ -253,42 +267,35 @@ export default async function handler(req, res) {
       timestamp: String(now),
     };
 
-    const isDataOnly = deliveryMode !== 'hybrid';
-
-    const basePayload = isDataOnly
-      ? {
-          data: baseData,
-          android: {
-            priority: 'high',
-            ttl: 86400 * 1000,
-          },
-        }
-      : {
-          notification: {
-            title: stackedTitle,
-            body: stackedBody,
-          },
-          data: baseData,
-          android: {
-            priority: 'high',
-            ttl: 86400 * 1000,
-            notification: {
-              channelId: finalChannelId,
-              defaultSound: true,
-              defaultVibrateTimings: true,
-              priority: 'max',
-              visibility: 'private',
-              tag: threadKey,
-            },
-          },
-        };
+    const basePayload = {
+      notification: {
+        title: stackedTitle,
+        body: stackedBody,
+        ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+      },
+      data: baseData,
+      android: {
+        priority: 'high',
+        ttl: 86400 * 1000,
+        notification: {
+          channelId: finalChannelId,
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          priority: 'max',
+          visibility: 'private',
+          tag: threadKey,
+          ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
+        },
+      },
+    };
 
     const result = await sendWithTopicFallback(basePayload, directToken, recipientTopic, false);
 
     return res.status(200).json({
       success: true,
-      mode: `${isDataOnly ? 'data_only' : 'hybrid'}_${result.mode}`,
+      mode: `vivo_hybrid_${result.mode}`,
       channelId: finalChannelId,
+      hasDpImage: Boolean(validImageUrl),
       stackedCount: stackedLines.length,
       messageId: result.messageId,
     });
