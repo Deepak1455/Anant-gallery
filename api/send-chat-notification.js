@@ -11,10 +11,6 @@ if (!admin.apps.length) {
   });
 }
 
-// Warm in-memory caches (0 Firestore Reads/Writes on repeat messages!)
-const tokenCache = globalThis.__anantTokenCache || (globalThis.__anantTokenCache = new Map());
-const threadCache = globalThis.__anantThreadCache || (globalThis.__anantThreadCache = new Map());
-
 function sanitizeImageUrl(rawUrl) {
   const clean = String(rawUrl || '').trim();
   if (!clean) return '';
@@ -44,10 +40,8 @@ export default async function handler(req, res) {
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
     const {
-      type = 'secure_chat', // 'secure_chat' | 'chat_request' | 'request_accepted' | 'test_push'
+      type = 'secure_chat', // 'secure_chat' | 'chat_request' | 'request_accepted'
       recipientUid = '',
-      recipientFcmToken = '',
-      targetChannelId: clientChannelId = '',
       chatId = '',
       senderUid = '',
       senderName = '',
@@ -56,120 +50,47 @@ export default async function handler(req, res) {
       messageId = '',
       messageType = 'text',
       messagePreview = 'New secure message',
-      stackedLines: clientStackedLines = null,
     } = parsedBody;
 
-    const effectiveSenderUid = senderUid || decoded.uid;
-    const effectiveRecipientUid = type === 'test_push' ? decoded.uid : recipientUid;
-
-    if (!effectiveRecipientUid || decoded.uid !== effectiveSenderUid) {
+    if (!recipientUid || !senderUid || decoded.uid !== senderUid) {
       return res.status(403).json({ error: 'Invalid sender or recipient' });
     }
-    if (type !== 'test_push' && effectiveRecipientUid === effectiveSenderUid) {
+    if (recipientUid === senderUid) {
       return res.status(200).json({ skipped: true, reason: 'Self notification skipped' });
     }
 
-    // 1) Resolve FCM Token with ZERO Firestore reads if provided by app or cached
-    let fcmToken = String(recipientFcmToken || '').trim();
-    let targetChannelId = String(clientChannelId || '').trim();
-    let usedFirestore = false;
+    const db = admin.firestore();
+    const userRef = db.collection('users').doc(recipientUid);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) return res.status(404).json({ error: 'Recipient user not found' });
 
-    const cached = tokenCache.get(effectiveRecipientUid);
-    if (!fcmToken && cached && Date.now() - cached.savedAt < 10 * 60 * 1000) {
-      fcmToken = cached.fcmToken;
-      if (!targetChannelId) targetChannelId = cached.channelId;
-    }
+    const recipientData = userDoc.data() || {};
+    const fcmToken = recipientData.fcmToken || '';
+    if (!fcmToken) return res.status(200).json({ skipped: true, reason: 'No fcmToken' });
 
-    if (fcmToken) {
-      tokenCache.set(effectiveRecipientUid, {
-        fcmToken,
-        channelId: targetChannelId || 'anant_secure_chat_v3',
-        savedAt: Date.now(),
-      });
-    } else {
-      // Fallback: Read Firestore ONLY if client did not send recipientFcmToken
+    // Resolve sender Name & Photo safely from Firestore if missing
+    let resolvedName = String(senderName || '').trim();
+    let rawSenderPhoto = String(senderPhotoUrl || '').trim();
+    if (!resolvedName || !rawSenderPhoto) {
       try {
-        usedFirestore = true;
-        const db = admin.firestore();
-        const userDoc = await db.collection('users').doc(effectiveRecipientUid).get();
-        if (!userDoc.exists) {
-          return res.status(404).json({ error: 'Recipient user not found' });
+        const senderDoc = await db.collection('users').doc(senderUid).get();
+        if (senderDoc.exists) {
+          const sData = senderDoc.data() || {};
+          if (!resolvedName) resolvedName = sData.name || sData.displayName || 'Anant User';
+          if (!rawSenderPhoto) {
+            rawSenderPhoto = sData.photoUrl || sData.avatarUrl || sData.profilePhoto || '';
+          }
         }
-        const rData = userDoc.data() || {};
-        fcmToken = String(rData.fcmToken || '').trim();
-        if (!targetChannelId) {
-          targetChannelId = String(rData.notifChannelId || 'anant_secure_chat_v3').trim();
-        }
-        if (fcmToken) {
-          tokenCache.set(effectiveRecipientUid, {
-            fcmToken,
-            channelId: targetChannelId,
-            savedAt: Date.now(),
-          });
-        }
-      } catch (fsErr) {
-        const isQuota = fsErr?.code === 8 || String(fsErr?.message || '').includes('RESOURCE_EXHAUSTED');
-        return res.status(isQuota ? 503 : 500).json({
-          success: false,
-          error: isQuota
-            ? 'Firestore daily quota exceeded. Pass recipientFcmToken from Android to bypass Firestore.'
-            : (fsErr?.message || 'Firestore lookup failed'),
-        });
-      }
+      } catch (_) {}
     }
 
-    if (!fcmToken) {
-      return res.status(200).json({
-        success: false,
-        skipped: true,
-        reason: 'Recipient has no fcmToken synced yet',
-      });
-    }
-
-    const finalChannelId = targetChannelId || 'anant_secure_chat_v3';
-
-    // 2) Instant Live Test Push (Works with 0 Firestore calls!)
-    if (type === 'test_push') {
-      const testResp = await admin.messaging().send({
-        token: fcmToken,
-        notification: {
-          title: 'Anant Gallery Secure Chat',
-          body: 'Push notifications are active and working smoothly on this device.',
-        },
-        data: {
-          type: 'test_push',
-          senderName: 'Anant Gallery',
-          messagePreview: 'Push notifications are active and working smoothly on this device.',
-          timestamp: String(Date.now()),
-        },
-        android: {
-          priority: 'high',
-          ttl: 300 * 1000,
-          notification: {
-            channelId: finalChannelId,
-            defaultSound: true,
-            defaultVibrateTimings: true,
-            priority: 'max',
-            visibility: 'public',
-          },
-        },
-      });
-
-      return res.status(200).json({
-        success: true,
-        mode: 'test_push_zero_firestore',
-        channelId: finalChannelId,
-        messageId: testResp,
-      });
-    }
-
-    const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
-    const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
+    const finalSenderName = resolvedName || 'Anant Secure Chat';
+    const validImageUrl = sanitizeImageUrl(rawSenderPhoto);
 
     let singleLineBody =
       messageType === 'photo'
         ? 'Sent a view-limit protected photo'
-        : String(messagePreview || 'New secure message').trim().slice(0, 140);
+        : String(messagePreview || 'New secure message').slice(0, 180);
 
     if (type === 'chat_request') {
       singleLineBody = 'Sent you a Secure Chat request';
@@ -177,94 +98,107 @@ export default async function handler(req, res) {
       singleLineBody = 'Accepted your Secure Chat request';
     }
 
-    const now = Date.now();
-    const finalMessageId = String(messageId || `${now}_${Math.random().toString(36).slice(2, 7)}`);
-    const threadKey = String(chatId || effectiveSenderUid).replace(/[^a-zA-Z0-9_-]/g, '_');
+    // Smart Single-Card Server Stacking for unread messages (prevents separate cards!)
+    let stackedTitle = finalSenderName;
+    let stackedBody = singleLineBody;
 
-    // 3) Zero-Firestore In-Memory Multi-Message Stacking (Hi\nJddi\nEiei)
-    let stackedLines = [singleLineBody];
-    if (Array.isArray(clientStackedLines) && clientStackedLines.length > 0) {
-      stackedLines = clientStackedLines
-        .map((s) => String(s || '').trim().slice(0, 120))
-        .filter(Boolean)
-        .slice(-6);
-    } else if (type === 'secure_chat' && threadKey) {
-      const cacheKey = `${effectiveRecipientUid}::${threadKey}`;
-      const prev = threadCache.get(cacheKey);
-      const isFresh = prev && now - prev.updatedAt < 20 * 60 * 1000;
-      const prevLines = isFresh ? prev.lines : [];
-      const prevIds = isFresh ? prev.ids : [];
+    if (type === 'secure_chat' && chatId) {
+      try {
+        const recentSnap = await db
+          .collection('secure_chats')
+          .document(chatId)
+          .collection('messages')
+          .orderBy('timestamp', 'desc')
+          .limit(6)
+          .get();
 
-      if (!prevIds.includes(finalMessageId)) {
-        stackedLines = [...prevLines, singleLineBody].slice(-6);
-        threadCache.set(cacheKey, {
-          lines: stackedLines,
-          ids: [...prevIds, finalMessageId].slice(-10),
-          updatedAt: now,
-        });
-      } else if (prevLines.length > 0) {
-        stackedLines = prevLines;
+        const unseenLines = [];
+        for (const doc of recentSnap.docs) {
+          const m = doc.data() || {};
+          const isSeen = m.seen === true || m.isSeen === true;
+          if (m.senderId === senderUid && !isSeen) {
+            const line =
+              m.type === 'photo'
+                ? 'View-limit photo'
+                : String(m.text || m.message || '').trim().slice(0, 80);
+            if (line) unseenLines.unshift(line);
+          }
+        }
+
+        if (unseenLines.length > 1) {
+          stackedTitle = `${finalSenderName} (${unseenLines.length} new messages)`;
+          stackedBody = unseenLines.slice(-4).join('\n');
+        }
+      } catch (_) {
+        // Safe fallback to singleLineBody if timestamp field/order differs
       }
     }
 
-    const stackedTitle =
-      stackedLines.length > 1
-        ? `${finalSenderName} (${stackedLines.length} new messages)`
-        : finalSenderName;
-    const stackedBody = stackedLines.join('\n');
+    // Use Data-Only MessagingStyle when recipient device confirmed rich push support;
+    // otherwise use Single-Card Hybrid (100% Vivo reliable, NEVER multiple cards!)
+    const supportsRichPush = recipientData.richNotifications === true;
 
     const baseData = {
       type: String(type),
       chatId: String(chatId),
-      senderUid: String(effectiveSenderUid),
+      senderUid: String(senderUid),
       senderName: finalSenderName,
       senderEmail: String(senderEmail),
       senderPhotoUrl: validImageUrl,
-      messageId: finalMessageId,
+      messageId: String(messageId),
       messageType: String(messageType),
       messagePreview: singleLineBody,
-      unreadCount: String(stackedLines.length),
-      timestamp: String(now),
+      timestamp: String(Date.now()),
     };
 
-    const messagePayload = {
-      token: fcmToken,
-      notification: {
-        title: stackedTitle,
-        body: stackedBody,
-      },
-      data: baseData,
-      android: {
-        priority: 'high',
-        ttl: 86400 * 1000,
-        notification: {
-          channelId: finalChannelId,
-          defaultSound: true,
-          defaultVibrateTimings: true,
-          priority: 'max',
-          visibility: 'private',
-          clickAction: 'OPEN_SECURE_CHAT',
-          tag: threadKey,
-        },
-      },
-    };
+    const messagePayload = supportsRichPush
+      ? {
+          token: fcmToken,
+          data: baseData,
+          android: {
+            priority: 'high',
+            ttl: 86400 * 1000,
+          },
+        }
+      : {
+          token: fcmToken,
+          notification: {
+            title: stackedTitle,
+            body: stackedBody,
+          },
+          data: baseData,
+          android: {
+            priority: 'high',
+            ttl: 86400 * 1000,
+            notification: {
+              channelId: 'anant_secure_chat_v2',
+              sound: 'default',
+              defaultSound: true,
+              defaultVibrateTimings: true,
+              priority: 'max',
+              visibility: 'private',
+              clickAction: 'OPEN_SECURE_CHAT',
+              // Same tag per chatId -> ALWAYS 1 single stacked card, NEVER multiple cards!
+              tag: String(chatId || senderUid),
+            },
+          },
+        };
 
     try {
       const fcmResponse = await admin.messaging().send(messagePayload);
       return res.status(200).json({
         success: true,
-        mode: usedFirestore ? 'hybrid_firestore_fallback' : 'zero_firestore_ultra_fast',
-        channelId: finalChannelId,
-        stackedCount: stackedLines.length,
+        mode: supportsRichPush ? 'rich_data_only' : 'stacked_single_card',
         messageId: fcmResponse,
       });
     } catch (sendErr) {
+      // Auto-clean dead/uninstalled FCM token
       if (
         sendErr?.code === 'messaging/registration-token-not-registered' ||
         sendErr?.code === 'messaging/invalid-registration-token'
       ) {
-        tokenCache.delete(effectiveRecipientUid);
-        return res.status(200).json({ skipped: true, reason: 'Stale fcmToken skipped' });
+        await userRef.update({ fcmToken: admin.firestore.FieldValue.delete() }).catch(() => {});
+        return res.status(200).json({ skipped: true, reason: 'Cleaned stale fcmToken' });
       }
       throw sendErr;
     }
