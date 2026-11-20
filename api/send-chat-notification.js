@@ -19,6 +19,7 @@ if (!admin.apps.length) {
 }
 
 const threadCache = globalThis.__anantThreadCache || (globalThis.__anantThreadCache = new Map());
+const richModeCache = globalThis.__anantRichModeCache || (globalThis.__anantRichModeCache = new Map());
 
 function getSecretUserTopic(uid) {
   const secret =
@@ -88,7 +89,9 @@ export default async function handler(req, res) {
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
     const {
-      type = 'secure_chat',
+      type = 'secure_chat', // 'register_device' | 'unregister_device' | 'clear_thread' | 'test_push' | 'secure_chat' | 'chat_request' | 'request_accepted'
+      deliveryMode = 'auto', // 'auto' | 'hybrid' | 'data_only'
+      richMode = false,
       fcmToken = '',
       recipientUid = '',
       recipientFcmToken = '',
@@ -105,21 +108,22 @@ export default async function handler(req, res) {
       testViaTopic = false,
     } = parsedBody;
 
-    // 1) REGISTER DEVICE TO PRIVATE UNLIMITED FCM TOPIC
+    // 1) REGISTER DEVICE TO UNLIMITED PRIVATE FCM TOPIC
     if (type === 'register_device') {
       const cleanToken = String(fcmToken || recipientFcmToken || '').trim();
       if (!cleanToken) {
         return res.status(400).json({ error: 'Missing fcmToken' });
       }
+      richModeCache.set(decoded.uid, richMode === true);
       const userTopic = getSecretUserTopic(decoded.uid);
       const subRes = await admin.messaging().subscribeToTopic([cleanToken], userTopic);
       return res.status(200).json({
         success: subRes.successCount >= 1 && subRes.failureCount === 0,
         mode: 'topic_registered',
+        richMode: richMode === true,
         topic: userTopic,
         successCount: subRes.successCount,
         failureCount: subRes.failureCount,
-        errors: (subRes.errors || []).map((e) => e.error?.message || 'unknown'),
       });
     }
 
@@ -129,6 +133,7 @@ export default async function handler(req, res) {
       if (!cleanToken) {
         return res.status(400).json({ error: 'Missing fcmToken' });
       }
+      richModeCache.delete(decoded.uid);
       const userTopic = getSecretUserTopic(decoded.uid);
       const unsubRes = await admin.messaging().unsubscribeFromTopic([cleanToken], userTopic);
       return res.status(200).json({
@@ -137,6 +142,15 @@ export default async function handler(req, res) {
         topic: userTopic,
         successCount: unsubRes.successCount,
       });
+    }
+
+    // 3) CLEAR UNREAD THREAD COUNT INSTANTLY WHEN USER OPENS CHAT (0 Firestore calls!)
+    if (type === 'clear_thread') {
+      const clearKey = String(chatId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (clearKey) {
+        threadCache.delete(`${decoded.uid}::${clearKey}`);
+      }
+      return res.status(200).json({ success: true, mode: 'thread_cleared', chatId: clearKey });
     }
 
     const effectiveSenderUid = String(senderUid || decoded.uid).trim();
@@ -155,22 +169,19 @@ export default async function handler(req, res) {
     const recipientTopic = getSecretUserTopic(effectiveRecipientUid);
     const validImageUrl = sanitizeImageUrl(senderPhotoUrl);
 
-    // 3) INSTANT LIVE TEST PUSH (100% Vivo-Proof Hybrid + User DP)
+    // 4) INSTANT LIVE TEST PUSH
     if (type === 'test_push') {
-      const testNotif = {
-        title: String(senderName || '').trim() || 'Anant Gallery Secure Chat',
-        body: 'Unlimited push notifications with User DP are active.',
-        ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-      };
-
       const testBase = {
-        notification: testNotif,
+        notification: {
+          title: 'Anant Gallery Secure Chat',
+          body: 'Instant push notifications are active on this device.',
+        },
         data: {
           type: 'test_push',
           senderUid: effectiveSenderUid,
-          senderName: testNotif.title,
+          senderName: String(senderName || '').trim() || 'Anant Gallery',
           senderPhotoUrl: validImageUrl,
-          messagePreview: testNotif.body,
+          messagePreview: 'Instant push notifications are active on this device.',
           timestamp: String(Date.now()),
         },
         android: {
@@ -182,7 +193,6 @@ export default async function handler(req, res) {
             defaultVibrateTimings: true,
             priority: 'max',
             visibility: 'public',
-            ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
           },
         },
       };
@@ -196,14 +206,13 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         success: true,
-        mode: `test_hybrid_${result.mode}`,
+        mode: `test_${result.mode}`,
         channelId: finalChannelId,
-        hasDpImage: Boolean(validImageUrl),
         messageId: result.messageId,
       });
     }
 
-    // 4) 100% VIVO-PROOF UNLIMITED HYBRID PUSH + STACKED MESSAGES + USER DP
+    // 5) AUTO-SMART UNLIMITED SECURE CHAT PUSH
     const finalSenderName = String(senderName || '').trim() || 'Anant Secure Chat';
 
     let singleLineBody =
@@ -267,35 +276,46 @@ export default async function handler(req, res) {
       timestamp: String(now),
     };
 
-    const basePayload = {
-      notification: {
-        title: stackedTitle,
-        body: stackedBody,
-        ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-      },
-      data: baseData,
-      android: {
-        priority: 'high',
-        ttl: 86400 * 1000,
-        notification: {
-          channelId: finalChannelId,
-          defaultSound: true,
-          defaultVibrateTimings: true,
-          priority: 'max',
-          visibility: 'private',
-          tag: threadKey,
-          ...(validImageUrl ? { imageUrl: validImageUrl } : {}),
-        },
-      },
-    };
+    // Auto-Smart: Uses WhatsApp-style data_only ONLY for devices confirmed with Unrestricted Background;
+    // otherwise uses 100% Vivo-proof clean 6-line hybrid card (NO giant face banner cutting off text!)
+    const useDataOnly =
+      deliveryMode === 'data_only' ||
+      (deliveryMode === 'auto' && richModeCache.get(effectiveRecipientUid) === true);
+
+    const basePayload = useDataOnly
+      ? {
+          data: baseData,
+          android: {
+            priority: 'high',
+            ttl: 86400 * 1000,
+          },
+        }
+      : {
+          notification: {
+            title: stackedTitle,
+            body: stackedBody,
+          },
+          data: baseData,
+          android: {
+            priority: 'high',
+            ttl: 86400 * 1000,
+            notification: {
+              channelId: finalChannelId,
+              defaultSound: true,
+              defaultVibrateTimings: true,
+              priority: 'max',
+              visibility: 'private',
+              tag: threadKey,
+            },
+          },
+        };
 
     const result = await sendWithTopicFallback(basePayload, directToken, recipientTopic, false);
 
     return res.status(200).json({
       success: true,
-      mode: `vivo_hybrid_${result.mode}`,
+      mode: `${useDataOnly ? 'smart_circular_dp' : 'clean_vivo_hybrid'}_${result.mode}`,
       channelId: finalChannelId,
-      hasDpImage: Boolean(validImageUrl),
       stackedCount: stackedLines.length,
       messageId: result.messageId,
     });
