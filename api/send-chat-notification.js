@@ -72,7 +72,7 @@ export default async function handler(req, res) {
     if (!userDoc.exists) return res.status(404).json({ error: 'Recipient user not found' });
 
     const recipientData = userDoc.data() || {};
-    const fcmToken = recipientData.fcmToken || '';
+    const fcmToken = String(recipientData.fcmToken || '').trim();
     if (!fcmToken) return res.status(200).json({ skipped: true, reason: 'No fcmToken' });
 
     let resolvedName = String(senderName || '').trim();
@@ -81,7 +81,8 @@ export default async function handler(req, res) {
       const sData = senderDoc.data() || {};
       if (!resolvedName) resolvedName = sData.name || sData.displayName || 'Anant User';
       if (!rawSenderPhoto) {
-        rawSenderPhoto = sData.photoUrl || sData.avatarUrl || sData.profilePhoto || '';
+        rawSenderPhoto =
+          sData.photoUrl || sData.photoURL || sData.avatarUrl || sData.profilePhoto || '';
       }
     }
 
@@ -115,7 +116,7 @@ export default async function handler(req, res) {
       timestamp: String(Date.now()),
     };
 
-    // IMPORTANT: Do NOT set collapseKey for chat messages so rapid messages (Hi, Jddi, Eiei) are NEVER dropped!
+    // IMPORTANT: Never use collapseKey for chat messages so rapid bursts are NEVER dropped
     const messagePayload = supportsRichPush
       ? {
           token: fcmToken,
@@ -137,7 +138,6 @@ export default async function handler(req, res) {
             ttl: 86400 * 1000,
             notification: {
               channelId: 'anant_secure_chat_v3',
-              sound: 'default',
               defaultSound: true,
               defaultVibrateTimings: true,
               priority: 'max',
